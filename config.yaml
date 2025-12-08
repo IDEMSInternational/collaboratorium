@@ -512,8 +512,17 @@ forms:
               label: Summary (optional)
               appearance: multiline
             attachments:
-              type: string
+              type: table
               label: Attachments
+              appearance: markdown
+              rowfmt: '- [{name}]({url})'
+              columns:
+                - id: name
+                  name: File Name
+                  editable: True
+                - id: url
+                  name: URL
+                  editable: True
       location:
         type: string
         label: Location

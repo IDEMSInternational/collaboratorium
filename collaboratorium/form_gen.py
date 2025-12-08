@@ -190,6 +190,7 @@ def register_submit_callbacks(app, forms_config):
             "date": "date",
             "datetime": "date",
             "subform": "data",
+            "table": "data",
         }
         meta_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["meta"].keys()]
         state_args = []

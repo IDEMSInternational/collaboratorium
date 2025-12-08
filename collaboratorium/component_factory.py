@@ -1,4 +1,4 @@
-from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
+from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH, dash_table
 from datetime import datetime
 import json
 from visual_customization import dcl
@@ -124,6 +124,55 @@ def component_for_element(element_config, form_name, value=None):
             ]
         )
 
+    # --- Table ---
+    elif element_type == "table":
+        if 'columns' in element_config:
+            columns = element_config['columns']
+        else:
+            columns = []
+
+        empty_row = {c['id']: None for c in columns}
+        if value is None:
+            value = [empty_row]
+        if value[-1] != empty_row:
+            value.append(empty_row) # always new row
+        if 'appearance' not in element_config.keys():
+            return html.Div(
+                [
+                    html.Label(label),
+                    dash_table.DataTable(
+                        id={"type": "input", "form": form_name, "element": element_config["element_id"]},
+                        columns=columns,
+                        data=value,
+                        row_deletable=True,
+                        editable=True,
+                        style_cell={'textAlign': 'left'},
+                        style_header={'fontWeight': 'bold'}
+                    ),
+                ])
+        elif element_config['appearance'] == 'markdown':
+            markdown_str = '\n'.join([element_config['rowfmt'].format(**d) for d in value if d != empty_row])
+            return html.Div(
+                [
+                    html.Label(label),
+                    dcc.Markdown(markdown_str, link_target="_blank"),
+                    html.Details(
+                [
+                    html.Summary(f'Modify {label}'),
+                    dash_table.DataTable(
+                        id={"type": "input", "form": form_name, "element": element_config["element_id"]},
+                        columns=columns,
+                        data=value,
+                        row_deletable=True,
+                        editable=True,
+                        style_cell={'textAlign': 'left'},
+                        style_header={'fontWeight': 'bold'}
+                    ),
+                ],
+                    ),
+                ])
+
+
     # --- Subform ---
     elif element_type == "subform":
         subform_block = html.Div([
@@ -137,14 +186,27 @@ def component_for_element(element_config, form_name, value=None):
     # --- DEFAULT FALLBACK ---
     return html.Div([html.Label(label), html.Div("Unsupported element type")])
 
+
+def combine_lists_with_nones(lists):
+    if not lists:
+        return []
+
+    # Determine the length of the lists (assuming all have the same length)
+    list_length = len(lists[0])
+    combined_list = [None] * list_length  # Initialize with None or a default value
+
+    for i in range(list_length):
+        for current_list in lists:
+            if current_list[i] is not None:
+                combined_list[i] = current_list[i]
+                break  # Move to the next index once a non-None value is found
+    return combined_list
+
+
 def register_subform_blocks(app, forms_config):
     """Register callbacks per subform in the config."""
     for form_name, fc in forms_config.items():
-        value_key_map = {
-            "date": "date",
-            "datetime": "date",
-            "subform": "data",
-        }
+
         state_args = []
         for e_id, e_val in fc["elements"].items():
             if e_val['type'] != 'subform':
@@ -164,13 +226,16 @@ def register_subform_blocks(app, forms_config):
                 Output({"type": "input", "form": form_name, "element": element_config["element_id"]}, "data"),
                 State({"type": "input", "form": form_name, "element": element_config["element_id"]}, "data"),
                 Input({"type": "input", "form": subform_name, "element": ALL}, "value"),
+                Input({"type": "input", "form": subform_name, "element": ALL}, "date"),
+                Input({"type": "input", "form": subform_name, "element": ALL}, "data"),
             )
-            def handle_subform_block(state, values, _element_config = element_config, _form_name = form_name):
+            def handle_subform_block(state, values, date, data, _element_config = element_config, _form_name = form_name):
                 if ctx.triggered_id is None:
                     return state
 
                 input_keys = [i['id']['element'] for i in ctx.inputs_list[0]]
-                flat_input_dict = dict(zip(input_keys, values))
+                combined_values = combine_lists_with_nones([values, date, data])
+                flat_input_dict = dict(zip(input_keys, combined_values))
                 input_dict = {}
                 for key, val in flat_input_dict.items():
                     if '|' in key:
@@ -185,7 +250,7 @@ def register_subform_blocks(app, forms_config):
                 if input_keys == ['failsafe']:
                     return None
 
-                if input_dict['subform_selector'] is not None:
+                if input_dict.get('subform_selector', None) is not None:
                     subform_key_values = get_dropdown_options(
                         element_config["parameters"]["source_table"],
                         element_config["parameters"]["value_column"],
@@ -198,9 +263,15 @@ def register_subform_blocks(app, forms_config):
                             for key in e_cfg.keys():
                                 input_dict[str(subform['value'])][key] = None
 
-                auto_keep = input_dict.pop('subform_selector')
-                new_state = json.loads(state) if state not in [None, ''] else {}
-                new_state.update(input_dict)
+                if 'subform_selector' in input_dict.keys():
+                    auto_keep = input_dict.pop('subform_selector')
+                else:
+                    auto_keep = None
+                try:
+                    new_state = json.loads(state) if state not in [None, ''] else {}
+                    new_state.update(input_dict)
+                except:
+                    new_state = input_dict
 
 
                 for key in list(new_state.keys()):

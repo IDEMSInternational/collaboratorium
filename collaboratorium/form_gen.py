@@ -5,6 +5,7 @@ from db import db_connect, get_latest_entry
 from analytics import analytics_log
 from auth import login_required
 from component_factory import component_for_element, register_subform_blocks
+from nextcloud_integration import register_nextcloud_callbacks, register_nextcloud_password_callback
 
 
 # ==============================================================
@@ -66,6 +67,8 @@ def register_form_callbacks(app, config):
     register_click_callbacks(app, config)
     register_submit_callbacks(app, config.get("forms", {}))
     register_subform_blocks(app, config.get("forms", {}))
+    register_nextcloud_callbacks(app, config)
+    register_nextcloud_password_callback(app)
 
 def register_click_callbacks(app, config):
     forms_config = config.get("forms", {})
@@ -185,22 +188,12 @@ def register_click_callbacks(app, config):
 def register_submit_callbacks(app, forms_config):
     """Register one submit callback per form in the config."""
     for form_name, fc in forms_config.items():
-        input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         value_key_map = {
             "date": "date",
             "datetime": "date",
             "subform": "data",
             "table": "data",
         }
-        meta_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["meta"].keys()]
-        state_args = []
-        for e_id, e_val in (fc["elements"] | fc["meta"]).items():
-            i = {"type": "input", "form": form_name, "element": e_id}
-            try:
-                value_key = value_key_map.get(e_val['type'], "value")
-            except KeyError:
-                value_key = 'value'
-            state_args.append(State(i, value_key))
 
         @app.callback(
             Output("out_msg", "children", allow_duplicate=True),
@@ -210,19 +203,31 @@ def register_submit_callbacks(app, forms_config):
             State({"type": "link-input", "table": ALL, "source_col": ALL, "target_col": ALL}, "id"),
             State({"type": "link-input", "table": ALL, "source_col": ALL, "target_col": ALL}, "value"),
             State("current-person-id", "data"),
-            *state_args,
+            State({"type": "input", "form": form_name, "element": ALL}, "id"),
+            State({"type": "input", "form": form_name, "element": ALL}, "value"),
+            State({"type": "input", "form": form_name, "element": ALL}, "data"),
             prevent_initial_call=True,
         )
-        def handle_submit(n_clicks, link_ids, link_values, person_id, *values, _fc=fc):
+        def handle_submit(n_clicks, link_ids, link_values, person_id, input_ids, input_values, input_data, _fc=fc):
             if n_clicks == 0:
                 return None, no_update, no_update
             
             conn = db_connect()
             cur = conn.cursor()
 
-            # Part 1: Handle the main object (Person, Initiative, etc.)
-            element_ids = list(_fc["elements"].keys())
-            data = dict(zip(element_ids + list(_fc["meta"].keys()), values))
+            # Build data dict from input_ids and input_values/input_data
+            # input_ids is a list of dicts like [{"type": "input", "form": form_name, "element": "name"}, ...]
+            # input_values is the corresponding list of values (for text inputs, selects, etc.)
+            # input_data is the corresponding list of data (for DataTables like table and nextcloud_attachments)
+            data = {}
+            if input_ids:
+                for i, input_id in enumerate(input_ids):
+                    element_name = input_id.get("element")
+                    # Use data if available (for DataTable), otherwise use value
+                    if i < len(input_data) and input_data[i] is not None:
+                        data[element_name] = input_data[i]
+                    elif i < len(input_values):
+                        data[element_name] = input_values[i]
 
             object_id = data.get('id')
             if object_id == "":

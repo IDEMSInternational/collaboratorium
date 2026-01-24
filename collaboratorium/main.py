@@ -122,6 +122,24 @@ app.layout = dbc.Container([
                 dbc.CardBody(html.Div([
                     html.Div([
                         html.H2("Editor"),
+                        html.Div(id="nextcloud_password_section", children=[
+                            html.H5("NextCloud Password"),
+                            html.Div([
+                                dcc.Input(
+                                    id="nextcloud_password_input",
+                                    type="password",
+                                    placeholder="Enter NextCloud password...",
+                                    style={"width": "100%", "padding": "5px", "marginBottom": "5px"}
+                                ),
+                                html.Button(
+                                    "Set Password",
+                                    id="nextcloud_validate_button",
+                                    n_clicks=0,
+                                    style={"width": "100%", "padding": "5px"}
+                                ),
+                                html.Div(id="nextcloud_password_status", style={"marginTop": "5px", "fontSize": "12px"}),
+                            ], style={"marginBottom": "15px", "padding": "10px", "border": "1px solid #ddd", "borderRadius": "4px"}),
+                        ]),
                         html.Div([
                             html.Label("Add: "),
                             dcc.Dropdown(

@@ -2,6 +2,8 @@ services:
   proxy:
     depends_on:
       - collaboratorium
+      - nextcloud
+      - collabora
     environment:
       CERTBOT_EMAIL: ${CERTBOT_EMAIL:?}
       DOMAIN: ${DOMAIN:?}
@@ -15,12 +17,17 @@ services:
     volumes:
       - ./nginx:/etc/nginx/templates
       - letsencrypt:/etc/letsencrypt
+      - nextcloud_data:/var/www/html:ro
 
   collaboratorium:
     build: .
     image: collaboratorium:latest
-    ports:
-      - "8050:8050"
+    depends_on:
+      - nextcloud
+    environment:
+      NEXTCLOUD_APP_PASSWORD: ${NEXTCLOUD_APP_PASSWORD:-}
+    # ports:
+    #   - "8050:8050"
     volumes:
       # Bind-mount the host database file into the container so data persists
       - ./database.db:/app/database.db
@@ -30,6 +37,66 @@ services:
       - ./.env:/app/.env
     restart: unless-stopped
 
+  # NextCloud instance with MariaDB backend
+  nextcloud-db:
+    image: mariadb:11
+    container_name: nextcloud-db
+    environment:
+      MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD:-nextcloud_root_pass}
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
+    volumes:
+      - nextcloud_db_data:/var/lib/mysql
+    restart: unless-stopped
+    networks:
+      - default
+
+  nextcloud:
+    image: nextcloud:29-apache
+    container_name: nextcloud
+    depends_on:
+      - nextcloud-db
+    environment:
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:-admin}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:-admin123}
+      MYSQL_HOST: nextcloud-db
+      MYSQL_DATABASE: nextcloud
+      MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
+      NEXTCLOUD_TRUSTED_DOMAINS: ${DOMAIN:-localhost}
+    volumes:
+      - nextcloud_data:/var/www/html
+      - nextcloud_config:/var/www/html/config
+    ports:
+      - "8080:80"
+    restart: unless-stopped
+    networks:
+      - default
+
+  # Collabora Online (LibreOffice in the Cloud)
+  collabora:
+    image: collabora/code:latest
+    container_name: collabora
+    environment:
+      server_name: ${DOMAIN:-localhost}
+      aliasgroup1: https://${DOMAIN:-localhost}
+      DONT_GEN_SSL_CERT: "true"
+      extra_params: >
+        --o:ssl.enable=false
+        --o:security.header_frame_ancestors=${DOMAIN:-localhost}
+    cap_add:
+      - MKNOD
+    restart: unless-stopped
+    networks:
+      - default
+
 volumes:
   letsencrypt:
+    driver: local
+  nextcloud_db_data:
+    driver: local
+  nextcloud_data:
+    driver: local
+  nextcloud_config:
     driver: local

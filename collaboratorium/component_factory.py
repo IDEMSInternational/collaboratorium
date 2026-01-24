@@ -181,11 +181,184 @@ def component_for_element(element_config, form_name, value=None):
                   data=value)
             ],)
         return subform_block
+
+    # --- NextCloud Document ---
+    elif element_type == "nextcloud_doc":
+        nextcloud_block = html.Div([
+            html.Label(label),
+            # Configuration Store (holds NextCloud parameters from tag group)
+            dcc.Store(
+                id={"type": "nextcloud_config", "form": form_name, "element": element_config["element_id"]},
+                data=value or {}
+            ),
+            # Button to create/open document
+            html.Button(
+                "Create/Open Report",
+                id={"type": "nextcloud_button", "form": form_name, "element": element_config["element_id"]},
+                n_clicks=0,
+                style={
+                    'padding': '10px 15px',
+                    'backgroundColor': '#007bff',
+                    'color': 'white',
+                    'border': 'none',
+                    'borderRadius': '4px',
+                    'cursor': 'pointer',
+                    'marginRight': '10px'
+                }
+            ),
+            # Hidden input to store the resulting file path
+            dcc.Input(
+                id={"type": "nextcloud_file_path", "form": form_name, "element": element_config["element_id"]},
+                type="hidden",
+                value=value or ""
+            ),
+            # Status/output div for messages and links
+            html.Div(
+                id={"type": "nextcloud_output", "form": form_name, "element": element_config["element_id"]},
+                style={
+                    'marginTop': '10px',
+                    'padding': '10px',
+                    'borderRadius': '4px',
+                    'backgroundColor': '#f8f9fa',
+                    'minHeight': '40px'
+                }
+            )
+        ], style={'margin': '15px 0', 'padding': '15px', 'border': '1px solid #dee2e6', 'borderRadius': '4px'})
+        
+        return nextcloud_block
+
+    # --- NextCloud Attachments (Table + Document Creation) ---
+    elif element_type == "nextcloud_attachments":
+        if 'columns' in element_config:
+            columns = element_config['columns']
+        else:
+            # Default columns for attachments
+            columns = [
+                {'name': 'File Name', 'id': 'name'},
+                {'name': 'URL', 'id': 'url'},
+            ]
+        
+        empty_row = {c['id']: None for c in columns}
+        if value is None:
+            value = [empty_row]
+        if value and value[-1] != empty_row:
+            value.append(empty_row)  # always new row for manual entry
+        
+        # Build the attachments block with button and status
+        attachments_children = [
+            html.Label(label),
+            # Configuration Store (holds NextCloud parameters)
+            dcc.Store(
+                id={"type": "nextcloud_config", "form": form_name, "element": element_config["element_id"]},
+                data=element_config.get('nextcloud_config', {})
+            ),
+            # Button to create new NextCloud document
+            html.Div([
+                html.Button(
+                    "➕ Create New Document",
+                    id={"type": "nextcloud_button", "form": form_name, "element": element_config["element_id"]},
+                    n_clicks=0,
+                    style={
+                        'padding': '8px 12px',
+                        'backgroundColor': '#28a745',
+                        'color': 'white',
+                        'border': 'none',
+                        'borderRadius': '4px',
+                        'cursor': 'pointer',
+                        'marginBottom': '10px',
+                        'fontSize': '14px'
+                    }
+                ),
+                html.Div(
+                    id={"type": "nextcloud_output", "form": form_name, "element": element_config["element_id"]},
+                    style={
+                        'display': 'inline-block',
+                        'marginLeft': '10px',
+                        'padding': '5px 10px',
+                        'fontSize': '12px',
+                        'borderRadius': '4px'
+                    }
+                )
+            ], style={'marginBottom': '10px'}),
+            html.Div(
+                "Tip: Click 'Create New Document' to create a document in NextCloud. The URL will be automatically added to the table below. You can delete documents from the list or save the form to persist changes.",
+                style={
+                    'fontSize': '12px',
+                    'color': '#666',
+                    'marginBottom': '10px',
+                    'padding': '8px',
+                    'backgroundColor': '#f0f0f0',
+                    'borderRadius': '4px'
+                }
+            ),
+        ]
+        
+        # Add markdown appearance if configured
+        if element_config.get('appearance') == 'markdown' and 'rowfmt' in element_config:
+            markdown_str = '\n'.join([element_config['rowfmt'].format(**d) for d in value if d != empty_row])
+            attachments_children.append(dcc.Markdown(markdown_str, link_target="_blank"))
+            attachments_children.append(
+                html.Details([
+                    html.Summary(f'Modify {label}'),
+                    dash_table.DataTable(
+                        id={"type": "input", "form": form_name, "element": element_config["element_id"]},
+                        columns=columns,
+                        data=value,
+                        row_deletable=True,
+                        editable=True,
+                        style_cell={'textAlign': 'left'},
+                        style_header={'fontWeight': 'bold'},
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': '#f9f9f9'
+                            }
+                        ]
+                    ),
+                ])
+            )
+        else:
+            # Standard table view
+            attachments_children.append(
+                dash_table.DataTable(
+                    id={"type": "input", "form": form_name, "element": element_config["element_id"]},
+                    columns=columns,
+                    data=value,
+                    row_deletable=True,
+                    editable=True,
+                    style_cell={'textAlign': 'left'},
+                    style_header={'fontWeight': 'bold'},
+                    style_data_conditional=[
+                        {
+                            'if': {'row_index': 'odd'},
+                            'backgroundColor': '#f9f9f9'
+                        }
+                    ]
+                )
+            )
+        
+        # Hidden input to track newly created document path
+        attachments_children.append(
+            dcc.Input(
+                id={"type": "nextcloud_file_path", "form": form_name, "element": element_config["element_id"]},
+                type="hidden",
+                value=""
+            )
+        )
+        
+        attachments_block = html.Div(
+            attachments_children,
+            style={'margin': '15px 0', 'padding': '15px', 'border': '1px solid #dee2e6', 'borderRadius': '4px'}
+        )
+        
+        return attachments_block
         
 
     # --- DEFAULT FALLBACK ---
-    return html.Div([html.Label(label), html.Div("Unsupported element type")])
-
+    return html.Div([
+        html.Label(label), 
+        html.Div("Unsupported element type", id={"type": "input", "form": form_name, "element": element_config["element_id"]})
+    ])
 
 def combine_lists_with_nones(lists):
     if not lists:
@@ -380,7 +553,7 @@ def generate_static_subform_elements(element_config, form_name, value=None):
                 sf_elements.append(component_for_element(
                     element_config=dict(element_id=f'{key}|{field}', **config),
                     form_name=subform_name,
-                    value=subform_value[field]
+                    value=subform_value.get(field, None)
                 ))
         elements.append(html.Div(
             ([html.B(subform_label)] if subform_label is not None else []) +

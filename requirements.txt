@@ -9,3 +9,4 @@ flask
 authlib
 flask-session
 pyyaml
+requests>=2.28.0

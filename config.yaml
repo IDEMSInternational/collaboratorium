@@ -512,17 +512,34 @@ forms:
               label: Summary (optional)
               appearance: multiline
             attachments:
-              type: table
-              label: Attachments
+              type: nextcloud_attachments
+              label: Document Attachments
               appearance: markdown
               rowfmt: '- [{name}]({url})'
               columns:
-                - id: name
-                  name: File Name
-                  editable: True
-                - id: url
-                  name: URL
-                  editable: True
+                - name: File Name
+                  id: name
+                - name: URL
+                  id: url
+              # nextcloud_config:
+              #   nextcloud_url: "http://localhost:8080"
+              #   folder_path: /Reports
+              #   template_path:  "/Templates/Syllabus.odt" # temporarily use default template
+            # report:
+            #   type: nextcloud_doc
+            #   label: Create Report
+            # attachments:
+            #   type: table
+            #   label: Attachments
+            #   appearance: markdown
+            #   rowfmt: '- [{name}]({url})'
+            #   columns:
+            #     - id: name
+            #       name: File Name
+            #       editable: True
+            #     - id: url
+            #       name: URL
+            #       editable: True
       location:
         type: string
         label: Location
@@ -1009,3 +1026,14 @@ default_forms:
   organisation_people_links: organisation_people_links_form
   activity_people_links: activity_people_links_form
   tag_groups: tag_groups_form
+
+# NextCloud and Collabora Online Integration
+nextcloud:
+  # Base URL of your NextCloud instance
+  url: "http://localhost:8080"
+  # Default folder for storing reports (relative to user root in NextCloud)
+  default_folder: "/Reports"
+  # Path to template document for report generation
+  # default_template: "/Templates/report_template.odt"
+  default_template: "/Templates/Syllabus.odt" # temporarily use default template
+  # Note: app password should be set via NEXTCLOUD_APP_PASSWORD environment variable

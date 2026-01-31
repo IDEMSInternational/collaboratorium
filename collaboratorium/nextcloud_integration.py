@@ -17,7 +17,7 @@ from flask import session
 class NextCloudClient:
     """Minimal WebDAV client for NextCloud operations."""
     
-    def __init__(self, url, username, password):
+    def __init__(self, url, username, password, verify_ssl=True):
         """
         Initialize NextCloud client.
         
@@ -30,6 +30,7 @@ class NextCloudClient:
         self.username = username
         self.password = password
         self.session = requests.Session()
+        self.session.verify = verify_ssl
         self.session.auth = (username, password)
     
     def validate_credentials(self):
@@ -136,7 +137,6 @@ def register_nextcloud_callbacks(app, config):
     {
         'nextcloud': {
             'url': 'https://nextcloud.example.com',
-            'app_password': 'password_from_env',
             'default_folder': '/Reports',
             'default_template': '/Templates/report_template.odt'
         }
@@ -205,6 +205,7 @@ def register_nextcloud_callbacks(app, config):
         try:
             # Extract NextCloud settings from the tag group configuration
             nc_url = config.get('nextcloud_url') or nextcloud_config.get('url')
+            nc_verify_ssl = nextcloud_config.get('verify_ssl', True)
             nc_username = session.get('user', {}).get('email', '').split('@')[0]  # Use email prefix
             
             # Try to get password from session first, then environment, then config
@@ -223,13 +224,13 @@ def register_nextcloud_callbacks(app, config):
                 return outputs_children, outputs_paths, outputs_tables
             
             # Initialize client and validate credentials
-            client = NextCloudClient(nc_url, nc_username, nc_password)
+            client = NextCloudClient(nc_url, nc_username, nc_password, verify_ssl=nc_verify_ssl)
             is_valid, error_msg = client.validate_credentials()
             
             if not is_valid:
                 error_html = html.Div([
                     html.P(f"Error: {error_msg}", style={'color': 'red'}),
-                    html.P("Please verify NextCloud URL and credentials are correct.")
+                    html.P(f"Please verify NextCloud URL ({nc_url}) and credentials are correct.")
                 ], style={'color': 'red'})
                 outputs_children[idx] = error_html  # type: ignore
                 return outputs_children, outputs_paths, outputs_tables

@@ -53,7 +53,7 @@ services:
       - default
 
   nextcloud:
-    image: nextcloud:29-fpm
+    image: nextcloud:31-fpm
     container_name: nextcloud
     depends_on:
       - nextcloud-db
@@ -63,16 +63,19 @@ services:
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
       MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
       # This is very important and will not work if NEXTCLOUD_ADMIN_USER/_PASSWORD is defined
-      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.${DOMAIN:-localhost} nextcloud.localhost localhost"
-      OVERWRITEPROTOCOL: https
-      OVERWRITEHOST: "nextcloud.${DOMAIN:-localhost}"
-      OVERWRITEWEBROOT: "/"
+      NEXTCLOUD_TRUSTED_DOMAINS: nextcloud.${DOMAIN:-localhost}
+      TRUSTED_PROXIES: 127.0.0.1 proxy nginx collaboratorium-proxy-1 localhost
+      # OVERWRITEPROTOCOL: https
+      # OVERWRITEHOST: "nextcloud.${DOMAIN:-localhost}"
+      # OVERWRITEWEBROOT: "/"
     volumes:
       - nextcloud_data:/var/www/html
       - nextcloud_config:/var/www/html/config
     restart: unless-stopped
     networks:
-      - default
+      default:
+        aliases:
+          - ${DOMAIN:-localhost}
 
   # Collabora Online (LibreOffice in the Cloud)
   collabora:
@@ -88,6 +91,7 @@ services:
       # Collabora runs without SSL since Nginx handles it
       extra_params: >
         --o:ssl.enable=false
+        --o:ssl.termination=true
         --o:security.header_frame_ancestors=https://nextcloud.${DOMAIN:-localhost}
         --o:storage.wopi.host=collabora.${DOMAIN:-localhost}
         --o:security.enable_seccomp=false

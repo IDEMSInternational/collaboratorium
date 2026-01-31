@@ -1030,10 +1030,11 @@ default_forms:
 # NextCloud and Collabora Online Integration
 nextcloud:
   # Base URL of your NextCloud instance
-  url: "http://localhost:8080"
+  url: "https://nextcloud.localhost"
   # Default folder for storing reports (relative to user root in NextCloud)
   default_folder: "/Reports"
   # Path to template document for report generation
   # default_template: "/Templates/report_template.odt"
   default_template: "/Templates/Syllabus.odt" # temporarily use default template
   # Note: app password should be set via NEXTCLOUD_APP_PASSWORD environment variable
+  verify_ssl: False

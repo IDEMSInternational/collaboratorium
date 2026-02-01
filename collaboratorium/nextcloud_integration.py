@@ -17,7 +17,7 @@ from flask import session
 class NextCloudClient:
     """Minimal WebDAV client for NextCloud operations."""
     
-    def __init__(self, url, username, password, verify_ssl=True):
+    def __init__(self, url, username, password, verify_ssl=True, group_folder=True):
         """
         Initialize NextCloud client.
         
@@ -25,13 +25,22 @@ class NextCloudClient:
             url: NextCloud base URL (e.g., 'https://nextcloud.example.com')
             username: NextCloud username
             password: NextCloud app password or password
+            group_folder: Whether to use group folder
         """
         self.url = url.rstrip('/')
         self.username = username
         self.password = password
+        self.group_folder = group_folder
         self.session = requests.Session()
         self.session.verify = verify_ssl
         self.session.auth = (username, password)
+    
+    def _get_webdav_base_path(self):
+        """Get the base WebDAV path based on storage type (user folder or group folder)."""
+        if self.group_folder:
+            return f"{self.url}/apps/files/files?dir="
+        else:
+            return f"{self.url}/remote.php/dav/files/{quote(self.username)}"
     
     def validate_credentials(self):
         """
@@ -41,8 +50,7 @@ class NextCloudClient:
             tuple: (is_valid: bool, error_message: str or None)
         """
         try:
-            webdav_url = f"{self.url}/remote.php/dav/files/{quote(self.username)}/"
-            resp = self.session.request('PROPFIND', webdav_url, timeout=5)
+            resp = self.session.request('GET', self.url, timeout=5)
             
             if resp.status_code in (200, 207):
                 return True, None
@@ -61,17 +69,19 @@ class NextCloudClient:
     
     def check_file_exists(self, remote_path):
         """Check if a file exists at the given remote path."""
-        webdav_url = f"{self.url}/remote.php/dav/files/{quote(self.username)}/{quote(remote_path.lstrip('/'))}"
+        webdav_base = self._get_webdav_base_path()
+        webdav=f"{webdav_base}/{quote(remote_path.lstrip('/'))}"
         try:
-            resp = self.session.request('PROPFIND', webdav_url, timeout=5)
+            resp = self.session.request('GET', webdav, timeout=5)
             return resp.status_code in (200, 207)
         except requests.RequestException:
             return False
     
     def copy_file(self, source_path, dest_path):
         """Copy a file from source to destination using WebDAV."""
-        source_webdav = f"{self.url}/remote.php/dav/files/{quote(self.username)}/{quote(source_path.lstrip('/'))}"
-        dest_webdav = f"{self.url}/remote.php/dav/files/{quote(self.username)}/{quote(dest_path.lstrip('/'))}"
+        webdav_base = self._get_webdav_base_path()
+        source_webdav = f"{webdav_base}/{quote(source_path.lstrip('/'))}"
+        dest_webdav = f"{webdav_base}/{quote(dest_path.lstrip('/'))}"
         
         try:
             resp = self.session.request(
@@ -90,9 +100,10 @@ class NextCloudClient:
         folder_path = folder_path.lstrip('/').rstrip('/')
         parts = folder_path.split('/')
         
+        webdav_base = self._get_webdav_base_path()
         for i in range(1, len(parts) + 1):
             current_path = '/'.join(parts[:i])
-            webdav_url = f"{self.url}/remote.php/dav/files/{quote(self.username)}/{quote(current_path)}"
+            webdav_url = f"{webdav_base}/{quote(current_path)}"
             
             if not self.check_file_exists(current_path):
                 try:
@@ -105,7 +116,7 @@ class NextCloudClient:
         return True
 
 
-def generate_collabora_url(nextcloud_url, file_path, username):
+def generate_collabora_url(nextcloud_url, file_path, username, group_folder=True):
     """
     Generate a Collabora Online editing URL for a document in NextCloud.
     
@@ -121,7 +132,10 @@ def generate_collabora_url(nextcloud_url, file_path, username):
     file_path = file_path.lstrip('/')
     
     # Encode the file path for use in the Collabora URL
-    encoded_path = quote(f"{username}/{file_path}")
+    if group_folder:
+        encoded_path = quote(f"{file_path}")
+    else:
+        encoded_path = quote(f"{username}/{file_path}")
     
     collabora_url = (
         f"{nextcloud_url}/index.php/apps/richdocuments/files/{encoded_path}"
@@ -138,7 +152,8 @@ def register_nextcloud_callbacks(app, config):
         'nextcloud': {
             'url': 'https://nextcloud.example.com',
             'default_folder': '/Reports',
-            'default_template': '/Templates/report_template.odt'
+            'default_template': '/Templates/report_template.odt',
+            'group_folder': True  # Optional: whether to use group folder instead of user folder
         }
     }
     """
@@ -207,6 +222,7 @@ def register_nextcloud_callbacks(app, config):
             nc_url = config.get('nextcloud_url') or nextcloud_config.get('url')
             nc_verify_ssl = nextcloud_config.get('verify_ssl', True)
             nc_username = session.get('user', {}).get('email', '').split('@')[0]  # Use email prefix
+            nc_group_folder = nextcloud_config.get('group_folder')
             
             # Try to get password from session first, then environment, then config
             nc_password = session.get('nextcloud_password') or os.environ.get('NEXTCLOUD_APP_PASSWORD', nextcloud_config.get('app_password'))
@@ -224,7 +240,7 @@ def register_nextcloud_callbacks(app, config):
                 return outputs_children, outputs_paths, outputs_tables
             
             # Initialize client and validate credentials
-            client = NextCloudClient(nc_url, nc_username, nc_password, verify_ssl=nc_verify_ssl)
+            client = NextCloudClient(nc_url, nc_username, nc_password, verify_ssl=nc_verify_ssl, group_folder=nc_group_folder)
             is_valid, error_msg = client.validate_credentials()
             
             if not is_valid:
@@ -258,7 +274,7 @@ def register_nextcloud_callbacks(app, config):
                     return outputs_children, outputs_paths, outputs_tables
             
             # Generate Collabora URL
-            collabora_url = generate_collabora_url(nc_url, file_path, nc_username)
+            collabora_url = generate_collabora_url(nc_url, file_path, nc_username, group_folder=nc_group_folder)
             
             # Automatically add document to attachments table using the matched table_idx
             if table_idx is not None and table_idx < len(table_data_list) and table_data_list[table_idx]:

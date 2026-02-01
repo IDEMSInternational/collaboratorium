@@ -71,6 +71,7 @@ services:
     volumes:
       - nextcloud_data:/var/www/html
       - nextcloud_config:/var/www/html/config
+      - ./nextcloud_hooks:/docker-entrypoint-init.d
     restart: unless-stopped
     networks:
       default:

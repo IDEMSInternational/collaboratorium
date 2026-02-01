@@ -1032,9 +1032,8 @@ nextcloud:
   # Base URL of your NextCloud instance
   url: "https://nextcloud.localhost"
   # Default folder for storing reports (relative to user root in NextCloud)
-  default_folder: "/Reports"
+  default_folder: "/Collaboratorium%20Reports"
+  group_folder: True
   # Path to template document for report generation
-  # default_template: "/Templates/report_template.odt"
-  default_template: "/Templates/Syllabus.odt" # temporarily use default template
-  # Note: app password should be set via NEXTCLOUD_APP_PASSWORD environment variable
+  default_template: "/Collaboratorium%20Reports/template.odt"
   verify_ssl: False

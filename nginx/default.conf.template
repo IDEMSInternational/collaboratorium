@@ -37,8 +37,7 @@ server {
 <li><a href=\"https://collabora.${DOMAIN}\">Collabora</a></li>
 </ul>
 </body>
-</html>
-        ";
+</html>";
     }
 }
 
@@ -56,7 +55,7 @@ server {
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
         proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-        proxy_set_header X-Forwarded-Proto https;
+        proxy_set_header X-Forwarded-Proto $scheme;
     }
 }
 
@@ -78,6 +77,7 @@ server {
     add_header X-Content-Type-Options "nosniff" always;
     add_header X-Frame-Options "SAMEORIGIN" always;
     add_header X-XSS-Protection "1; mode=block" always;
+    add_header X-Robots-Tag "noindex,nofollow" always;
     client_max_body_size 512M;
     fastcgi_buffers 64 4K;
 
@@ -137,63 +137,59 @@ server {
     ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
     ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
 
-    # location / {
-    #     proxy_pass http://collabora:9980;
-    #     proxy_set_header Upgrade $http_upgrade;
-    #     proxy_set_header Connection "upgrade";
-    #     proxy_set_header Host $host;
-    #     proxy_set_header X-Forwarded-Proto https;
-    # }
+    # Common Proxy Headers
+    proxy_set_header Host $host;
+    proxy_set_header X-Real-IP $remote_addr;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    add_header X-Content-Type-Options nosniff;
 
-    # proxy_set_header Host $host;
-    # proxy_set_header X-Real-IP $remote_addr;
-    # proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-    # proxy_set_header X-Forwarded-Proto https; # This is the critical one!
-
-    # static files
+    # Static files
     location ^~ /browser {
         proxy_pass http://collabora:9980;
-        proxy_set_header Host $host;
     }
 
+
+    location ^~ /loleaflet {
+        proxy_pass http://collabora:9980;
+        proxy_set_header Host $http_host;
+    }
 
     # WOPI discovery URL
     location ^~ /hosting/discovery {
         proxy_pass http://collabora:9980;
-        proxy_set_header Host $host;
+        proxy_set_header Host $http_host;
     }
-
 
     # Capabilities
     location ^~ /hosting/capabilities {
         proxy_pass http://collabora:9980;
-        proxy_set_header Host $host;
     }
 
-
-    # main websocket
+    # Main Websocket
     location ~ ^/cool/(.*)/ws$ {
         proxy_pass http://collabora:9980;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
         proxy_read_timeout 36000s;
     }
 
-
-    # download, presentation and image upload
+    # General /cool path
     location ~ ^/cool {
         proxy_pass http://collabora:9980;
-        proxy_set_header Host $host;
     }
 
-
-    # Admin Console websocket
+    # Admin Console Websocket
     location ^~ /cool/adminws {
         proxy_pass http://collabora:9980;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "Upgrade";
-        proxy_set_header Host $host;
         proxy_read_timeout 36000s;
     }
+
+    # Catch-all
+    location / {
+        proxy_pass http://collabora:9980;
+    }
+    
 }

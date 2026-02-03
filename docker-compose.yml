@@ -1,5 +1,6 @@
 services:
   proxy:
+    image: jonasal/nginx-certbot:6.0.1-nginx1.29.1
     depends_on:
       - collaboratorium
       - nextcloud
@@ -9,7 +10,6 @@ services:
       DOMAIN: ${DOMAIN:?}
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx/user_conf.d
       USE_LOCAL_CA: ${USE_LOCAL_CA}
-    image: jonasal/nginx-certbot:6.0.1-nginx1.29.1
     ports:
       - "80:80"
       - "443:443"
@@ -18,6 +18,9 @@ services:
       - ./nginx:/etc/nginx/templates
       - letsencrypt:/etc/letsencrypt
       - nextcloud_data:/var/www/html:ro
+    networks:
+      default:
+        ipv4_address: 172.20.0.50
 
   collaboratorium:
     build: .
@@ -26,18 +29,13 @@ services:
       - nextcloud
     environment:
       NEXTCLOUD_APP_PASSWORD: ${NEXTCLOUD_APP_PASSWORD:-}
-    # ports:
-    #   - "8050:8050"
     volumes:
-      # Bind-mount the host database file into the container so data persists
       - ./database.db:/app/database.db
       - ./analytics.db:/app/analytics.db
-      # Also mount config so container and host share the same config file
       - ./config.yaml:/app/config.yaml:ro
       - ./.env:/app/.env
     restart: unless-stopped
 
-  # NextCloud instance with MariaDB backend
   nextcloud-db:
     image: mariadb:11
     container_name: nextcloud-db
@@ -53,7 +51,7 @@ services:
       - default
 
   nextcloud:
-    image: nextcloud:31-fpm
+    image: nextcloud:32-fpm
     container_name: nextcloud
     depends_on:
       - nextcloud-db
@@ -63,8 +61,8 @@ services:
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
       MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
       # This is very important and will not work if NEXTCLOUD_ADMIN_USER/_PASSWORD is defined
-      NEXTCLOUD_TRUSTED_DOMAINS: nextcloud.${DOMAIN:-localhost}
-      TRUSTED_PROXIES: 127.0.0.1 proxy nginx collaboratorium-proxy-1 localhost
+      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.${DOMAIN:-localhost}"
+      TRUSTED_PROXIES: 127.0.0.1 172.20.0.50 proxy collaboratorium-proxy-1 ${DOMAIN:-localhost}
       # OVERWRITEPROTOCOL: https
       # OVERWRITEHOST: "nextcloud.${DOMAIN:-localhost}"
       # OVERWRITEWEBROOT: "/"
@@ -74,11 +72,11 @@ services:
       - ./nextcloud_hooks:/docker-entrypoint-init.d
     restart: unless-stopped
     networks:
-      default:
-        aliases:
-          - ${DOMAIN:-localhost}
+      - default
+    extra_hosts:
+      - "collabora.${DOMAIN:-localhost}:172.20.0.50"
+      - "nextcloud.${DOMAIN:-localhost}:172.20.0.50"
 
-  # Collabora Online (LibreOffice in the Cloud)
   collabora:
     image: collabora/code:latest
     container_name: collabora
@@ -94,13 +92,16 @@ services:
         --o:ssl.enable=false
         --o:ssl.termination=true
         --o:security.header_frame_ancestors=https://nextcloud.${DOMAIN:-localhost}
-        --o:storage.wopi.host=collabora.${DOMAIN:-localhost}
+        --o:storage.wopi.host=nextcloud.${DOMAIN:-localhost}
         --o:security.enable_seccomp=false
     cap_add:
       - MKNOD
+      - SYS_ADMIN
     restart: unless-stopped
     networks:
       - default
+    extra_hosts:
+      - "nextcloud.${DOMAIN:-localhost}:172.20.0.50"
 
 volumes:
   letsencrypt:
@@ -111,3 +112,10 @@ volumes:
     driver: local
   nextcloud_config:
     driver: local
+
+networks:
+  default:
+    ipam:
+      driver: default
+      config:
+        - subnet: 172.20.0.0/16

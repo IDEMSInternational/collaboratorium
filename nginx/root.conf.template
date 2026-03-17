@@ -1,0 +1,25 @@
+server {
+    listen 443 ssl;
+    server_name $DOMAIN;
+
+    ssl_certificate /etc/letsencrypt/live/${DOMAIN}/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/${DOMAIN}/privkey.pem;
+
+    location / {
+        default_type text/html;
+        return 200 "
+<!DOCTYPE html>
+<html>
+<head><title>Collaboratorium</title></head>
+<body>
+<h1>Collaboratorium</h1>
+<p>Available services:</p>
+<ul>
+<li><a href=\"https://dash.${DOMAIN}\">Dash App</a></li>
+<li><a href=\"https://nextcloud.${DOMAIN}\">NextCloud</a></li>
+<li><a href=\"https://collabora.${DOMAIN}\">Collabora</a></li>
+</ul>
+</body>
+</html>";
+    }
+}

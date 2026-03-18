@@ -40,7 +40,13 @@ services:
       MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD:-nextcloud_root_pass}
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:?}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
     volumes:
       - nextcloud_db_data:/var/lib/mysql
     restart: unless-stopped
@@ -48,22 +54,21 @@ services:
   nextcloud:
     image: nextcloud:32-fpm
     depends_on:
-      - nextcloud-db
+      nextcloud-db:
+        condition: service_healthy
     environment:
+      DOMAIN: ${DOMAIN:?}
       MYSQL_HOST: nextcloud-db
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
-      # This is very important and will not work if NEXTCLOUD_ADMIN_USER/_PASSWORD is defined
-      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.${DOMAIN:?}"
-      TRUSTED_PROXIES: 127.0.0.1 172.20.0.50 proxy collaboratorium-proxy-1 ${DOMAIN:?}
-      # OVERWRITEPROTOCOL: https
-      # OVERWRITEHOST: "nextcloud.${DOMAIN:-localhost}"
-      # OVERWRITEWEBROOT: "/"
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:?}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:?}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?}
+      NEXTCLOUD_TRUSTED_DOMAINS: "collabora.${DOMAIN} dash.${DOMAIN} nextcloud.${DOMAIN} ${DOMAIN:?}"
     volumes:
       - nextcloud_data:/var/www/html
       - nextcloud_config:/var/www/html/config
-      - ./nextcloud_hooks:/docker-entrypoint-init.d
+      - ./nextcloud_hooks/post-init.d:/docker-entrypoint-hooks.d/post-installation
     restart: unless-stopped
     extra_hosts:
       - "collabora.${DOMAIN:?}:host-gateway"

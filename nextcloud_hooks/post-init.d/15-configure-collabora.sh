@@ -4,9 +4,7 @@
 
 set -e
 
-# Get DOMAIN from environment or use default
-DOMAIN="${DOMAIN:-localhost}"
-COLLABORA_URL="https://collabora.${DOMAIN}"
+COLLABORA_URL="https://collabora.${DOMAIN:?}"
 
 echo "Configuring NextCloud Office with Collabora server..."
 
@@ -16,5 +14,6 @@ php /var/www/html/occ app:enable richdocuments || echo "NextCloud Office app alr
 # Configure the WOPI server URL
 # This tells NextCloud Office where the Collabora server is located
 php /var/www/html/occ config:app:set richdocuments wopi_url --value="${COLLABORA_URL}" || echo "WOPI URL already configured"
+php /var/www/html/occ config:app:set richdocuments disable_certificate_verification --value="yes"
 
 echo "NextCloud Office is now configured to use Collabora server at ${COLLABORA_URL}"

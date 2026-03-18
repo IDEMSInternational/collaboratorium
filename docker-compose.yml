@@ -18,9 +18,6 @@ services:
       - ./nginx:/etc/nginx/templates
       - letsencrypt:/etc/letsencrypt
       - nextcloud_data:/var/www/html:ro
-    networks:
-      default:
-        ipv4_address: 172.20.0.50
 
   collaboratorium:
     build: .
@@ -33,49 +30,48 @@ services:
       - ./database.db:/app/database.db
       - ./analytics.db:/app/analytics.db
       - ./config.yaml:/app/config.yaml:ro
+      - ./schema.dbml:/app/schema.dbml:ro
       - ./.env:/app/.env
     restart: unless-stopped
 
   nextcloud-db:
     image: mariadb:11
-    container_name: nextcloud-db
     environment:
       MYSQL_ROOT_PASSWORD: ${NEXTCLOUD_DB_ROOT_PASSWORD:-nextcloud_root_pass}
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:?}
+    healthcheck:
+      test: ["CMD", "healthcheck.sh", "--connect", "--innodb_initialized"]
+      start_period: 10s
+      interval: 10s
+      timeout: 5s
+      retries: 3
     volumes:
       - nextcloud_db_data:/var/lib/mysql
     restart: unless-stopped
-    networks:
-      - default
 
   nextcloud:
     image: nextcloud:32-fpm
-    container_name: nextcloud
     depends_on:
-      - nextcloud-db
+      nextcloud-db:
+        condition: service_healthy
     environment:
+      DOMAIN: ${DOMAIN:?}
       MYSQL_HOST: nextcloud-db
       MYSQL_DATABASE: nextcloud
       MYSQL_USER: ${NEXTCLOUD_DB_USER:-nextcloud}
-      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:-nextcloud_pass}
-      # This is very important and will not work if NEXTCLOUD_ADMIN_USER/_PASSWORD is defined
-      NEXTCLOUD_TRUSTED_DOMAINS: "nextcloud.${DOMAIN:-localhost}"
-      TRUSTED_PROXIES: 127.0.0.1 172.20.0.50 proxy collaboratorium-proxy-1 ${DOMAIN:-localhost}
-      # OVERWRITEPROTOCOL: https
-      # OVERWRITEHOST: "nextcloud.${DOMAIN:-localhost}"
-      # OVERWRITEWEBROOT: "/"
+      MYSQL_PASSWORD: ${NEXTCLOUD_DB_PASSWORD:?}
+      NEXTCLOUD_ADMIN_USER: ${NEXTCLOUD_ADMIN_USER:?}
+      NEXTCLOUD_ADMIN_PASSWORD: ${NEXTCLOUD_ADMIN_PASSWORD:?}
+      NEXTCLOUD_TRUSTED_DOMAINS: "collabora.${DOMAIN} dash.${DOMAIN} nextcloud.${DOMAIN} ${DOMAIN:?}"
     volumes:
       - nextcloud_data:/var/www/html
       - nextcloud_config:/var/www/html/config
-      - ./nextcloud_hooks:/docker-entrypoint-init.d
+      - ./nextcloud_hooks/post-init.d:/docker-entrypoint-hooks.d/post-installation
     restart: unless-stopped
-    networks:
-      - default
     extra_hosts:
-      - "collabora.${DOMAIN:-localhost}:172.20.0.50"
-      - "nextcloud.${DOMAIN:-localhost}:172.20.0.50"
+      - "collabora.${DOMAIN:?}:host-gateway"
 
   collabora:
     image: collabora/code:latest
@@ -84,24 +80,22 @@ services:
       - "9980:9980"
     environment:
       # Configure Collabora to work behind Nginx reverse proxy on subdomain
-      server_name: collabora.${DOMAIN:-localhost}
-      aliasgroup1: https://nextcloud.${DOMAIN:-localhost}
+      server_name: collabora.${DOMAIN:?}
+      aliasgroup1: https://nextcloud.${DOMAIN:?}
       DONT_GEN_SSL_CERT: "true"
       # Collabora runs without SSL since Nginx handles it
       extra_params: >
         --o:ssl.enable=false
         --o:ssl.termination=true
-        --o:security.header_frame_ancestors=https://nextcloud.${DOMAIN:-localhost}
-        --o:storage.wopi.host=nextcloud.${DOMAIN:-localhost}
+        --o:security.header_frame_ancestors=https://nextcloud.${DOMAIN:?}
+        --o:storage.wopi.host=nextcloud.${DOMAIN:?}
         --o:security.enable_seccomp=false
     cap_add:
       - MKNOD
       - SYS_ADMIN
     restart: unless-stopped
-    networks:
-      - default
     extra_hosts:
-      - "nextcloud.${DOMAIN:-localhost}:172.20.0.50"
+      - "nextcloud.${DOMAIN:?}:host-gateway"
 
 volumes:
   letsencrypt:
@@ -112,10 +106,3 @@ volumes:
     driver: local
   nextcloud_config:
     driver: local
-
-networks:
-  default:
-    ipam:
-      driver: default
-      config:
-        - subnet: 172.20.0.0/16

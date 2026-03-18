@@ -1030,7 +1030,7 @@ default_forms:
 # NextCloud and Collabora Online Integration
 nextcloud:
   # Base URL of your NextCloud instance
-  url: "https://nextcloud.localhost"
+  url: "https://nextcloud.idems"
   # Default folder for storing reports (relative to user root in NextCloud)
   default_folder: "/Collaboratorium%20Reports"
   group_folder: True

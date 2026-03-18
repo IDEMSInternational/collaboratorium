@@ -27,13 +27,31 @@ nextcloud:
 ```
 
 ### 3. Start Services
+
 ```bash
 docker-compose up -d
 ```
-Wait ~60 seconds for initialization. The startup script automatically:
-- Enables GroupFolders app (collaborative document storage)
-- Enables NextCloud Office (integrates with Collabora)
-- Configures Collabora server URL
+
+Initialization scripts in the 'nextcloud' service will automatically:
+- Enable GroupFolders app (collaborative document storage)
+- Enable NextCloud Office (integrates with Collabora)
+- Configure Collabora server URL
+
+Check the logs of the 'nextcloud' service for the messages, "Initializing finished" and "ready to handle connections".
+```
+docker compose logs -f nextcloud
+```
+
+At this point, Nextcloud should be ready to use.
+
+Assuming the `DOMAIN` environment variable is set to 'idems', append the following line to your 'hosts' file:
+```
+127.0.0.1 collabora.idems dash.idems nextcloud.idems idems
+```
+
+In a browser, visit <https://collabora.idems/> - the browser will likely show a security warning due to the self-signed TLS certificate. Make an exception for this domain.
+
+Visit <https://nextcloud.idems/>. Make security exception, if necessary. Log in using the username and password you set earlier.
 
 ### 4. Setup NextCloud
 

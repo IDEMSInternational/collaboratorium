@@ -198,9 +198,10 @@ def register_nextcloud_callbacks(app, config):
         State({"type": "nextcloud_file_path", "form": ALL, "element": ALL}, "value"),
         State({"type": "input", "form": ALL, "element": ALL}, "id"),
         State({"type": "input", "form": ALL, "element": ALL}, "data"),
+        State({"type": "input", "form": ALL, "element": ALL}, "value"),
         prevent_initial_call=True,
     )
-    def handle_nextcloud_document_creation(n_clicks_list, configs, current_paths, input_ids, table_data_list):
+    def handle_nextcloud_document_creation(n_clicks_list, configs, current_paths, input_ids, table_data_list, input_values):
         """
         Handle document creation/opening on NextCloud.
         
@@ -230,6 +231,18 @@ def register_nextcloud_callbacks(app, config):
         config = configs[idx] if idx < len(configs) else {}
         current_path = current_paths[idx] if idx < len(current_paths) else None
         
+        # Extract object ID from the form's hidden 'id' field
+        object_id = "new"
+        if input_ids:
+            for i, input_id in enumerate(input_ids):
+                if isinstance(input_id, dict) and input_id.get('element') == 'id':
+                    if i < len(input_values) and input_values[i]:
+                        object_id = str(input_values[i])
+                    break
+                    
+        # Extract base table name from form_name (e.g., 'activities_form-description' -> 'activities')
+        base_table = form_name.split('-')[0].replace('_form', '') if form_name else 'document'
+
         # Initialize output lists
         outputs_children = [no_update] * len(n_clicks_list)  # type: ignore
         outputs_paths = [no_update] * len(n_clicks_list)  # type: ignore
@@ -287,7 +300,8 @@ def register_nextcloud_callbacks(app, config):
             
             # Generate file path
             timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-            file_name = f"{activity_id}_{timestamp}.odt"
+            prefix = config.get('activity_id') or base_table
+            file_name = f"{prefix}_{object_id}_{timestamp}.odt"
             file_path = f"{folder_path.rstrip('/')}/{file_name}"
             
             # Check if document exists; create from template if not

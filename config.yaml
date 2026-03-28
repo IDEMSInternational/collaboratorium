@@ -1030,10 +1030,10 @@ default_forms:
 # NextCloud and Collabora Online Integration
 nextcloud:
   # Base URL of your NextCloud instance
-  url: "https://nextcloud.localhost"
+  url: "https://cloud.condy.xyz"
   # Default folder for storing reports (relative to user root in NextCloud)
-  default_folder: "/Collaboratorium%20Reports"
+  default_folder: "/Collaboratorium Reports"
   group_folder: True
   # Path to template document for report generation
-  default_template: "/Collaboratorium%20Reports/template.odt"
-  verify_ssl: False
+  default_template: "/Collaboratorium Reports/template.odt"
+  verify_ssl: True

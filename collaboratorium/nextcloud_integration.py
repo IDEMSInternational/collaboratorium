@@ -12,6 +12,7 @@ from urllib.parse import quote
 from datetime import datetime
 from dash import Input, Output, State, ctx, html, no_update, ALL
 from flask import session
+import xml.etree.ElementTree as ET
 
 
 class NextCloudClient:
@@ -36,11 +37,8 @@ class NextCloudClient:
         self.session.auth = (username, password)
     
     def _get_webdav_base_path(self):
-        """Get the base WebDAV path based on storage type (user folder or group folder)."""
-        if self.group_folder:
-            return f"{self.url}/apps/files/files?dir="
-        else:
-            return f"{self.url}/remote.php/dav/files/{quote(self.username)}"
+        """Get the base WebDAV path."""
+        return f"{self.url}/remote.php/dav/files/{quote(self.username)}"
     
     def validate_credentials(self):
         """
@@ -72,7 +70,7 @@ class NextCloudClient:
         webdav_base = self._get_webdav_base_path()
         webdav=f"{webdav_base}/{quote(remote_path.lstrip('/'))}"
         try:
-            resp = self.session.request('GET', webdav, timeout=5)
+            resp = self.session.request('PROPFIND', webdav, timeout=5)
             return resp.status_code in (200, 207)
         except requests.RequestException:
             return False
@@ -115,20 +113,48 @@ class NextCloudClient:
         
         return True
 
+    def get_file_id(self, remote_path):
+        """Fetch NextCloud's internal file ID (e.g., for /f/123 links)."""
+        webdav_base = self._get_webdav_base_path()
+        webdav = f"{webdav_base}/{quote(remote_path.lstrip('/'))}"
+        headers = {'Depth': '0', 'Content-Type': 'application/xml'}
+        
+        # Explicitly request the oc:id property via WebDAV
+        body = '''<?xml version="1.0"?>
+        <d:propfind xmlns:d="DAV:" xmlns:oc="http://owncloud.org/ns">
+            <d:prop>
+                <oc:id />
+            </d:prop>
+        </d:propfind>'''
+        
+        try:
+            resp = self.session.request('PROPFIND', webdav, headers=headers, data=body, timeout=5)
+            if resp.status_code in (200, 207):
+                root = ET.fromstring(resp.content)
+                # Parse the oc:id from the XML namespace
+                namespaces = {'d': 'DAV:', 'oc': 'http://owncloud.org/ns'}
+                file_id_elem = root.find('.//oc:id', namespaces)
+                
+                if file_id_elem is not None and file_id_elem.text:
+                    return file_id_elem.text
+        except Exception as e:
+            print(f"Error fetching file ID: {e}")
+            
+        return None
 
-def generate_collabora_url(nextcloud_url, file_path, username, group_folder=True):
+
+def generate_collabora_url(nextcloud_url, file_path, username, group_folder=True, file_id=None):
     """
     Generate a Collabora Online editing URL for a document in NextCloud.
-    
-    Args:
-        nextcloud_url: Base NextCloud URL
-        file_path: Path to file in NextCloud (e.g., '/Reports/report.odt')
-        username: NextCloud username
-    
-    Returns:
-        URL to access document in Collabora Online editor
+    Modern NextCloud uses /f/{file_id} to route automatically.
     """
     nextcloud_url = nextcloud_url.rstrip('/')
+    
+    # Use the reliable /f/file_id route if we successfully fetched it
+    if file_id:
+        return f"{nextcloud_url}/f/{file_id}"
+        
+    # ... keep the rest of the old function as a fallback ...
     file_path = file_path.lstrip('/')
     
     # Encode the file path for use in the Collabora URL
@@ -273,8 +299,11 @@ def register_nextcloud_callbacks(app, config):
                     outputs_children[idx] = error_html  # type: ignore
                     return outputs_children, outputs_paths, outputs_tables
             
+            # Fetch the internal file ID for the new (or existing) document
+            file_id = client.get_file_id(file_path)
+            
             # Generate Collabora URL
-            collabora_url = generate_collabora_url(nc_url, file_path, nc_username, group_folder=nc_group_folder)
+            collabora_url = generate_collabora_url(nc_url, file_path, nc_username, group_folder=nc_group_folder, file_id=file_id)
             
             # Automatically add document to attachments table using the matched table_idx
             if table_idx is not None and table_idx < len(table_data_list) and table_data_list[table_idx]:

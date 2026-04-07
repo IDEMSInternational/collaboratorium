@@ -514,7 +514,7 @@ forms:
             attachments:
               type: nextcloud_attachments
               label: Document Attachments
-              appearance: markdown
+              appearance: links
               rowfmt: '- [{name}]({url})'
               columns:
                 - name: File Name

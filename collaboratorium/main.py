@@ -47,6 +47,34 @@ app.layout = dbc.Container([
     dcc.Store(id="current-person-id", data=None),
     dcc.Store(id="form-refresh", data=False),
 
+    dbc.Modal(
+        [
+            dbc.ModalHeader(dbc.ModalTitle("Document Editor")),
+            dbc.ModalBody(
+                html.Iframe(
+                    id="collabora-iframe",
+                    src="",
+                    style={"width": "100%", "height": "85vh", "border": "none"}
+                ),
+                style={"padding": "0"} # Remove padding for edge-to-edge editor
+            ),
+            dbc.ModalFooter([
+                html.A(
+                    "Open in New Tab ↗", 
+                    id="modal-new-tab-link", 
+                    href="", 
+                    target="_blank", 
+                    className="btn btn-outline-primary me-auto" # Pushes to the left side
+                ),
+                dbc.Button("Close Document", id="close-collabora-modal", color="secondary", n_clicks=0)
+            ]),
+        ],
+        id="collabora-modal",
+        size="xl",      # Use extra large modal
+        is_open=False,
+        backdrop="static", # Prevent clicking outside to close (prevents accidental loss of work)
+    ),
+
     dbc.Row([
         dbc.Col(html.H2(config["title"])),
         dbc.Col([

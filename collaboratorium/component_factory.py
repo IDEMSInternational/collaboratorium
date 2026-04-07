@@ -317,6 +317,73 @@ def component_for_element(element_config, form_name, value=None):
                     ),
                 ])
             )
+        elif element_config.get('appearance') == 'links':
+            list_items = []
+            
+            for d in value:
+                if d == empty_row or not d.get('url'):
+                    continue
+                    
+                url = d['url']
+                name = d.get('name', 'Unnamed Document')
+                
+                # CSS to make buttons look like links and truncate long text smoothly
+                link_style = {
+                    "background": "none", "border": "none", "color": "#007bff", 
+                    "textDecoration": "underline", "cursor": "pointer", "padding": "0", 
+                    "font": "inherit", "textAlign": "left",
+                    "maxWidth": "250px",           # Prevents it from pushing the layout
+                    "overflow": "hidden", 
+                    "textOverflow": "ellipsis",    # Adds the '...'
+                    "whiteSpace": "nowrap",
+                    "display": "inline-block",
+                    "verticalAlign": "bottom"
+                }
+                
+                # Check if it's an internal NextCloud URL
+                if "embedded" in url: # "cloud.condy.xyz" in url:
+                    # Renders as a button that triggers the Python callback -> Modal
+                    action_element = html.Button(
+                        name, 
+                        id={"type": "open-doc-btn", "url": url}, 
+                        n_clicks=0,
+                        style=link_style,
+                        title=name # Hover tooltip
+                    )
+                else:
+                    # Renders as a standard HTML link that bypasses Python -> New Tab
+                    action_element = html.A(
+                        name,
+                        href=url,
+                        target="_blank",
+                        style=link_style,
+                        title=name # Hover tooltip
+                    )
+                
+                list_items.append(html.Li(action_element, style={"marginBottom": "4px"}))
+
+            attachments_children.append(html.Ul(list_items, style={"paddingLeft": "20px"}))
+
+            attachments_children.append(
+                html.Details([
+                    html.Summary(f'Modify {label}'),
+                    dash_table.DataTable(
+                        id={"type": "input", "form": form_name, "element": element_config["element_id"]},
+                        columns=columns,
+                        data=value,
+                        row_deletable=True,
+                        editable=True,
+                        style_cell={'textAlign': 'left'},
+                        style_header={'fontWeight': 'bold'},
+                        style_data_conditional=[
+                            {
+                                'if': {'row_index': 'odd'},
+                                'backgroundColor': '#f9f9f9'
+                            }
+                        ]
+                    ),
+                ])
+            )
         else:
             # Standard table view
             attachments_children.append(

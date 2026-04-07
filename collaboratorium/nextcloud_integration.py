@@ -364,6 +364,37 @@ def register_nextcloud_callbacks(app, config):
             
             return outputs_children, outputs_paths, outputs_tables
 
+    @app.callback(
+        Output("collabora-modal", "is_open"),
+        Output("collabora-iframe", "src"),
+        Output("modal-new-tab-link", "href"), # <-- Pass the URL to the modal's "pop-out" button
+        Input({"type": "open-doc-btn", "url": ALL}, "n_clicks"),
+        Input("close-collabora-modal", "n_clicks"),
+        State("collabora-modal", "is_open"),
+        prevent_initial_call=True
+    )
+    def toggle_collabora_modal(open_clicks, close_clicks, is_open):
+        if not ctx.triggered:
+            return no_update, no_update, no_update
+            
+        # ctx.triggered_id automatically returns a dict for pattern-matching IDs, or a string for standard IDs!
+        trigger_id = ctx.triggered_id
+        
+        # If the user clicked the Close button
+        if trigger_id == "close-collabora-modal":
+            return False, "", "" 
+            
+        # If the user clicked a document link
+        if isinstance(trigger_id, dict) and trigger_id.get("type") == "open-doc-btn":
+            # Ensure it was an actual click
+            idx = next((i for i, nc in enumerate(open_clicks) if nc), None)
+            if idx is not None and open_clicks[idx] > 0:
+                document_url = trigger_id.get("url")
+                # Return: Open Modal, Set Iframe SRC, Set Pop-out href
+                return True, document_url, document_url
+                
+        return no_update, no_update, no_update
+
 
 def register_nextcloud_password_callback(app):
     """

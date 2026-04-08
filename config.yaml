@@ -1009,3 +1009,69 @@ default_forms:
   organisation_people_links: organisation_people_links_form
   activity_people_links: activity_people_links_form
   tag_groups: tag_groups_form
+# --- The Filter Registry ---
+# Defines the "Logic Slots" and their default behavior/UI
+filter_registry:
+  target-entity:
+    label: "Target Entity"
+    type: select_multiple
+    appearance: dropdown
+    parameters:
+      source_tables: [initiatives, people, organisations, activities, contracts]
+  date-range:
+    label: "Activity Date Range"
+    type: date_range
+  degree-val:
+    label: "Degrees of Separation"
+    type: integer
+    parameters:
+      min: 1
+      max: 100
+      default: 1
+  node-type-filter:
+    label: "Visible Node Types"
+    type: select_multiple
+    appearance: checkboxes
+  node-type-degree:
+    label: "Degree Types"
+    type: select_multiple
+    appearance: checkboxes
+  degree-inout:
+    label: "Traverse Direction"
+    type: select_multiple
+    appearance: checkboxes
+    parameters:
+      options: 
+        parents: " Parents"
+        children: " Children"
+
+# --- View Definitions ---
+# Orchestrates which filters are visible and applies "Masks" (overrides)
+views:
+  view-all:
+    name: "All Filters & Settings"
+    icon: "bi-list-check"
+    layout: "cose-bilkent"
+    active_filters:
+      target-entity:
+      date-range:
+      node-type-filter:
+      degree-val:
+      degree-inout:
+  view-downstream:
+    name: "Downstream View"
+    icon: "bi-water"
+    layout: "dagre"
+    active_filters:
+      target-entity:
+        parameters:
+          source_tables: [initiatives, contracts, people]
+      date-range:
+  view-degree:
+    name: "Degree Graph"
+    icon: "bi-diagram-3"
+    layout: "cose-bilkent"
+    active_filters:
+      target-entity:
+      degree-val:
+      degree-inout:

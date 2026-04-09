@@ -387,7 +387,7 @@ def generate_static_subform_elements(element_config, form_name, value=None):
             ([html.B(subform_label)] if subform_label is not None else []) +
             [
                 *sf_elements
-            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': '#ffffff',
+            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
                       'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'}
         ))
 

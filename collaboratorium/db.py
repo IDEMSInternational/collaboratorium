@@ -348,7 +348,8 @@ def build_elements_from_db(config,
                         link_table=child_table, link_obj_id=row.get('id'), link_status=row.get('status')
                     )
                     if edge: all_edges.append(edge)
-        except Exception:
+        except Exception as e:
+            print(f"[WARN] Failed to build edge from ref {(child_table, child_col_name), (parent_table, parent_col_name)}: {e}")
             continue
 
     rconn.close()
@@ -385,9 +386,6 @@ def build_elements_from_db(config,
         else:
             view_cfg = config.get('views', {}).get(view_mode, {})
             pipeline = view_cfg.get('pipeline', [])
-
-        current_nodes = set(target_nodes)
-        saved_sets = {'seed_nodes': set(target_nodes)}
 
         current_nodes = set(target_nodes)
         saved_sets = {'seed_nodes': set(target_nodes)}

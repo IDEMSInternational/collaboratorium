@@ -6,6 +6,7 @@
     --idems-text: #212529;       /* Main Text */
     --idems-text-muted: #6c757d;
     --border-color: #dee2e6;
+    --idems-orange-hover: #d97b1a;
 }
 
 body {
@@ -55,8 +56,8 @@ label {
 }
 
 .btn-primary:hover, button[id^="view-"]:hover {
-    background-color: #d97b1a; 
-    border-color: #d97b1a;
+    background-color: var(--idems-orange-hover); 
+    border-color: var(--idems-orange-hover);
     color: white;
 }
 

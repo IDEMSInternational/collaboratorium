@@ -1009,3 +1009,185 @@ default_forms:
   organisation_people_links: organisation_people_links_form
   activity_people_links: activity_people_links_form
   tag_groups: tag_groups_form
+# --- The Filter Registry ---
+# Defines the "Logic Slots" and their default behavior/UI
+filter_registry:
+  target-entity:
+    label: "Target Entity"
+    type: select_multiple
+    appearance: dropdown
+    parameters:
+      source_tables: [initiatives, people, organisations, activities, contracts]
+  date-range:
+    label: "Activity Date Range"
+    type: date_range
+  degree-val:
+    label: "Degrees of Separation"
+    type: integer
+    parameters:
+      min: 1
+      max: 100
+      default: 1
+  node-type-filter:
+    label: "Visible Node Types"
+    type: select_multiple
+    appearance: checkboxes
+  node-type-degree:
+    label: "Degree Types"
+    type: select_multiple
+    appearance: checkboxes
+  degree-inout:
+    label: "Traverse Direction"
+    type: select_multiple
+    appearance: checkboxes
+    parameters:
+      options: 
+        parents: " Parents"
+        children: " Children"
+
+# --- View Definitions ---
+# Orchestrates which filters are visible and applies composable pipelines
+views:
+  view-all:
+    name: "All Filters & Settings"
+    icon: "bi-list-check"
+    layout: "cose-bilkent"
+    pipeline: []
+    active_filters:
+      target-entity:
+      date-range:
+      node-type-filter:
+      degree-val:
+      degree-inout:
+
+  view-downstream:
+    name: "Downstream View"
+    icon: "bi-water"
+    layout: "dagre"
+    pipeline:
+      - filter: TraversalFilter
+        direction: children
+        max_depth: infinity
+        allowed_types: ['initiatives']
+        accumulate: true
+      - filter: SaveSet
+        set_name: "all_initiatives"
+      - filter: TraversalFilter
+        direction: both
+        max_depth: 1
+        allowed_types: ['activities']
+      - filter: NodeTypeFilter
+        allowed_types: ['activities']
+      - filter: PropertyFilter
+        target_type: 'activities'
+        property_key: 'start_date'
+        min_val: $start_date
+        max_val: $end_date
+      - filter: Union
+        with_set: "all_initiatives"
+      - filter: Union
+        with_set: "seed_nodes"
+    active_filters:
+      target-entity:
+        parameters:
+          source_tables: [initiatives, contracts, people]
+      date-range:
+      node-type-filter:
+
+  view-upstream:
+    # Use Case: You are looking at a specific activity or low-level initiative and need to answer: "Why are we doing this? Who is funding this? What overarching strategic goal does this roll up to?"
+    name: "Upstream (Strategic Rollup)"
+    icon: "bi-cloud-arrow-up"
+    layout: "dagre"
+    pipeline:
+      # Step 1: Find direct initiatives from the selection
+      - filter: TraversalFilter
+        direction: parents
+        max_depth: 1
+        allowed_types: ['initiatives']
+        
+      # Step 2: Traverse UP to find all parent strategic initiatives
+      - filter: TraversalFilter
+        direction: parents
+        max_depth: infinity
+        allowed_types: ['initiatives']
+        accumulate: true
+      - filter: SaveSet
+        set_name: "all_upstream_initiatives"
+        
+      # Step 3: Find Funding/Contracts and Organizations attached to these high-level goals
+      - filter: TraversalFilter
+        direction: both
+        max_depth: 1
+        allowed_types: ['contracts', 'organisations']
+        accumulate: true
+        
+      # Step 4: Re-add the seeds
+      - filter: Union
+        with_set: "seed_nodes"
+        
+    active_filters:
+      target-entity:
+        parameters:
+          source_tables: [activities, initiatives]
+      node-type-filter:
+
+  
+  view-contract-impact:
+    # Use Case: Writing a business activity or grant report. A stakeholder asks: "What exactly did the '2024 Global Health Grant' accomplish?"
+    name: "Contract Impact View"
+    icon: "bi-file-earmark-text"
+    layout: "dagre"
+    pipeline:
+      - filter: NodeTypeFilter
+        allowed_types: ['contracts', 'organisations']
+      - filter: SaveSet
+        set_name: "funders"
+        
+      # Jump to the direct work funded by this contract
+      - filter: TraversalFilter
+        direction: both
+        max_depth: 1
+        allowed_types: ['initiatives', 'activities']
+        accumulate: true
+        
+      # Cascade down to find all sub-work
+      - filter: TraversalFilter
+        direction: children
+        max_depth: infinity
+        allowed_types: ['initiatives', 'activities']
+        accumulate: true
+        
+      # Filter the resulting activities by the reporting period
+      - filter: PropertyFilter
+        target_type: 'activities'
+        property_key: 'start_date'
+        min_val: $start_date
+        max_val: $end_date
+        
+      # Ensure funders are in the final graph
+      - filter: Union
+        with_set: "funders"
+        
+    active_filters:
+      target-entity:
+        parameters:
+          source_tables: [contracts, organisations]
+      date-range:
+      node-type-filter:
+
+  view-degree:
+    name: "Degree Graph"
+    icon: "bi-diagram-3"
+    layout: "cose-bilkent"
+    pipeline:
+      - filter: TraversalFilter
+        direction: $degree_inout
+        max_depth: $degree
+        allowed_types: $degree_types
+    active_filters:
+      target-entity:
+      degree-val:
+      degree-inout:
+      node-type-degree:
+      node-type-filter:

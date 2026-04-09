@@ -1,0 +1,148 @@
+:root {
+    /* IDEMS Light Palette */
+    --idems-bg: #f4f6f8;         /* Main Background */
+    --idems-panel: #ffffff;      /* Sidebar/Card Background */
+    --idems-orange: #f28b20;     /* Primary Accent */
+    --idems-text: #212529;       /* Main Text */
+    --idems-text-muted: #6c757d;
+    --border-color: #dee2e6;
+    --idems-orange-hover: #d97b1a;
+}
+
+body {
+    background-color: var(--idems-bg);
+    color: var(--idems-text);
+    font-family: "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    margin: 0;
+}
+
+/* --- Typography --- */
+h1, h2, h3, h4, h5, h6 {
+    color: var(--idems-text);
+    font-weight: 600;
+}
+
+label {
+    color: var(--idems-text-muted);
+    font-weight: 600;
+    margin-bottom: 5px;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.5px;
+}
+
+/* --- Cards & Containers --- */
+.card {
+    background-color: var(--idems-panel);
+    border: 1px solid var(--border-color);
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+    border-radius: 8px;
+    margin-bottom: 1rem;
+}
+
+.card-header {
+    background-color: #f8f9fa;
+    border-bottom: 1px solid var(--border-color);
+    color: var(--idems-text);
+    font-weight: bold;
+}
+
+/* --- Buttons --- */
+.btn-primary, button[id^="view-"] {
+    background-color: var(--idems-orange);
+    border-color: var(--idems-orange);
+    color: white;
+    font-weight: 600;
+}
+
+.btn-primary:hover, button[id^="view-"]:hover {
+    background-color: var(--idems-orange-hover); 
+    border-color: var(--idems-orange-hover);
+    color: white;
+}
+
+button[type="submit"], button#submit {
+    background-color: var(--idems-orange);
+    border: none;
+    color: white;
+    padding: 8px 16px;
+    border-radius: 4px;
+    font-weight: bold;
+    cursor: pointer;
+    margin-top: 15px;
+    transition: background-color 0.2s;
+}
+
+button[type="submit"]:hover {
+    background-color: #d97b1a;
+}
+
+/* --- Details/Summary Tags (Fixes "Modify attachments" text) --- */
+summary {
+    color: var(--idems-text);
+    font-weight: 600;
+    cursor: pointer;
+    padding: 8px 0;
+    user-select: none;
+}
+summary:hover {
+    color: var(--idems-orange);
+}
+
+/* --- Dash Component Overrides (IDEMS Branding) --- */
+/* Dropdown Focus */
+.Select.is-focused > .Select-control {
+    border-color: var(--idems-orange) !important;
+    box-shadow: 0 0 0 0.2rem rgba(242, 139, 32, 0.25) !important;
+}
+/* Dropdown Hover Item */
+.Select-option.is-focused {
+    background-color: rgba(242, 139, 32, 0.1) !important;
+    color: var(--idems-text) !important;
+}
+
+/* DatePicker Focus */
+.DateInput_input.DateInput_input_1.DateInput_input__focused.DateInput_input__focused_2 {
+    border-bottom-color: var(--idems-orange) !important;
+}
+.CalendarDay__selected, .CalendarDay__selected:active, .CalendarDay__selected:hover {
+    background-color: var(--idems-orange) !important;
+    border: 1px solid var(--idems-orange) !important;
+    color: white !important;
+}
+.CalendarDay__hovered_span, .CalendarDay__hovered_span:hover {
+    background-color: rgba(242, 139, 32, 0.2) !important;
+    color: var(--idems-text) !important;
+}
+
+/* --- Accordion Overrides --- */
+.accordion-item {
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+.accordion-button {
+    font-weight: 600;
+    color: var(--idems-text);
+    background-color: #f8f9fa;
+}
+/* When the accordion is open */
+.accordion-button:not(.collapsed) {
+    background-color: rgba(242, 139, 32, 0.1); /* Light IDEMS Orange */
+    color: var(--idems-text);
+    box-shadow: inset 0 -1px 0 rgba(0,0,0,.125);
+}
+/* Focus outline */
+.accordion-button:focus {
+    border-color: var(--idems-orange);
+    box-shadow: 0 0 0 0.25rem rgba(242, 139, 32, 0.25);
+}
+/* Spacing for form rows inside the accordion */
+.accordion-body .row {
+    margin-bottom: 12px;
+    align-items: center;
+}
+
+/* Fix DateRange picker background */
+.DateRangePickerInput { background-color: transparent !important; border: none !important; }
+.DateRangePickerInput_arrow_svg { fill: var(--idems-text-muted) !important; }

@@ -300,7 +300,8 @@ def failsafe_div(label, subform_name, value):
                 form_name=subform_name,
                 value=value
             ),            
-        ], style={'backgroundColor': 'red', 'padding': '10px'}
+        ], style={'backgroundColor': '#fff3cd', 'border': '1px solid #ffeeba', 'color': '#856404',
+                  'padding': '15px', 'borderRadius': '6px', 'marginBottom': '10px'}
     )
 
 def generate_subform_block(element_config, form_name, value=None):
@@ -349,7 +350,7 @@ def generate_subform_block(element_config, form_name, value=None):
         [
             html.Label(label+' '),
             *elements,
-        ], style={'backgroundColor': 'lightblue', 'padding': '10px'}
+        ], style={'backgroundColor': '#f8f9fa', 'padding': '15px', 'borderRadius': '6px', 'border': '1px solid var(--border-color)', 'marginBottom': '15px'}
     )
     return subform_block
 
@@ -386,7 +387,8 @@ def generate_static_subform_elements(element_config, form_name, value=None):
             ([html.B(subform_label)] if subform_label is not None else []) +
             [
                 *sf_elements
-            ], style={'border': '1px solid black', 'padding': '10px'}
+            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
+                      'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'}
         ))
 
     return elements
@@ -449,7 +451,8 @@ def generate_dynamic_subform_elements(element_config, form_name, value=None):
             [
                 html.B(subform_label),
                 *sf_elements
-            ], style={'border': '1px solid black', 'padding': '10px'}
+            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': '#ffffff',
+                      'padding': '15px', 'borderRadius': '6px', 'marginBottom': '15px'}
         ))
     
     available_subforms = [subform for subform in subform_names if subform['value'] not in used_subform_idxs]

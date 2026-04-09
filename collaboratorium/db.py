@@ -219,18 +219,17 @@ def get_dropdown_options(table_name, value_column, label_column):
 def build_elements_from_db(config,
                            include_deleted: bool = False,
                            node_types: list | None = None,
-                           people_selected: list | None = None,
-                           degree: int | None = None,
+                           target_nodes: list | None = None,
+                           degree: int | str | None = None,
                            degree_types: list | None = None,
                            degree_inout: list | None = None,
+                           view_mode: str = 'btn-view-all',
+                           start_date: str | None = None,
+                           end_date: str | None = None,
+                           custom_pipeline: list | None = None,
                            ):
     """
     Build Cytoscape-style elements (nodes + edges) dynamically from the config.
-    
-    - include_deleted: Show items with 'deleted' status.
-    - node_types: List of table names to show (e.g., ['people', 'initiatives']).
-    - people_selected: List of people IDs (e.g., ['people-1']) to use as starting points.
-    - degree: N-degree filtering from 'people_selected'. If None, shows all.
     """
 
     rconn = db_connect()
@@ -268,9 +267,7 @@ def build_elements_from_db(config,
         dataframes[name] = _filter_deleted(df)
 
     # --- 1. Build ALL Nodes ---
-    
     def make_node(row, table_name):
-        """Helper to create a Cytoscape node element."""
         nid = f"{table_name}-{int(row['id'])}"
         label = row.get('name') or row.get('Name') or row.get('email') or f"{table_name} {row.get('id')}"
         props = {k: v for k, v in row.items()}
@@ -286,13 +283,10 @@ def build_elements_from_db(config,
                 except Exception as e:
                     print(f"[WARN] Failed to create node for {table_name} row {r.get('id')}: {e}")
     
-    # Set of all node IDs that were successfully created
     existing_node_ids = {n['data']['id'] for n in all_nodes}
 
     # --- 2. Build ALL Edges ---
-
     def add_edge(src_table, src_obj_id, tgt_table, tgt_obj_id, label, link_table=None, link_obj_id=None, link_status=None):
-        """Helper to create a Cytoscape edge element."""
         try:
             if link_status == "deleted": return None
             if pd.isna(src_obj_id) or pd.isna(tgt_obj_id): return None
@@ -300,35 +294,18 @@ def build_elements_from_db(config,
             src_id = f"{src_table}-{int(src_obj_id)}"
             tgt_id = f"{tgt_table}-{int(tgt_obj_id)}"
             
-            # Don't add edges if the source/target node doesn't exist
-            if src_id not in existing_node_ids or tgt_id not in existing_node_ids:
-                return None
-            if label == "created by":
-                return None
+            if src_id not in existing_node_ids or tgt_id not in existing_node_ids: return None
+            if label == "created by": return None
                 
-            # Create a unique edge ID
-            if link_table and link_obj_id is not None:
-                edge_id = f"{link_table}-{int(link_obj_id)}"
-            else:
-                # Implied FK edge
-                edge_id = f"fk-{src_id}-{tgt_id}"
+            edge_id = f"{link_table}-{int(link_obj_id)}" if link_table and link_obj_id is not None else f"fk-{src_id}-{tgt_id}"
 
-            data = {
-                'id': edge_id,
-                'source': src_id,
-                'target': tgt_id,
-                'label': label,
-                'status': link_status
-            }
-            
-            # If this is an editable edge (from a link table), add its info
+            data = {'id': edge_id, 'source': src_id, 'target': tgt_id, 'label': label, 'status': link_status}
             if link_table and link_obj_id is not None:
                 data['table_name'] = link_table
                 data['object_id'] = int(link_obj_id)
 
             return {'data': data}
         except Exception as e:
-            print(f"[WARN] Failed to add edge {label} ({src_obj_id} -> {tgt_obj_id}): {e}")
             return None
 
     all_edges = []
@@ -336,125 +313,176 @@ def build_elements_from_db(config,
     
     for (child_table, child_col_name), (parent_table, parent_col_name) in config.fk_map.items():
         try:
-            # Case 1: Direct FK (e.g., initiatives.responsible_person -> people.id)
             if child_table in config["node_tables"]:
                 df = dataframes.get(child_table)
                 if df is None or df.empty: continue
                 for _, row in df.iterrows():
                     if row.get(child_col_name) is not None and not pd.isna(row.get(child_col_name)):
                         edge = add_edge(
-                            src_table=parent_table, # 'people'
-                            src_obj_id=row[child_col_name],
-                            tgt_table=child_table, # 'initiatives'
-                            tgt_obj_id=row[parent_col_name], # 'id'
-                            label=child_col_name.replace('_', ' ').replace('id', ''),
-                            link_status=row.get('status')
+                            src_table=parent_table, src_obj_id=row[child_col_name],
+                            tgt_table=child_table, tgt_obj_id=row[parent_col_name],
+                            label=child_col_name.replace('_', ' ').replace('id', ''), link_status=row.get('status')
                         )
                         if edge: all_edges.append(edge)
             
-            # Case 2: Link Table (e.g., organisation_people_links)
             elif child_table in link_tables:
-                # Find the *other* FK on this link table
-                other_fk_col = None
-                for (_table, col) in config.fk_map.keys():
-                    if col != child_col_name and child_table == _table and (child_table, col) in config.fk_map:
-                        other_fk_col = col
-                        break
-                
+                other_fk_col = next((col for _table, col in config.fk_map.keys() if col != child_col_name and child_table == _table), None)
                 if not other_fk_col: continue
                 key_list = list(config.fk_map.keys())
-                if key_list.index((child_table, child_col_name)) > key_list.index((child_table, other_fk_col)): continue # Process each link table only once
+                if key_list.index((child_table, child_col_name)) > key_list.index((child_table, other_fk_col)): continue
 
                 other_parent_table_name = config.fk_map[(child_table, other_fk_col)][0]
                 
-                # Handle self-referencing tables
                 if other_fk_col in ['parent_id', 'child_id'] and child_col_name in ['parent_id', 'child_id']:
                     source_col_name, target_col_name = 'parent_id', 'child_id'
                 else:
                     source_col_name, target_col_name = other_fk_col, child_col_name
-                source_table_name, target_table_name = other_parent_table_name, parent_table
-
+                
                 df = dataframes.get(child_table)
                 if df is None or df.empty: continue
-                
                 for _, row in df.iterrows():
                     edge = add_edge(
-                        src_table=source_table_name,
-                        src_obj_id=row[source_col_name],
-                        tgt_table=target_table_name,
-                        tgt_obj_id=row[target_col_name],
+                        src_table=other_parent_table_name, src_obj_id=row[source_col_name],
+                        tgt_table=parent_table, tgt_obj_id=row[target_col_name],
                         label=row.get('type') or child_table.replace('_links', '').replace('_', ' '),
-                        link_table=child_table,
-                        link_obj_id=row.get('id'),
-                        link_status=row.get('status')
+                        link_table=child_table, link_obj_id=row.get('id'), link_status=row.get('status')
                     )
                     if edge: all_edges.append(edge)
         except Exception as e:
             print(f"[WARN] Failed to build edge from ref {(child_table, child_col_name), (parent_table, parent_col_name)}: {e}")
+            continue
 
     rconn.close()
-    
     all_elements = all_nodes + all_edges
 
-    # --- 3. Apply Degree Filter (if provided) ---
-    
+    # --- 3. Apply View Framework Traversal (if provided) ---
     final_elements = all_elements
-    
-    def custom_ego_graph(graph, queue, radius, degree_types, degree_inout):
-        visited = set()
-        # queue = [(ego_node, 0)]  # (node, distance)
-        subgraph_nodes = set()
 
-        while queue:
-            current_node, current_distance = queue.pop(0)
-
-            if current_node in visited or current_distance > radius:
-                continue
-
-            visited.add(current_node)
-            subgraph_nodes.add(current_node)
-
-            if graph.nodes[current_node].get("classes") in degree_types or current_distance == 0:
-                if 'children' in degree_inout:
-                    for neighbor in graph.successors(current_node):
-                        queue.append((neighbor, current_distance + 1))
-                if 'parents' in degree_inout:
-                    for neighbor in graph.predecessors(current_node):
-                        queue.append((neighbor, current_distance + 1))
-
-        return graph.subgraph(subgraph_nodes)
-
-
-    if people_selected and degree is not None:
-        start_nodes = people_selected
+    if view_mode != 'view-all' and target_nodes:
         G = nx.DiGraph()
         for node in all_nodes:
             G.add_node(node['data']['id'], **node)
         for edge in all_edges:
-            G.add_edge(edge['data']['source'], edge['data']['target'])
+            G.add_edge(edge['data']['source'], edge['data']['target'], **edge['data'])
 
-        nodes_to_keep = set()
+        # Context variables for resolving dynamic YAML parameters
+        pipeline_kwargs = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'degree': degree,
+            'degree_types': degree_types or config.get("node_tables", []),
+            'degree_inout': degree_inout or ['parents', 'children'],
+            'node_types': node_types
+        }
 
-        queue = [(node, 0) for node in start_nodes]
+        def resolve_val(val):
+            # Allows YAML pipeline to bind to UI inputs (e.g., $start_date)
+            if isinstance(val, str) and val.startswith('$'):
+                return pipeline_kwargs.get(val[1:])
+            return val
 
-        neighbors_graph = custom_ego_graph(G, queue, radius=degree, degree_types=degree_types, degree_inout=degree_inout)
-        nodes_to_keep.update(neighbors_graph.nodes())
-        
-        # Filter the elements based on the graph traversal
+        if custom_pipeline is not None:
+            pipeline = custom_pipeline
+        else:
+            view_cfg = config.get('views', {}).get(view_mode, {})
+            pipeline = view_cfg.get('pipeline', [])
+
+        current_nodes = set(target_nodes)
+        saved_sets = {'seed_nodes': set(target_nodes)}
+
+        # Execute the discrete composable filters in sequence
+        for step in pipeline:
+            filter_type = step.get('filter')
+
+            if filter_type == 'TraversalFilter':
+                direction = resolve_val(step.get('direction', 'both'))
+                max_depth = resolve_val(step.get('max_depth', 1))
+                allowed_types = resolve_val(step.get('allowed_types'))
+                accumulate = step.get('accumulate', False)
+
+                if max_depth == 'infinity':
+                    max_depth = float('inf')
+                else:
+                    try: max_depth = int(max_depth)
+                    except: max_depth = 1
+
+                dirs = direction if isinstance(direction, list) else [direction]
+                if 'both' in dirs:
+                    dirs = ['parents', 'children']
+
+                visited = set()
+                queue = [(n, 0) for n in current_nodes if n in G]
+                reached_nodes = set()
+
+                while queue:
+                    curr, dist = queue.pop(0)
+                    if curr in visited or dist > max_depth:
+                        continue
+                    
+                    node_type = G.nodes[curr]['data']['type']
+                    
+                    if dist == 0 or allowed_types is None or node_type in allowed_types:
+                        visited.add(curr)
+                        reached_nodes.add(curr)
+
+                        if 'children' in dirs:
+                            for neighbor in G.successors(curr):
+                                queue.append((neighbor, dist + 1))
+                        if 'parents' in dirs:
+                            for neighbor in G.predecessors(curr):
+                                queue.append((neighbor, dist + 1))
+                    else:
+                        visited.add(curr)
+
+                current_nodes = (current_nodes | reached_nodes) if accumulate else reached_nodes
+
+            elif filter_type == 'PropertyFilter':
+                target_type = resolve_val(step.get('target_type'))
+                prop_key = resolve_val(step.get('property_key'))
+                min_val = resolve_val(step.get('min_val'))
+                max_val = resolve_val(step.get('max_val'))
+
+                filtered_nodes = set()
+                for n in current_nodes:
+                    if n not in G: continue
+                    if G.nodes[n]['data']['type'] == target_type:
+                        val = G.nodes[n]['data']['properties'].get(prop_key)
+                        if min_val and str(min_val).strip() != "" and val and val < min_val:
+                            continue
+                        if max_val and str(max_val).strip() != "" and val and val > max_val:
+                            continue
+                    filtered_nodes.add(n)
+                current_nodes = filtered_nodes
+
+            elif filter_type == 'Union':
+                with_set = resolve_val(step.get('with_set', 'seed_nodes'))
+                current_nodes = current_nodes | saved_sets.get(with_set, set())
+
+            elif filter_type == 'NodeTypeFilter':
+                allowed_types = resolve_val(step.get('allowed_types'))
+                if allowed_types:
+                    current_nodes = {n for n in current_nodes if n in G and G.nodes[n]['data']['type'] in allowed_types}
+
+            elif filter_type == 'SaveSet':
+                set_name = resolve_val(step.get('set_name'))
+                if set_name:
+                    saved_sets[set_name] = set(current_nodes)
+
+        nodes_to_keep = current_nodes
+
+        # Filter elements down to the calculated traversal
         nodes = [n for n in all_nodes if n['data']['id'] in nodes_to_keep]
         node_ids = {n['data']['id'] for n in nodes}
         edges = [e for e in all_edges if e['data']['source'] in node_ids and e['data']['target'] in node_ids]
         final_elements = nodes + edges
 
     # --- 4. Apply Node Type Filter (final step) ---
-    
     if node_types:
         nodes = [e for e in final_elements if 'source' not in e['data'] and e['data']['type'] in node_types]
         node_ids = {n['data']['id'] for n in nodes}
         edges = [e for e in final_elements if 'source' in e['data'] and e['data']['source'] in node_ids and e['data']['target'] in node_ids]
         return nodes + edges
     else:
-        # Return all elements (either degree-filtered or complete)
         return final_elements
 
 

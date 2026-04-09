@@ -107,8 +107,7 @@ def register_graph_callbacks(app, config):
     
     # Safe fallback if views is empty
     first_view_id = list(views.keys())[0] if views else None
-
-    # 1. THE VIEW MANAGER
+# 1. THE VIEW MANAGER
     @app.callback(
         [Output("collapse-filters", "is_open"), 
          Output("active-view-title", "children"),
@@ -128,34 +127,51 @@ def register_graph_callbacks(app, config):
         is_open = args[-3]
         
         trigger = ctx.triggered_id or first_view_id
-        view_cfg = views.get(trigger, {})
-        active_filters = view_cfg.get("active_filters", {})
         
-        # Toggle logic
-        if trigger == current_view and ctx.triggered_id:
-            new_is_open = not is_open
-        else:
-            new_is_open = True 
+        # --- NEW LOGIC: Advanced Mode Toggle ---
+        if trigger == first_view_id:
+            # If "All Filters" is clicked, DO NOT change the active graph pipeline
+            active_view_id = current_view if current_view else first_view_id
             
-        # Layout Preference
-        new_layout = current_layout
-        if trigger != current_view and ctx.triggered_id:
+            # Show ALL filters in the registry for power-user tweaking
+            styles = [None for _ in registry.keys()]
+            
+            new_layout = current_layout
+            new_is_open = True
+            
+            # Update title to indicate we are tweaking the active view
+            base_name = views.get(active_view_id, {}).get("name", active_view_id)
+            title = f"{base_name} (Advanced Settings)"
+            
+            # Fallback for target entity options
+            target_entity_cfg = registry.get("target-entity", {})
+            
+        else:
+            # Normal view switching behavior
+            active_view_id = trigger
+            view_cfg = views.get(trigger, {})
+            active_filters = view_cfg.get("active_filters", {})
+            
+            # Show only the filters explicitly mapped to this view
+            styles = [None if f_id in active_filters else {'display': 'none'} for f_id in registry.keys()]
+            
             new_layout = view_cfg.get("layout", current_layout)
-        
-        # Determine Visibility
-        styles = []
-        for f_id in registry.keys():
-            styles.append(None if f_id in active_filters else {'display': 'none'})
+            if trigger == current_view and ctx.triggered_id:
+                new_is_open = not is_open
+            else:
+                new_is_open = True
+                
+            title = view_cfg.get("name", "View")
+            target_entity_cfg = active_filters.get("target-entity") or registry.get("target-entity", {})
 
-        target_entity_cfg = active_filters.get("target-entity") or registry.get("target-entity", {})
-        
+        # Populate the target dropdown based on allowed source_tables
         params = target_entity_cfg.get("parameters", {})
         default_params = registry.get("target-entity", {}).get("parameters", {})
         source_tables = params.get("source_tables", default_params.get("source_tables", []))
         
         options = get_dropdown_options_multi(config, source_tables)
         
-        return [new_is_open, view_cfg.get("name", "View"), trigger, new_layout] + styles + [options]
+        return [new_is_open, title, active_view_id, new_layout] + styles + [options]
 
     # 2. THE GRAPH REFRESH
     @app.callback(

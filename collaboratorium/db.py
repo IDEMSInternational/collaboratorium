@@ -355,24 +355,7 @@ def build_elements_from_db(config,
 
     # --- 3. Apply View Framework Traversal (if provided) ---
     final_elements = all_elements
-    
-    def custom_ego_graph(graph, queue, radius, degree_types, degree_inout):
-        visited = set()
-        subgraph_nodes = set()
-        while queue:
-            current_node, current_distance = queue.pop(0)
-            if current_node in visited or current_distance > radius:
-                continue
-            visited.add(current_node)
-            subgraph_nodes.add(current_node)
-            if graph.nodes[current_node].get("classes") in degree_types or current_distance == 0:
-                if 'children' in degree_inout:
-                    for neighbor in graph.successors(current_node): queue.append((neighbor, current_distance + 1))
-                if 'parents' in degree_inout:
-                    for neighbor in graph.predecessors(current_node): queue.append((neighbor, current_distance + 1))
-        return graph.subgraph(subgraph_nodes)
 
-    # If we are in a targeted view and have start nodes, build the NetworkX DiGraph
     if view_mode != 'view-all' and target_nodes:
         G = nx.DiGraph()
         for node in all_nodes:
@@ -380,87 +363,109 @@ def build_elements_from_db(config,
         for edge in all_edges:
             G.add_edge(edge['data']['source'], edge['data']['target'], **edge['data'])
 
-        nodes_to_keep = set()
+        # Context variables for resolving dynamic YAML parameters
+        pipeline_kwargs = {
+            'start_date': start_date,
+            'end_date': end_date,
+            'degree': degree,
+            'degree_types': degree_types or config.get("node_tables", []),
+            'degree_inout': degree_inout or ['parents', 'children'],
+            'node_types': node_types
+        }
 
-        # ==========================================
-        # DOWNSTREAM VIEW LOGIC
-        # ==========================================
-        if view_mode == 'view-downstream':
-            base_initiatives = set()
-            
-            # Step 1: Identify starting initiatives
-            for node_id in target_nodes:
-                if node_id not in G: continue
-                nodes_to_keep.add(node_id) # Always keep the explicitly selected nodes
-                
-                node_type = G.nodes[node_id]['data']['type']
-                if node_type == 'initiatives':
-                    base_initiatives.add(node_id)
-                elif node_type in ['people', 'contracts', 'organisations']:
-                    # Find directly linked initiatives (checking both in/out edges)
-                    for neighbor in list(G.successors(node_id)) + list(G.predecessors(node_id)):
-                        if G.nodes[neighbor]['data']['type'] == 'initiatives':
-                            base_initiatives.add(neighbor)
+        def resolve_val(val):
+            # Allows YAML pipeline to bind to UI inputs (e.g., $start_date)
+            if isinstance(val, str) and val.startswith('$'):
+                return pipeline_kwargs.get(val[1:])
+            return val
 
-            # Step 2: Traverse downstream (find all children of these initiatives)
-            all_initiatives = set(base_initiatives)
-            queue = list(base_initiatives)
-            while queue:
-                curr = queue.pop(0)
-                # Successors of an initiative via initiative_initiative_links are its children
-                for neighbor in G.successors(curr):
-                    if G.nodes[neighbor]['data']['type'] == 'initiatives' and neighbor not in all_initiatives:
-                        all_initiatives.add(neighbor)
-                        queue.append(neighbor)
-            
-            nodes_to_keep.update(all_initiatives)
-            
-            # Step 3: Find activities linked to these initiatives & apply Date Filters
-            valid_activities = set()
-            for init_node in all_initiatives:
-                for neighbor in list(G.successors(init_node)) + list(G.predecessors(init_node)):
-                    if G.nodes[neighbor]['data']['type'] == 'activities':
-                        act_data = G.nodes[neighbor]['data']['properties']
-                        
-                        keep = True
-                        act_start = act_data.get('start_date')
-                        # Simple string comparison works for ISO dates (YYYY-MM-DD)
-                        if start_date and act_start and act_start < start_date:
-                            keep = False
-                        if end_date and act_start and act_start > end_date:
-                            keep = False
-                            
-                        if keep:
-                            valid_activities.add(neighbor)
-            
-            nodes_to_keep.update(valid_activities)
+        view_cfg = config.get('views', {}).get(view_mode, {})
+        pipeline = view_cfg.get('pipeline', [])
 
-        # ==========================================
-        # DEGREE / DIRECTIONAL VIEW LOGIC
-        # ==========================================
-        elif view_mode in ['view-degree', 'view-ancestor', 'view-child']:
-            queue = [(n, 0) for n in target_nodes if n in G]
+        current_nodes = set(target_nodes)
+        saved_sets = {'seed_nodes': set(target_nodes)}
 
-            try:
-                radius = int(degree) if degree is not None and str(degree).strip() != "" else 1
-            except ValueError:
-                radius = 1
+        # Execute the discrete composable filters in sequence
+        for step in pipeline:
+            filter_type = step.get('filter')
 
-            # Map specific views to their directions if not explicitly set by the UI checklist
-            if view_mode == 'view-ancestor' and not degree_inout:
-                degree_inout = ['parents']
-            elif view_mode == 'view-child' and not degree_inout:
-                degree_inout = ['children']
-                
-            neighbors_graph = custom_ego_graph(
-                G, queue, 
-                radius=radius,
-                degree_types=degree_types or config["node_tables"], 
-                degree_inout=degree_inout or ['parents', 'children']
-            )
-            nodes_to_keep.update(neighbors_graph.nodes())
+            if filter_type == 'TraversalFilter':
+                direction = resolve_val(step.get('direction', 'both'))
+                max_depth = resolve_val(step.get('max_depth', 1))
+                allowed_types = resolve_val(step.get('allowed_types'))
+                accumulate = step.get('accumulate', False)
 
-        # Finally, filter the elements down to our calculated traversal
+                if max_depth == 'infinity':
+                    max_depth = float('inf')
+                else:
+                    try: max_depth = int(max_depth)
+                    except: max_depth = 1
+
+                dirs = direction if isinstance(direction, list) else [direction]
+                if 'both' in dirs:
+                    dirs = ['parents', 'children']
+
+                visited = set()
+                queue = [(n, 0) for n in current_nodes if n in G]
+                reached_nodes = set()
+
+                while queue:
+                    curr, dist = queue.pop(0)
+                    if curr in visited or dist > max_depth:
+                        continue
+                    
+                    node_type = G.nodes[curr]['data']['type']
+                    
+                    if dist == 0 or allowed_types is None or node_type in allowed_types:
+                        visited.add(curr)
+                        reached_nodes.add(curr)
+
+                        if 'children' in dirs:
+                            for neighbor in G.successors(curr):
+                                queue.append((neighbor, dist + 1))
+                        if 'parents' in dirs:
+                            for neighbor in G.predecessors(curr):
+                                queue.append((neighbor, dist + 1))
+                    else:
+                        visited.add(curr)
+
+                current_nodes = (current_nodes | reached_nodes) if accumulate else reached_nodes
+
+            elif filter_type == 'PropertyFilter':
+                target_type = resolve_val(step.get('target_type'))
+                prop_key = resolve_val(step.get('property_key'))
+                min_val = resolve_val(step.get('min_val'))
+                max_val = resolve_val(step.get('max_val'))
+
+                filtered_nodes = set()
+                for n in current_nodes:
+                    if n not in G: continue
+                    if G.nodes[n]['data']['type'] == target_type:
+                        val = G.nodes[n]['data']['properties'].get(prop_key)
+                        if min_val and str(min_val).strip() != "" and val and val < min_val:
+                            continue
+                        if max_val and str(max_val).strip() != "" and val and val > max_val:
+                            continue
+                    filtered_nodes.add(n)
+                current_nodes = filtered_nodes
+
+            elif filter_type == 'Union':
+                with_set = resolve_val(step.get('with_set', 'seed_nodes'))
+                current_nodes = current_nodes | saved_sets.get(with_set, set())
+
+            elif filter_type == 'NodeTypeFilter':
+                allowed_types = resolve_val(step.get('allowed_types'))
+                if allowed_types:
+                    current_nodes = {n for n in current_nodes if n in G and G.nodes[n]['data']['type'] in allowed_types}
+
+            elif filter_type == 'SaveSet':
+                set_name = resolve_val(step.get('set_name'))
+                if set_name:
+                    saved_sets[set_name] = set(current_nodes)
+
+        nodes_to_keep = current_nodes
+
+        # Filter elements down to the calculated traversal
         nodes = [n for n in all_nodes if n['data']['id'] in nodes_to_keep]
         node_ids = {n['data']['id'] for n in nodes}
         edges = [e for e in all_edges if e['data']['source'] in node_ids and e['data']['target'] in node_ids]

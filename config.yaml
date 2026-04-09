@@ -1067,14 +1067,6 @@ views:
     pipeline:
       - filter: TraversalFilter
         direction: children
-        max_depth: 1
-        allowed_types: ['initiatives']
-      - filter: NodeTypeFilter
-        allowed_types: ['initiatives']
-      - filter: SaveSet
-        set_name: "base_initiatives"
-      - filter: TraversalFilter
-        direction: children
         max_depth: infinity
         allowed_types: ['initiatives']
         accumulate: true
@@ -1113,10 +1105,6 @@ views:
         direction: parents
         max_depth: 1
         allowed_types: ['initiatives']
-      - filter: NodeTypeFilter
-        allowed_types: ['initiatives']
-      - filter: SaveSet
-        set_name: "base_initiatives"
         
       # Step 2: Traverse UP to find all parent strategic initiatives
       - filter: TraversalFilter

@@ -219,13 +219,14 @@ def get_dropdown_options(table_name, value_column, label_column):
 def build_elements_from_db(config,
                            include_deleted: bool = False,
                            node_types: list | None = None,
-                           target_nodes: list | None = None, # Renamed from people_selected
+                           target_nodes: list | None = None,
                            degree: int | str | None = None,
                            degree_types: list | None = None,
                            degree_inout: list | None = None,
-                           view_mode: str = 'btn-view-all',  # Added view_mode
-                           start_date: str | None = None,    # Added date filters
+                           view_mode: str = 'btn-view-all',
+                           start_date: str | None = None,
                            end_date: str | None = None,
+                           custom_pipeline: list | None = None,
                            ):
     """
     Build Cytoscape-style elements (nodes + edges) dynamically from the config.
@@ -379,8 +380,14 @@ def build_elements_from_db(config,
                 return pipeline_kwargs.get(val[1:])
             return val
 
-        view_cfg = config.get('views', {}).get(view_mode, {})
-        pipeline = view_cfg.get('pipeline', [])
+        if custom_pipeline is not None:
+            pipeline = custom_pipeline
+        else:
+            view_cfg = config.get('views', {}).get(view_mode, {})
+            pipeline = view_cfg.get('pipeline', [])
+
+        current_nodes = set(target_nodes)
+        saved_sets = {'seed_nodes': set(target_nodes)}
 
         current_nodes = set(target_nodes)
         saved_sets = {'seed_nodes': set(target_nodes)}

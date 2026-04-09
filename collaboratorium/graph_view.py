@@ -1,3 +1,4 @@
+import yaml
 from dash import html, dcc, Input, Output, State, ctx, ALL
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
@@ -42,6 +43,20 @@ def generate_graph_layout(config):
             )
         )
 
+    yaml_editor = dbc.Accordion([
+        dbc.AccordionItem([
+            dcc.Textarea(
+                id="pipeline-yaml-editor",
+                style={'width': '100%', 'height': '200px', 'fontFamily': 'monospace', 'fontSize': '12px'},
+                placeholder="- filter: TraversalFilter\n  direction: both..."
+            ),
+            html.Div([
+                dbc.Button("Apply Custom Pipeline", id="btn-apply-pipeline", color="success", size="sm", className="mt-2"),
+                html.Span(id="pipeline-error-msg", className="text-danger ms-3", style={'fontSize': '12px'})
+            ])
+        ], title="Advanced Pipeline Editor (YAML)")
+    ], start_collapsed=True, className="mt-3")
+
     # Set a safe default layout from config
     default_layout = config.get("network_vis", {}).get("layout", {}).get("name", "cose-bilkent")
 
@@ -60,7 +75,8 @@ def generate_graph_layout(config):
             dbc.Collapse(
                 dbc.Card(dbc.CardBody([
                     html.H6(id="active-view-title", className="mb-3 text-primary fw-bold"),
-                    html.Div(filter_rows)
+                    html.Div(filter_rows),
+                    yaml_editor,
                 ]), className="mb-3 border-0 bg-white shadow-sm"),
                 id="collapse-filters", is_open=False
             ),
@@ -107,12 +123,13 @@ def register_graph_callbacks(app, config):
     
     # Safe fallback if views is empty
     first_view_id = list(views.keys())[0] if views else None
-# 1. THE VIEW MANAGER
+    # 1. THE VIEW MANAGER
     @app.callback(
         [Output("collapse-filters", "is_open"), 
          Output("active-view-title", "children"),
          Output("current-view-state", "data"),
-         Output("layout-selector", "value")] + 
+         Output("layout-selector", "value"),
+         Output("pipeline-yaml-editor", "value")] + # <-- OUTPUT TO EDITOR
         [Output(f"container-{f_id}", "style") for f_id in registry.keys()] +
         [Output(f"filter-target-entity", "options")], 
         [Input(v_id, "n_clicks") for v_id in views.keys()],
@@ -121,61 +138,45 @@ def register_graph_callbacks(app, config):
          State("layout-selector", "value")]
     )
     def manage_view_logic(*args):
-        # Extract states from the end of *args
         current_layout = args[-1]
         current_view = args[-2]
         is_open = args[-3]
-        
         trigger = ctx.triggered_id or first_view_id
         
-        # --- NEW LOGIC: Advanced Mode Toggle ---
+        # Determine active view config
         if trigger == first_view_id:
             # If "All Filters" is clicked, DO NOT change the active graph pipeline
             active_view_id = current_view if current_view else first_view_id
-            
-            # Show ALL filters in the registry for power-user tweaking
             styles = [None for _ in registry.keys()]
-            
             new_layout = current_layout
             new_is_open = True
-            
-            # Update title to indicate we are tweaking the active view
             base_name = views.get(active_view_id, {}).get("name", active_view_id)
             title = f"{base_name} (Advanced Settings)"
-            
-            # Fallback for target entity options
             target_entity_cfg = registry.get("target-entity", {})
-            
+            pipeline_data = views.get(active_view_id, {}).get("pipeline", [])
         else:
-            # Normal view switching behavior
             active_view_id = trigger
             view_cfg = views.get(trigger, {})
             active_filters = view_cfg.get("active_filters", {})
-            
-            # Show only the filters explicitly mapped to this view
             styles = [None if f_id in active_filters else {'display': 'none'} for f_id in registry.keys()]
-            
             new_layout = view_cfg.get("layout", current_layout)
-            if trigger == current_view and ctx.triggered_id:
-                new_is_open = not is_open
-            else:
-                new_is_open = True
-                
+            new_is_open = not is_open if trigger == current_view and ctx.triggered_id else True
             title = view_cfg.get("name", "View")
             target_entity_cfg = active_filters.get("target-entity") or registry.get("target-entity", {})
-
+            pipeline_data = view_cfg.get("pipeline", [])
+        yaml_string = yaml.dump(pipeline_data, sort_keys=False) if pipeline_data else "[]"
         # Populate the target dropdown based on allowed source_tables
         params = target_entity_cfg.get("parameters", {})
         default_params = registry.get("target-entity", {}).get("parameters", {})
         source_tables = params.get("source_tables", default_params.get("source_tables", []))
-        
         options = get_dropdown_options_multi(config, source_tables)
         
-        return [new_is_open, title, active_view_id, new_layout] + styles + [options]
+        return [new_is_open, title, active_view_id, new_layout, yaml_string] + styles + [options]
 
     # 2. THE GRAPH REFRESH
     @app.callback(
         Output('cyto', 'elements'),
+        Output('pipeline-error-msg', 'children'),
         Input('intermediary-loaded', 'data'),
         Input('current-view-state', 'data'),
         Input('filter-target-entity', 'value'),
@@ -185,9 +186,23 @@ def register_graph_callbacks(app, config):
         Input('filter-node-type-filter', 'value'),
         Input('filter-node-type-degree', 'value'),
         Input('filter-degree-inout', 'value'),
+        Input('btn-apply-pipeline', 'n_clicks'),
+        State('pipeline-yaml-editor', 'value'),
     )
-    def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout):
-        return build_elements_from_db(
+    def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, yaml_text):
+        custom_pipeline = None
+        error_msg = ""
+
+        if ctx.triggered_id == 'btn-apply-pipeline' and yaml_text:
+            try:
+                custom_pipeline = yaml.safe_load(yaml_text)
+                if not isinstance(custom_pipeline, list):
+                    error_msg = "Error: Pipeline must be a YAML list (array)."
+                    custom_pipeline = None
+            except Exception as e:
+                error_msg = f"YAML Error: {str(e)}"
+        
+        elements = build_elements_from_db(
             config, 
             view_mode=view_id, 
             target_nodes=targets,
@@ -196,8 +211,11 @@ def register_graph_callbacks(app, config):
             degree=degree,
             node_types=types,
             degree_types=degree_types,
-            degree_inout=inout
+            degree_inout=inout,
+            custom_pipeline=custom_pipeline,
         )
+        
+        return elements, error_msg
 
     # 3. THE LAYOUT SELECTOR
     @app.callback(

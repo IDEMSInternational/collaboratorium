@@ -189,6 +189,7 @@ def register_graph_callbacks(app, config):
         Input('btn-apply-pipeline', 'n_clicks'),
         State('pipeline-yaml-editor', 'value'),
     )
+    @login_required
     def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, yaml_text):
         custom_pipeline = None
         error_msg = ""

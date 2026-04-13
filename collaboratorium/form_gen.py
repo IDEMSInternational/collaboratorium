@@ -78,6 +78,7 @@ def register_click_callbacks(app, config):
         State("current-person-id", "data"),
         Input("form-refresh", "data"),
     )
+    @login_required
     def load_form(table_name, tap_node, tap_edge, person_id, refresh_signal):
         """
         Display either:

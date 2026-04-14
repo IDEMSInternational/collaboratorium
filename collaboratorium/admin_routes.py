@@ -69,7 +69,7 @@ def register_admin_routes(server):
             except Exception as e:
                 if os.path.exists(temp_path):
                     os.remove(temp_path)
-                return f"An error occurred during validation: {str(e)}", 500
+                return "An error occurred during database restoration. Please check the server logs.", 500
 
         # Handle GET (Download/Backup)
         if request.args.get('action') == 'download':

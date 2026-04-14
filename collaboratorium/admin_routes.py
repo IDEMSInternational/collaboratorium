@@ -86,7 +86,7 @@ def register_admin_routes(server):
                 with sqlite3.connect(db_path) as conn:
                     # Remove the snapshot file first, as VACUUM INTO requires the target to not exist
                     os.remove(snapshot_path) 
-                    conn.execute(f"VACUUM INTO '{snapshot_path}'")
+                    conn.execute(f"VACUUM INTO '{snapshot_path.replace("'", "''")}'")
                 
                 # Cleanup the snapshot after sending
                 @after_this_request

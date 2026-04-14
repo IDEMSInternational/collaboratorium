@@ -3,6 +3,7 @@ import os
 from datetime import datetime
 
 from auth import server, login_required, register_auth_callbacks
+from admin_routes import register_admin_routes
 
 from dash import Dash, html, dcc, Input, Output, State, ctx
 import dash_bootstrap_components as dbc
@@ -60,7 +61,6 @@ app.layout = html.Div([
 
         dbc.Row([
             dbc.Col([
-                # --- The Refactored Graph Component ---
                 generate_graph_layout(config)
             ], width=8),
 
@@ -91,8 +91,8 @@ app.layout = html.Div([
 # ---------------------------------------------------------
 register_auth_callbacks(app)
 register_form_callbacks(app, config)
-
-register_graph_callbacks(app, config) # Our new master callback registration!
+register_graph_callbacks(app, config)
+register_admin_routes(server)
 
 # ---------------------------------------------------------
 # Server startup

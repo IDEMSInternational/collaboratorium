@@ -101,7 +101,7 @@ def register_admin_routes(server):
             except Exception as e:
                 if os.path.exists(snapshot_path):
                     os.remove(snapshot_path)
-                abort(500, description=f"Failed to create database snapshot: {str(e)}")
+                abort(500, description="Failed to create database snapshot. Please check the server logs.")
 
         # Serve the Admin UI (Injected with CSRF Token)
         html_template = """

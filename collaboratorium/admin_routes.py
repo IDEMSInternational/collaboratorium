@@ -56,7 +56,8 @@ def register_admin_routes(server):
                     return "Database validation failed. The file is corrupt or not a valid SQLite database.", 400
 
                 # Safe replacement (shutil.copy2 preserves permissions and avoids breaking Docker bind mounts)
-                shutil.copy2(temp_path, db_path)
+                with sqlite3.connect(temp_path) as source, sqlite3.connect(db_path) as dest:
+                    source.backup(dest)
                 os.remove(temp_path)
 
                 return """

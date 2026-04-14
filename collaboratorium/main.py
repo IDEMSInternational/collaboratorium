@@ -40,8 +40,11 @@ app = Dash(
     external_stylesheets=[dbc.themes.BOOTSTRAP],
     server=server,
     suppress_callback_exceptions=True,
-    assets_folder='assets'
+    assets_folder='assets',
+    assets_url_path='assets',
 )
+
+app._favicon = ("cropped-IDEMS_logomark_with_border_circle-32x32.png") 
 
 app.layout = html.Div([ 
     dcc.Store(id='selected-action', data=None),
@@ -53,9 +56,9 @@ app.layout = html.Div([
 
     dbc.Container([
         dbc.Row([
-            dbc.Col(html.H2(config["title"], className="mt-3 mb-4")),
+            dbc.Col(html.H2(config["title"], className="mb-4")),
             dbc.Col([
-                html.Div(id="login-area", className="mt-4 text-end")
+                html.Div(id="login-area", className="text-end")
             ])
         ]),
 

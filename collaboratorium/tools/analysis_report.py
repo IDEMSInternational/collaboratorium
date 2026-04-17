@@ -270,10 +270,11 @@ def init_analytics_app(server):
         end = pd.to_datetime(end_date)
 
         # Main Entity Analytics Filtering
-        sub_analytics = df_analytics[(df_analytics['timestamp'] >= start) & (df_analytics['timestamp'] <= end)] if not df_analytics.empty else pd.DataFrame()
-        sub_creations = df_creations[(df_creations['timestamp'] >= start) & (df_creations['timestamp'] <= end)] if not df_creations.empty else pd.DataFrame()
-        sub_edits = df_edits[(df_edits['timestamp'] >= start) & (df_edits['timestamp'] <= end)] if not df_edits.empty else pd.DataFrame()
-        sub_views = df_views[(df_views['timestamp'] >= start) & (df_views['timestamp'] <= end)] if not df_views.empty else pd.DataFrame()
+        # Main Entity Analytics Filtering
+        sub_analytics = df_analytics[(df_analytics['timestamp'] >= start) & (df_analytics['timestamp'] <= end)].copy() if not df_analytics.empty else pd.DataFrame()
+        sub_creations = df_creations[(df_creations['timestamp'] >= start) & (df_creations['timestamp'] <= end)].copy() if not df_creations.empty else pd.DataFrame()
+        sub_edits = df_edits[(df_edits['timestamp'] >= start) & (df_edits['timestamp'] <= end)].copy() if not df_edits.empty else pd.DataFrame()
+        sub_views = df_views[(df_views['timestamp'] >= start) & (df_views['timestamp'] <= end)].copy() if not df_views.empty else pd.DataFrame()
 
         # Core Metrics
         count_views = len(sub_analytics)

@@ -16,6 +16,7 @@ from config_parser import load_config
 
 # --- New Imports ---
 from graph_view import generate_graph_layout, register_graph_callbacks
+from tools.analysis_report import init_analytics_app
 
 # ---------------------------------------------------------
 # Config Load
@@ -34,6 +35,11 @@ analytics_init_db()
 # ---------------------------------------------------------
 
 cyto.load_extra_layouts()
+
+# Initialize the Analytics App on the same Flask Server (Mounts securely to /analytics/)
+init_analytics_app(server)
+
+# Core Graph application initialized at the root domain
 app = Dash(
     config["title"],
     title=config["title"],

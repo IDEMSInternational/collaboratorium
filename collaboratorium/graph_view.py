@@ -4,6 +4,7 @@ import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from auth import login_required
 from db import build_elements_from_db, get_dropdown_options
+from analytics import log_view_event
 
 # ==============================================================
 # LAYOUT GENERATION
@@ -188,13 +189,16 @@ def register_graph_callbacks(app, config):
         Input('filter-degree-inout', 'value'),
         Input('btn-apply-pipeline', 'n_clicks'),
         State('pipeline-yaml-editor', 'value'),
+        State('current-person-id', 'data'),
     )
     @login_required
-    def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, yaml_text):
+    def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, yaml_text, person_id):
         custom_pipeline = None
         error_msg = ""
+        used_advanced = 0
 
         if ctx.triggered_id == 'btn-apply-pipeline' and yaml_text:
+            used_advanced = 1
             try:
                 custom_pipeline = yaml.safe_load(yaml_text)
                 if not isinstance(custom_pipeline, list):
@@ -214,6 +218,24 @@ def register_graph_callbacks(app, config):
             degree_types=degree_types,
             degree_inout=inout,
             custom_pipeline=custom_pipeline,
+        )
+        
+        # Calculate resulting node count (in Cytoscape, edges have a 'source' key, nodes do not)
+        node_count = sum(1 for e in elements if 'source' not in e.get('data', {}))
+
+        # Log the rich UX data
+        log_view_event(
+            person_id=person_id,
+            view_id=view_id,
+            target_entities=targets,
+            used_advanced_pipeline=used_advanced,
+            degree=degree,
+            node_types=types,
+            degree_types=degree_types,
+            degree_inout=inout,
+            start_date=start,
+            end_date=end,
+            node_count=node_count
         )
         
         return elements, error_msg

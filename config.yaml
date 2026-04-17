@@ -1143,6 +1143,13 @@ views:
         allowed_types: ['contracts', 'organisations']
       - filter: SaveSet
         set_name: "funders"
+      
+      # Find all of the child contracts
+      - filter: TraversalFilter
+        direction: children
+        max_depth: 1
+        allowed_types: ['contracts']
+        accumulate: true
         
       # Jump to the direct work funded by this contract
       - filter: TraversalFilter

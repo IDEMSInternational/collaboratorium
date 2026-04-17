@@ -323,7 +323,7 @@ def init_analytics_app(server):
             
             df_vol = sub_analytics['user_name'].value_counts().reset_index()
             df_vol.columns = ['user_name', 'count']
-            fig_vol = px.bar(df_vol, x='user_name', y='count', template='plotly_white', color_discrete_sequence=['var(--idems-orange)'])
+            fig_vol = px.bar(df_vol, x='user_name', y='count', template='plotly_white', color_discrete_sequence=['#f28b20'])
             fig_vol.update_layout(xaxis_title=None, yaxis_title="Total Activity")
             
             df_pie = sub_analytics['requested_table'].value_counts().reset_index()

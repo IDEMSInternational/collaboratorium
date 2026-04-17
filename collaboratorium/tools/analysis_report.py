@@ -133,8 +133,9 @@ def init_analytics_app(server):
     app.title = "Collaboratorium Analytics"
 
     df_analytics_init, df_creations_init, _, _ = load_data()
-    if not df_analytics_init.empty:
-        min_date = min(df_analytics_init['timestamp'].min(), df_creations_init['timestamp'].min())
+    if not df_analytics_init.empty or not df_creations_init.empty:
+        all_dates = pd.concat([df_analytics_init['timestamp'], df_creations_init['timestamp']])
+        min_date = all_dates.min()
         max_date = datetime.now()
     else:
         min_date = datetime.now() - timedelta(days=30)

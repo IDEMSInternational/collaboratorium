@@ -58,7 +58,7 @@ app.layout = html.Div([
     dcc.Store(id='intermediary-loaded', data=False),
     dcc.Store(id="current-person-id", data=None),
     dcc.Store(id="form-refresh", data=False),
-    dcc.Store(id="current-view-state", data="view-degree"), # Track active view
+    dcc.Store(id="current-view-state", data="view-downstream"), # Track active view
 
     dbc.Container([
         dbc.Row([

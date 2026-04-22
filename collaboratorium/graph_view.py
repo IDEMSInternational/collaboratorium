@@ -1,5 +1,5 @@
 import yaml
-from dash import html, dcc, Input, Output, State, ctx, ALL
+from dash import html, dcc, Input, Output, State, ctx, ALL, no_update
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from auth import login_required
@@ -142,7 +142,7 @@ def register_graph_callbacks(app, config):
         current_layout = args[-1]
         current_view = args[-2]
         is_open = args[-3]
-        trigger = ctx.triggered_id or first_view_id
+        trigger = ctx.triggered_id or current_view
         
         # Determine active view config
         if trigger == first_view_id:
@@ -250,6 +250,17 @@ def register_graph_callbacks(app, config):
         if layout_name:
             layout["name"] = layout_name
         return layout
+    
+    @app.callback(
+        Output('filter-target-entity', 'value'),
+        Input('current-person-id', 'data')
+    )
+    def set_default_target_entity(person_id):
+        # This triggers exactly once when the session person_id is loaded on initial page load.
+        # It will not override the user if they clear the dropdown later.
+        if person_id:
+            return [f"people-{person_id}"]
+        return no_update
 
 # --- DB Helper ---
 def get_dropdown_options_multi(config, source_tables):

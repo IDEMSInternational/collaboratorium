@@ -1198,3 +1198,15 @@ views:
       degree-inout:
       node-type-degree:
       node-type-filter:
+
+# --- Reports Definitions ---
+# Generates hierarchical markdown documents from the filtered graph pipeline
+reports:
+  annual_report:
+    name: "Annual Activity Report"
+    hierarchy:
+      - type: "initiatives"
+        template: "## {name} [🔗](/edit/initiatives/{id})\n\n{description}\n\n"
+        children:
+          - type: "activities"
+            template: "### {name} [🔗](/edit/activities/{id})\n**Start:** {start_date} | **End:** {end_date}\n\n{description}\n\n"

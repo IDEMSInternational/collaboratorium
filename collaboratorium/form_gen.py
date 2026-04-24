@@ -1,6 +1,7 @@
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
 from db import db_connect, get_latest_entry
+import json
 
 from analytics import analytics_log
 from auth import login_required
@@ -75,27 +76,42 @@ def register_click_callbacks(app, config):
         Input("table-selector", "value"),
         Input('cyto', 'tapNodeData'),
         Input('cyto', 'tapEdgeData'),
+        Input('url', 'pathname'),
+        Input({'type': 'spreadsheet-table', 'table_name': ALL}, 'active_cell'),
         State("current-person-id", "data"),
         Input("form-refresh", "data"),
     )
     @login_required
-    def load_form(table_name, tap_node, tap_edge, person_id, refresh_signal):
+    def load_form(table_name, tap_node, tap_edge, pathname, active_cells, person_id, refresh_signal):
         """
-        Display either:
-        - add form (when table-selector triggered),
-        - node form (when cyto tapNode triggered),
-        - edge form (when cyto tapEdge triggered).
+        Display form based on trigger: Add selector, Graph tap, Spreadsheet click, or URL link.
+        """
+        trigger = ctx.triggered[0].get('prop_id', '') if ctx.triggered else None
 
-        Uses ctx.triggered to prefer the *actual* trigger rather than just presence of table_name.
-        """
-        # determine which input actually triggered this callback
-        trigger = None
-        if ctx.triggered:
-            # ctx.triggered is a list like [{'prop_id': 'table-selector.value', 'value': ...}]
-            trigger = ctx.triggered[0].get('prop_id', '')
-        
         if trigger == "form-refresh.data":
-            return html.Div("Select a table or click a node/edge in the graph.")
+            return html.Div("Select a table or click an element to edit.")
+            
+        # 1. URL Routing (from Markdown Report links)
+        if trigger == 'url.pathname' and pathname:
+            parts = pathname.strip('/').split('/')
+            if len(parts) == 3 and parts[0] == 'edit':
+                tbl, obj_id = parts[1], parts[2]
+                try:
+                    return show_node_form({'id': f"{tbl}-{obj_id}"}, person_id)
+                except Exception:
+                    pass
+
+        # 2. Spreadsheet Cell Clicks
+        if trigger and 'spreadsheet-table' in trigger and 'active_cell' in trigger:
+            try:
+                # The triggered value is the specific cell dictionary that was clicked
+                cell = ctx.triggered[0]['value']
+                
+                # Dash automatically populates row_id if the data has an 'id' column
+                if cell and 'row_id' in cell:
+                    return show_node_form({'id': cell['row_id']}, person_id)
+            except Exception as e:
+                print(f"Spreadsheet click error: {e}")
 
         # If the table selector is the trigger, show the add form (explicit user choice)
         if trigger and trigger.startswith("table-selector"):

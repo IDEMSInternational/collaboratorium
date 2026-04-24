@@ -52,7 +52,9 @@ app = Dash(
 
 app._favicon = ("cropped-IDEMS_logomark_with_border_circle-32x32.png") 
 
-app.layout = html.Div([ 
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
+    dcc.Store(id='current-pipeline-data', data=[]),
     dcc.Store(id='selected-action', data=None),
     dcc.Store(id='selected-node', data=None),
     dcc.Store(id='intermediary-loaded', data=False),

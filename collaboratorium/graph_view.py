@@ -5,6 +5,8 @@ import dash_cytoscape as cyto
 from auth import login_required
 from db import build_elements_from_db, get_dropdown_options
 from analytics import log_view_event
+import pandas as pd
+from dash import dash_table
 
 # ==============================================================
 # LAYOUT GENERATION
@@ -81,7 +83,24 @@ def generate_graph_layout(config):
                 ]), className="mb-3 border-0 bg-white shadow-sm"),
                 id="collapse-filters", is_open=False
             ),
-            cyto.Cytoscape(id='cyto', elements=[], style={'width': '100%', 'height': '600px', 'backgroundColor': '#f8f9fa'}, stylesheet=config["network_vis"]["stylesheet"])
+            dbc.Tabs(id="output-tabs", active_tab="tab-graph", children=[
+                dbc.Tab(label="Network Graph", tab_id="tab-graph"),
+                dbc.Tab(label="Spreadsheet", tab_id="tab-spreadsheet"),
+                dbc.Tab(label="Report", tab_id="tab-report"),
+            ], className="mb-3"),
+            html.Div([
+                html.Div(
+                    cyto.Cytoscape(
+                        id='cyto', 
+                        elements=[], 
+                        style={'width': '100%', 'height': '600px', 'backgroundColor': '#f8f9fa'}, 
+                        stylesheet=config["network_vis"]["stylesheet"]
+                    ),
+                    id='graph-container'
+                ),
+                html.Div(id='spreadsheet-container', style={'display': 'none'}),
+                html.Div(id='report-container', style={'display': 'none'})
+            ])
         ])
     ])
 
@@ -176,7 +195,7 @@ def register_graph_callbacks(app, config):
 
     # 2. THE GRAPH REFRESH
     @app.callback(
-        Output('cyto', 'elements'),
+        Output('current-pipeline-data', 'data'),
         Output('pipeline-error-msg', 'children'),
         Input('intermediary-loaded', 'data'),
         Input('current-view-state', 'data'),
@@ -240,16 +259,88 @@ def register_graph_callbacks(app, config):
         
         return elements, error_msg
 
-    # 3. THE LAYOUT SELECTOR
+    # 3. OUTPUT RENDERER
     @app.callback(
+        Output('graph-container', 'style'),
+        Output('spreadsheet-container', 'style'),
+        Output('report-container', 'style'),
+        Input('output-tabs', 'active_tab')
+    )
+    def switch_tabs(active_tab):
+        return (
+            {'display': 'block'} if active_tab == "tab-graph" else {'display': 'none'},
+            {'display': 'block'} if active_tab == "tab-spreadsheet" else {'display': 'none'},
+            {'display': 'block'} if active_tab == "tab-report" else {'display': 'none'}
+        )
+
+    @app.callback(
+        Output('cyto', 'elements'),
         Output('cyto', 'layout'),
+        Output('spreadsheet-container', 'children'),
+        Output('report-container', 'children'),
+        Input('current-pipeline-data', 'data'),
         Input('layout-selector', 'value')
     )
-    def layout_selector(layout_name):
+    def update_outputs(elements, layout_name):
         layout = config.get("network_vis", {}).get("layout", {}).copy()
         if layout_name:
             layout["name"] = layout_name
-        return layout
+
+        if not elements:
+            empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
+            return [], layout, empty_msg, empty_msg
+
+        # --- Spreadsheet ---
+        nodes = [e['data'] for e in elements if 'source' not in e['data']]
+        if not nodes:
+            spreadsheet_div = html.Div("No nodes to display.", className="text-muted p-4 text-center")
+        else:
+            # Extract unique node types
+            node_types = sorted(list({n.get('type') for n in nodes if n.get('type')}))
+            
+            if not node_types:
+                spreadsheet_div = html.Div("No nodes to display.", className="text-muted p-4 text-center")
+            else:
+                # Only render the Tab Headers, not the contents!
+                tabs = [dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}") for t in node_types]
+                spreadsheet_div = html.Div([
+                    dbc.Tabs(id="spreadsheet-tabs", active_tab=f"subtab-{node_types[0]}", children=tabs, className="mt-3"),
+                    html.Div(id="spreadsheet-tab-content", className="mt-3")
+                ])
+        # --- Report ---
+        try:
+            from report_generator import generate_markdown_report
+            reports_cfg = config.get("reports", {})
+            if not reports_cfg:
+                report_div = html.Div("No reports configured in config.yaml under 'reports:'.", className="text-muted p-4 text-center")
+            else:
+                report_id = list(reports_cfg.keys())[0]
+                report_cfg = reports_cfg[report_id]
+                
+                full_md = generate_markdown_report(report_cfg, elements)
+
+                report_div = html.Div([
+                    dbc.Row([
+                        dbc.Col(html.H5(report_cfg.get('name', 'Report'), className="text-primary m-0"), width=8),
+                        dbc.Col(
+                            dcc.Clipboard(
+                                content=full_md, 
+                                className="btn btn-outline-secondary btn-sm float-end", 
+                                style={"fontSize": "16px"},
+                                title="Copy Markdown"
+                            ), 
+                            width=4, className="text-end"
+                        )
+                    ], className="mb-3 align-items-center"),
+                    html.Div(
+                        dcc.Markdown(full_md, dangerously_allow_html=True), 
+                        style={'backgroundColor': 'white', 'padding': '30px', 'borderRadius': '8px', 'border': '1px solid var(--border-color)', 'minHeight': '400px'}
+                    )
+                ], className="p-3")
+        except Exception as e:
+            report_div = html.Div(f"Error generating report: {e}", className="text-danger p-4")
+
+        return elements, layout, spreadsheet_div, report_div
     
     @app.callback(
         Output('filter-target-entity', 'value'),
@@ -261,6 +352,47 @@ def register_graph_callbacks(app, config):
         if person_id:
             return [f"people-{person_id}"]
         return no_update
+    
+    # 4. LAZY-LOAD SPREADSHEET TABS
+    @app.callback(
+        Output("spreadsheet-tab-content", "children"),
+        Input("spreadsheet-tabs", "active_tab"),
+        Input("current-pipeline-data", "data")
+    )
+    def render_active_spreadsheet(active_tab, elements):
+        if not active_tab or not elements:
+            return ""
+            
+        target_type = active_tab.replace("subtab-", "")
+        
+        # Filter nodes for just the active tab's type
+        nodes = [e['data'] for e in elements if 'source' not in e['data'] and e['data'].get('type') == target_type]
+        if not nodes:
+            return ""
+            
+        data = []
+        for n in nodes:
+            row = {'id': n['id'], 'label': n['label']}
+            row.update(n.get('properties', {}))
+            data.append(row)
+            
+        import pandas as pd
+        from dash import dash_table
+        
+        df = pd.DataFrame(data)
+        columns = [{"name": i.replace('_', ' ').title(), "id": i} for i in df.columns if i not in ['timestamp', 'version', 'created_by']]
+        
+        return dash_table.DataTable(
+            id={'type': 'spreadsheet-table', 'table_name': target_type},
+            columns=columns,
+            data=df.to_dict('records'),
+            sort_action="native",
+            filter_action="native",
+            page_size=15,
+            style_table={'overflowX': 'auto'},
+            style_cell={'textAlign': 'left', 'padding': '8px', 'fontFamily': 'Segoe UI'},
+            style_header={'backgroundColor': 'var(--idems-bg)', 'fontWeight': 'bold'}
+        )
 
 # --- DB Helper ---
 def get_dropdown_options_multi(config, source_tables):

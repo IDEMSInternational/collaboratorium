@@ -76,42 +76,30 @@ def register_click_callbacks(app, config):
         Input("table-selector", "value"),
         Input('cyto', 'tapNodeData'),
         Input('cyto', 'tapEdgeData'),
-        Input('url', 'pathname'),
-        Input({'type': 'spreadsheet-table', 'table_name': ALL}, 'active_cell'),
+        Input('url', 'hash'),
         State("current-person-id", "data"),
         Input("form-refresh", "data"),
     )
     @login_required
-    def load_form(table_name, tap_node, tap_edge, pathname, active_cells, person_id, refresh_signal):
+    def load_form(table_name, tap_node, tap_edge, url_hash, person_id, refresh_signal):
         """
-        Display form based on trigger: Add selector, Graph tap, Spreadsheet click, or URL link.
+        Display form based on trigger: Add selector, Graph tap, or URL hash link.
         """
         trigger = ctx.triggered[0].get('prop_id', '') if ctx.triggered else None
 
         if trigger == "form-refresh.data":
             return html.Div("Select a table or click an element to edit.")
             
-        # 1. URL Routing (from Markdown Report links)
-        if trigger == 'url.pathname' and pathname:
-            parts = pathname.strip('/').split('/')
+        # 1. Hash Routing (from Report links and AG Grid Edit column)
+        if trigger == 'url.hash' and url_hash:
+            # url_hash comes in as "#edit/table/id"
+            parts = url_hash.strip('#').split('/')
             if len(parts) == 3 and parts[0] == 'edit':
                 tbl, obj_id = parts[1], parts[2]
                 try:
                     return show_node_form({'id': f"{tbl}-{obj_id}"}, person_id)
                 except Exception:
                     pass
-
-        # 2. Spreadsheet Cell Clicks
-        if trigger and 'spreadsheet-table' in trigger and 'active_cell' in trigger:
-            try:
-                # The triggered value is the specific cell dictionary that was clicked
-                cell = ctx.triggered[0]['value']
-                
-                # Dash automatically populates row_id if the data has an 'id' column
-                if cell and 'row_id' in cell:
-                    return show_node_form({'id': cell['row_id']}, person_id)
-            except Exception as e:
-                print(f"Spreadsheet click error: {e}")
 
         # If the table selector is the trigger, show the add form (explicit user choice)
         if trigger and trigger.startswith("table-selector"):

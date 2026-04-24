@@ -6,7 +6,7 @@ from auth import login_required
 from db import build_elements_from_db, get_dropdown_options
 from analytics import log_view_event
 import pandas as pd
-from dash import dash_table
+import dash_ag_grid as dag
 
 # ==============================================================
 # LAYOUT GENERATION
@@ -193,9 +193,11 @@ def register_graph_callbacks(app, config):
         
         return [new_is_open, title, active_view_id, new_layout, yaml_string] + styles + [options]
 
-    # 2. THE GRAPH REFRESH
+    # 2. QUERY-ON-DEMAND & ACTIVE TAB RENDERER
     @app.callback(
-        Output('current-pipeline-data', 'data'),
+        Output('cyto', 'elements'),
+        Output('spreadsheet-container', 'children'),
+        Output('report-container', 'children'),
         Output('pipeline-error-msg', 'children'),
         Input('intermediary-loaded', 'data'),
         Input('current-view-state', 'data'),
@@ -207,16 +209,18 @@ def register_graph_callbacks(app, config):
         Input('filter-node-type-degree', 'value'),
         Input('filter-degree-inout', 'value'),
         Input('btn-apply-pipeline', 'n_clicks'),
+        Input('output-tabs', 'active_tab'),
         State('pipeline-yaml-editor', 'value'),
         State('current-person-id', 'data'),
     )
     @login_required
-    def refresh_graph(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, yaml_text, person_id):
+    def update_active_view(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, active_tab, yaml_text, person_id):
         custom_pipeline = None
         error_msg = ""
         used_advanced = 0
 
-        if ctx.triggered_id == 'btn-apply-pipeline' and yaml_text:
+        # Parse YAML only if they've actively used the advanced pipeline editor
+        if yaml_text and apply_clicks and apply_clicks > 0:
             used_advanced = 1
             try:
                 custom_pipeline = yaml.safe_load(yaml_text)
@@ -239,27 +243,121 @@ def register_graph_callbacks(app, config):
             custom_pipeline=custom_pipeline,
         )
         
-        # Calculate resulting node count (in Cytoscape, edges have a 'source' key, nodes do not)
-        node_count = sum(1 for e in elements if 'source' not in e.get('data', {}))
-
-        # Log the rich UX data
-        log_view_event(
-            person_id=person_id,
-            view_id=view_id,
-            target_entities=targets,
-            used_advanced_pipeline=used_advanced,
-            degree=degree,
-            node_types=types,
-            degree_types=degree_types,
-            degree_inout=inout,
-            start_date=start,
-            end_date=end,
-            node_count=node_count
-        )
+        # Log analytics ONLY if a filter changed (prevent log spam when just switching tabs)
+        if ctx.triggered_id != 'output-tabs':
+            node_count = sum(1 for e in elements if 'source' not in e.get('data', {}))
+            log_view_event(
+                person_id=person_id,
+                view_id=view_id,
+                target_entities=targets,
+                used_advanced_pipeline=used_advanced,
+                degree=degree,
+                node_types=types,
+                degree_types=degree_types,
+                degree_inout=inout,
+                start_date=start,
+                end_date=end,
+                node_count=node_count
+            )
+            
+        # 3. Only generate the UI for the Tab that is currently active.
+        cyto_out = no_update
+        sheet_out = no_update
+        report_out = no_update
         
-        return elements, error_msg
+        if not elements:
+            empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
+            if active_tab == "tab-graph": cyto_out = []
+            elif active_tab == "tab-spreadsheet": sheet_out = empty_msg
+            elif active_tab == "tab-report": report_out = empty_msg
+            return cyto_out, sheet_out, report_out, error_msg
 
-    # 3. OUTPUT RENDERER
+        if active_tab == "tab-graph":
+            cyto_out = elements
+            
+        elif active_tab == "tab-spreadsheet":
+            nodes = [e['data'] for e in elements if 'source' not in e['data']]
+            if not nodes:
+                sheet_out = html.Div("No nodes to display.", className="text-muted p-4 text-center")
+            else:
+                nodes_by_type = {}
+                for n in nodes:
+                    t = n.get('type')
+                    if t not in nodes_by_type:
+                        nodes_by_type[t] = []
+                    row = {'id': n['id'], 'label': n['label']}
+                    row.update(n.get('properties', {}))
+                    nodes_by_type[t].append(row)
+
+                tabs = []
+                for t, data in nodes_by_type.items():
+                    df = pd.DataFrame(data)
+                    
+                    # Create the explicit Action Column data
+                    # Cast x to string before splitting to handle raw integer IDs from the database
+                    df['edit_action'] = df['id'].apply(lambda x: f"[✏️ Edit](#edit/{t}/{str(x).split('-')[-1]})")
+                    
+                    # Build AG Grid column definitions
+                    columns = [{"headerName": "Action", "field": "edit_action", "cellRenderer": "markdown", "width": 90, "pinned": "left"}]
+                    for col in df.columns:
+                        if col not in ['timestamp', 'version', 'created_by', 'edit_action']:
+                            columns.append({
+                                "headerName": col.replace('_', ' ').title(), 
+                                "field": col,
+                                "filter": True # Enables the Excel-style menu filter
+                            })
+                            
+                    tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
+                        html.Div([
+                            dag.AgGrid(
+                                id={'type': 'spreadsheet-table', 'table_name': t},
+                                rowData=df.to_dict('records'),
+                                columnDefs=columns,
+                                defaultColDef={"sortable": True, "filter": True, "resizable": True},
+                                dashGridOptions={"pagination": True, "paginationPageSize": 15},
+                                className="ag-theme-alpine",
+                                style={"height": "600px", "width": "100%"}
+                            )
+                        ], className="mt-3")
+                    ]))
+                sheet_out = dbc.Tabs(tabs, className="mt-3")
+                
+        elif active_tab == "tab-report":
+            try:
+                from report_generator import generate_markdown_report
+                reports_cfg = config.get("reports", {})
+                if not reports_cfg:
+                    report_out = html.Div("No reports configured in config.yaml under 'reports:'.", className="text-muted p-4 text-center")
+                else:
+                    report_id = list(reports_cfg.keys())[0]
+                    report_cfg = reports_cfg[report_id]
+                    
+                    full_md = generate_markdown_report(report_cfg, elements)
+
+                    report_out = html.Div([
+                        dbc.Row([
+                            dbc.Col(html.H5(report_cfg.get('name', 'Report'), className="text-primary m-0"), width=8),
+                            dbc.Col(
+                                dcc.Clipboard(
+                                    content=full_md, 
+                                    className="btn btn-outline-secondary btn-sm float-end", 
+                                    style={"fontSize": "16px"},
+                                    title="Copy Markdown"
+                                ), 
+                                width=4, className="text-end"
+                            )
+                        ], className="mb-3 align-items-center"),
+                        html.Div(
+                            dcc.Markdown(full_md, dangerously_allow_html=True), 
+                            style={'backgroundColor': 'white', 'padding': '30px', 'borderRadius': '8px', 'border': '1px solid var(--border-color)', 'minHeight': '400px'}
+                        )
+                    ], className="p-3")
+            except Exception as e:
+                report_out = html.Div(f"Error generating report: {e}", className="text-danger p-4")
+                
+        return cyto_out, sheet_out, report_out, error_msg
+
+    # 4. TAB VISIBILITY TOGGLE (Preserves DOM state)
     @app.callback(
         Output('graph-container', 'style'),
         Output('spreadsheet-container', 'style'),
@@ -273,75 +371,17 @@ def register_graph_callbacks(app, config):
             {'display': 'block'} if active_tab == "tab-report" else {'display': 'none'}
         )
 
+    # 5. CYTOSCAPE LAYOUT TOGGLE
     @app.callback(
-        Output('cyto', 'elements'),
         Output('cyto', 'layout'),
-        Output('spreadsheet-container', 'children'),
-        Output('report-container', 'children'),
-        Input('current-pipeline-data', 'data'),
         Input('layout-selector', 'value')
     )
-    def update_outputs(elements, layout_name):
+    def update_layout(layout_name):
         layout = config.get("network_vis", {}).get("layout", {}).copy()
         if layout_name:
             layout["name"] = layout_name
+        return layout
 
-        if not elements:
-            empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
-            return [], layout, empty_msg, empty_msg
-
-        # --- Spreadsheet ---
-        nodes = [e['data'] for e in elements if 'source' not in e['data']]
-        if not nodes:
-            spreadsheet_div = html.Div("No nodes to display.", className="text-muted p-4 text-center")
-        else:
-            # Extract unique node types
-            node_types = sorted(list({n.get('type') for n in nodes if n.get('type')}))
-            
-            if not node_types:
-                spreadsheet_div = html.Div("No nodes to display.", className="text-muted p-4 text-center")
-            else:
-                # Only render the Tab Headers, not the contents!
-                tabs = [dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}") for t in node_types]
-                spreadsheet_div = html.Div([
-                    dbc.Tabs(id="spreadsheet-tabs", active_tab=f"subtab-{node_types[0]}", children=tabs, className="mt-3"),
-                    html.Div(id="spreadsheet-tab-content", className="mt-3")
-                ])
-        # --- Report ---
-        try:
-            from report_generator import generate_markdown_report
-            reports_cfg = config.get("reports", {})
-            if not reports_cfg:
-                report_div = html.Div("No reports configured in config.yaml under 'reports:'.", className="text-muted p-4 text-center")
-            else:
-                report_id = list(reports_cfg.keys())[0]
-                report_cfg = reports_cfg[report_id]
-                
-                full_md = generate_markdown_report(report_cfg, elements)
-
-                report_div = html.Div([
-                    dbc.Row([
-                        dbc.Col(html.H5(report_cfg.get('name', 'Report'), className="text-primary m-0"), width=8),
-                        dbc.Col(
-                            dcc.Clipboard(
-                                content=full_md, 
-                                className="btn btn-outline-secondary btn-sm float-end", 
-                                style={"fontSize": "16px"},
-                                title="Copy Markdown"
-                            ), 
-                            width=4, className="text-end"
-                        )
-                    ], className="mb-3 align-items-center"),
-                    html.Div(
-                        dcc.Markdown(full_md, dangerously_allow_html=True), 
-                        style={'backgroundColor': 'white', 'padding': '30px', 'borderRadius': '8px', 'border': '1px solid var(--border-color)', 'minHeight': '400px'}
-                    )
-                ], className="p-3")
-        except Exception as e:
-            report_div = html.Div(f"Error generating report: {e}", className="text-danger p-4")
-
-        return elements, layout, spreadsheet_div, report_div
-    
     @app.callback(
         Output('filter-target-entity', 'value'),
         Input('current-person-id', 'data')
@@ -352,47 +392,6 @@ def register_graph_callbacks(app, config):
         if person_id:
             return [f"people-{person_id}"]
         return no_update
-    
-    # 4. LAZY-LOAD SPREADSHEET TABS
-    @app.callback(
-        Output("spreadsheet-tab-content", "children"),
-        Input("spreadsheet-tabs", "active_tab"),
-        Input("current-pipeline-data", "data")
-    )
-    def render_active_spreadsheet(active_tab, elements):
-        if not active_tab or not elements:
-            return ""
-            
-        target_type = active_tab.replace("subtab-", "")
-        
-        # Filter nodes for just the active tab's type
-        nodes = [e['data'] for e in elements if 'source' not in e['data'] and e['data'].get('type') == target_type]
-        if not nodes:
-            return ""
-            
-        data = []
-        for n in nodes:
-            row = {'id': n['id'], 'label': n['label']}
-            row.update(n.get('properties', {}))
-            data.append(row)
-            
-        import pandas as pd
-        from dash import dash_table
-        
-        df = pd.DataFrame(data)
-        columns = [{"name": i.replace('_', ' ').title(), "id": i} for i in df.columns if i not in ['timestamp', 'version', 'created_by']]
-        
-        return dash_table.DataTable(
-            id={'type': 'spreadsheet-table', 'table_name': target_type},
-            columns=columns,
-            data=df.to_dict('records'),
-            sort_action="native",
-            filter_action="native",
-            page_size=15,
-            style_table={'overflowX': 'auto'},
-            style_cell={'textAlign': 'left', 'padding': '8px', 'fontFamily': 'Segoe UI'},
-            style_header={'backgroundColor': 'var(--idems-bg)', 'fontWeight': 'bold'}
-        )
 
 # --- DB Helper ---
 def get_dropdown_options_multi(config, source_tables):

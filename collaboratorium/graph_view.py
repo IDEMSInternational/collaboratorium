@@ -98,7 +98,9 @@ def generate_graph_layout(config):
                     ),
                     id='graph-container'
                 ),
-                html.Div(id='spreadsheet-container', style={'display': 'none'}),
+                html.Div([
+                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
+                ], id='spreadsheet-container', style={'display': 'none'}),
                 html.Div(id='report-container', style={'display': 'none'})
             ])
         ])
@@ -212,9 +214,10 @@ def register_graph_callbacks(app, config):
         Input('output-tabs', 'active_tab'),
         State('pipeline-yaml-editor', 'value'),
         State('current-person-id', 'data'),
+        State('spreadsheet-tabs', 'active_tab'),
     )
     @login_required
-    def update_active_view(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, active_tab, yaml_text, person_id):
+    def update_active_view(loaded, view_id, targets, start, end, degree, types, degree_types, inout, apply_clicks, active_tab, yaml_text, person_id, current_sheet_tab):
         custom_pipeline = None
         error_msg = ""
         used_advanced = 0
@@ -267,8 +270,13 @@ def register_graph_callbacks(app, config):
         
         if not elements:
             empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
+            sheet_empty_msg = html.Div([
+                empty_msg, 
+                dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
+            ])
+            
             if active_tab == "tab-graph": cyto_out = []
-            elif active_tab == "tab-spreadsheet": sheet_out = empty_msg
+            elif active_tab == "tab-spreadsheet": sheet_out = sheet_empty_msg
             elif active_tab == "tab-report": report_out = empty_msg
             return cyto_out, sheet_out, report_out, error_msg
 
@@ -278,7 +286,10 @@ def register_graph_callbacks(app, config):
         elif active_tab == "tab-spreadsheet":
             nodes = [e['data'] for e in elements if 'source' not in e['data']]
             if not nodes:
-                sheet_out = html.Div("No nodes to display.", className="text-muted p-4 text-center")
+                sheet_out = html.Div([
+                    html.Div("No nodes to display.", className="text-muted p-4 text-center"),
+                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
+                ])
             else:
                 nodes_by_type = {}
                 for n in nodes:
@@ -320,7 +331,11 @@ def register_graph_callbacks(app, config):
                             )
                         ], className="mt-3")
                     ]))
-                sheet_out = dbc.Tabs(tabs, className="mt-3")
+                # Preserve the currently active spreadsheet tab if it still exists
+                valid_tab_ids = [f"subtab-{t}" for t in nodes_by_type.keys()]
+                active_subtab = current_sheet_tab if current_sheet_tab in valid_tab_ids else (valid_tab_ids[0] if valid_tab_ids else None)
+                
+                sheet_out = dbc.Tabs(tabs, id="spreadsheet-tabs", active_tab=active_subtab, className="mt-3")
                 
         elif active_tab == "tab-report":
             try:

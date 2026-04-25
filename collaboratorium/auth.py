@@ -2,7 +2,7 @@ from functools import wraps
 from flask import Flask, session, redirect, url_for, request, render_template_string
 from flask_session import Session
 from authlib.integrations.flask_client import OAuth
-from dash import html, Input, Output
+from dash import html, Input, Output, State, no_update
 from db import get_person_id_for_user
 from dotenv import load_dotenv
 import os
@@ -184,7 +184,12 @@ def register_auth_callbacks(app):
     @app.callback(
         Output("current-person-id", "data"),
         Input("intermediary-loaded", "data"),
+        State("current-person-id", "data")
     )
-    def populate_person_id(_):
+    def populate_person_id(_, current_id):
+        # Only fetch and set the person ID once per session to avoid resetting defaults on every DB update
+        if current_id is not None:
+            return no_update
+            
         person_id = get_person_id_for_user(session["user"])
         return person_id

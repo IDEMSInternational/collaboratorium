@@ -52,13 +52,14 @@ app = Dash(
 
 app._favicon = ("cropped-IDEMS_logomark_with_border_circle-32x32.png") 
 
-app.layout = html.Div([ 
+app.layout = html.Div([
+    dcc.Location(id='url', refresh=False),
     dcc.Store(id='selected-action', data=None),
     dcc.Store(id='selected-node', data=None),
     dcc.Store(id='intermediary-loaded', data=False),
     dcc.Store(id="current-person-id", data=None),
     dcc.Store(id="form-refresh", data=False),
-    dcc.Store(id="current-view-state", data="view-degree"), # Track active view
+    dcc.Store(id="current-view-state", data="view-downstream"), # Track active view
 
     dbc.Container([
         dbc.Row([

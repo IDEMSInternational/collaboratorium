@@ -340,7 +340,6 @@ def register_graph_callbacks(app, config):
                 
         elif active_tab == "tab-report":
             try:
-                from report_generator import generate_markdown_report
                 reports_cfg = config.get("reports", {})
                 if not reports_cfg:
                     report_out = html.Div("No reports configured in config.yaml under 'reports:'.", className="text-muted p-4 text-center")

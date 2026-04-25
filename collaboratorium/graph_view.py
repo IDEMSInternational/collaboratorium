@@ -7,6 +7,7 @@ from db import build_elements_from_db, get_dropdown_options
 from analytics import log_view_event
 import pandas as pd
 import dash_ag_grid as dag
+from report_generator import generate_markdown_report
 
 # ==============================================================
 # LAYOUT GENERATION

@@ -146,3 +146,13 @@ summary:hover {
 /* Fix DateRange picker background */
 .DateRangePickerInput { background-color: transparent !important; border: none !important; }
 .DateRangePickerInput_arrow_svg { fill: var(--idems-text-muted) !important; }
+
+.btn-active-view {
+    background-color: #fcb900 !important;
+    border-color: #e5a700 !important;
+    color: #212529 !important;
+    box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+.btn-active-view:hover {
+    background-color: #e5a700 !important;
+}

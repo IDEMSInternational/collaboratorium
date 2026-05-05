@@ -1,10 +1,10 @@
 title: Collaboratorium
 node_tables:
+- activities
+- contracts
 - initiatives
 - people
 - organisations
-- activities
-- contracts
 - tag_groups
 network_vis:
   layout:
@@ -504,12 +504,12 @@ forms:
         label: Name
       description:
         type: subform
-        label: Description
+        label: ""
         parameters:
           '1':
             description:
               type: string
-              label: Summary (optional)
+              label: Summary
               appearance: multiline
             attachments:
               type: table
@@ -518,10 +518,10 @@ forms:
               rowfmt: '- [{name}]({url})'
               columns:
                 - id: name
-                  name: File Name
+                  name: Display Name
                   editable: True
                 - id: url
-                  name: URL
+                  name: Attachment Link
                   editable: True
       location:
         type: string
@@ -1075,9 +1075,9 @@ views:
       - filter: TraversalFilter
         direction: both
         max_depth: 1
-        allowed_types: ['activities']
+        allowed_types: ['activities', 'contracts']
       - filter: NodeTypeFilter
-        allowed_types: ['activities']
+        allowed_types: ['activities', 'contracts']
       - filter: PropertyFilter
         target_type: 'activities'
         property_key: 'start_date'

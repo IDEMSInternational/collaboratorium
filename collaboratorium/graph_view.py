@@ -47,6 +47,12 @@ def generate_graph_layout(config):
             )
         )
 
+    settings_accordion = dbc.Accordion([
+        dbc.AccordionItem([
+            html.Div(filter_rows)
+        ], title="View and Filter Settings")
+    ], start_collapsed=True)
+
     yaml_editor = dbc.Accordion([
         dbc.AccordionItem([
             dcc.Textarea(
@@ -78,16 +84,15 @@ def generate_graph_layout(config):
         dbc.CardBody([
             dbc.Collapse(
                 dbc.Card(dbc.CardBody([
-                    html.H6(id="active-view-title", className="mb-3 text-primary fw-bold"),
-                    html.Div(filter_rows),
+                    settings_accordion,
                     yaml_editor,
-                ]), className="mb-3 border-0 bg-white shadow-sm"),
+                ]), className="border-0 bg-white shadow-sm"),
                 id="collapse-filters", is_open=False
             ),
-            dbc.Tabs(id="output-tabs", active_tab="tab-graph", children=[
-                dbc.Tab(label="Network Graph", tab_id="tab-graph"),
+            dbc.Tabs(id="output-tabs", active_tab="tab-spreadsheet", children=[
                 dbc.Tab(label="Spreadsheet", tab_id="tab-spreadsheet"),
                 dbc.Tab(label="Report", tab_id="tab-report"),
+                dbc.Tab(label="Network Graph", tab_id="tab-graph"),
             ], className="mb-3"),
             html.Div([
                 html.Div(
@@ -149,12 +154,12 @@ def register_graph_callbacks(app, config):
     # 1. THE VIEW MANAGER
     @app.callback(
         [Output("collapse-filters", "is_open"), 
-         Output("active-view-title", "children"),
          Output("current-view-state", "data"),
          Output("layout-selector", "value"),
-         Output("pipeline-yaml-editor", "value")] + # <-- OUTPUT TO EDITOR
+         Output("pipeline-yaml-editor", "value")] + 
         [Output(f"container-{f_id}", "style") for f_id in registry.keys()] +
-        [Output(f"filter-target-entity", "options")], 
+        [Output(f"filter-target-entity", "options")] +
+        [Output(v_id, "className") for v_id in views.keys()],
         [Input(v_id, "n_clicks") for v_id in views.keys()],
         [State("collapse-filters", "is_open"), 
          State("current-view-state", "data"),
@@ -194,7 +199,19 @@ def register_graph_callbacks(app, config):
         source_tables = params.get("source_tables", default_params.get("source_tables", []))
         options = get_dropdown_options_multi(config, source_tables)
         
-        return [new_is_open, title, active_view_id, new_layout, yaml_string] + styles + [options]
+        # Determine button classes
+        button_classes = []
+        for v_id in views.keys():
+            if v_id == active_view_id:
+                button_classes.append("btn btn-warning btn-sm me-2 fw-bold text-dark shadow-sm")
+            else:
+                if v_id == first_view_id:
+                    button_classes.append("btn btn-light btn-sm me-2 border text-dark fw-bold")
+                else:
+                    button_classes.append("btn btn-primary btn-sm me-2")
+        
+        # Return the new sequence of outputs
+        return [new_is_open, active_view_id, new_layout, yaml_string] + styles + [options] + button_classes
 
     # 2. QUERY-ON-DEMAND & ACTIVE TAB RENDERER
     @app.callback(
@@ -297,7 +314,7 @@ def register_graph_callbacks(app, config):
                     t = n.get('type')
                     if t not in nodes_by_type:
                         nodes_by_type[t] = []
-                    row = {'id': n['id'], 'label': n['label']}
+                    row = {'id': n['id']}
                     row.update(n.get('properties', {}))
                     nodes_by_type[t].append(row)
 
@@ -312,7 +329,7 @@ def register_graph_callbacks(app, config):
                     # Build AG Grid column definitions
                     columns = [{"headerName": "Action", "field": "edit_action", "cellRenderer": "markdown", "width": 90, "pinned": "left"}]
                     for col in df.columns:
-                        if col not in ['timestamp', 'version', 'created_by', 'edit_action']:
+                        if col not in ['timestamp', 'version', 'created_by', 'edit_action', 'id', 'status']:
                             columns.append({
                                 "headerName": col.replace('_', ' ').title(), 
                                 "field": col,
@@ -326,7 +343,11 @@ def register_graph_callbacks(app, config):
                                 rowData=df.to_dict('records'),
                                 columnDefs=columns,
                                 defaultColDef={"sortable": True, "filter": True, "resizable": True},
-                                dashGridOptions={"pagination": True, "paginationPageSize": 15},
+                                dashGridOptions={
+                                    "pagination": True,
+                                     "paginationPageSize": 15,
+                                     "suppressColumnVirtualisation": True,
+                                },
                                 className="ag-theme-alpine",
                                 style={"height": "600px", "width": "100%"}
                             )

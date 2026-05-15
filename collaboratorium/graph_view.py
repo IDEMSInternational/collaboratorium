@@ -105,7 +105,7 @@ def generate_graph_layout(config):
                     id='graph-container'
                 ),
                 html.Div([
-                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
+                    dbc.Tabs(id="spreadsheet-tabs", className="mt-3")
                 ], id='spreadsheet-container', style={'display': 'none'}),
                 html.Div(id='report-container', style={'display': 'none'})
             ])
@@ -216,7 +216,8 @@ def register_graph_callbacks(app, config):
     # 2. QUERY-ON-DEMAND & ACTIVE TAB RENDERER
     @app.callback(
         Output('cyto', 'elements'),
-        Output('spreadsheet-container', 'children'),
+        Output('spreadsheet-tabs', 'children'),
+        Output('spreadsheet-tabs', 'active_tab'),
         Output('report-container', 'children'),
         Output('pipeline-error-msg', 'children'),
         Input('intermediary-loaded', 'data'),
@@ -240,7 +241,6 @@ def register_graph_callbacks(app, config):
         error_msg = ""
         used_advanced = 0
 
-        # Parse YAML only if they've actively used the advanced pipeline editor
         if yaml_text and apply_clicks and apply_clicks > 0:
             used_advanced = 1
             try:
@@ -264,7 +264,6 @@ def register_graph_callbacks(app, config):
             custom_pipeline=custom_pipeline,
         )
         
-        # Log analytics ONLY if a filter changed (prevent log spam when just switching tabs)
         if ctx.triggered_id != 'output-tabs':
             node_count = sum(1 for e in elements if 'source' not in e.get('data', {}))
             log_view_event(
@@ -280,23 +279,21 @@ def register_graph_callbacks(app, config):
                 end_date=end,
                 node_count=node_count
             )
-            
-        # 3. Only generate the UI for the Tab that is currently active.
+
         cyto_out = no_update
-        sheet_out = no_update
+        tabs_out = no_update
+        active_tab_out = no_update
         report_out = no_update
         
         if not elements:
             empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
-            sheet_empty_msg = html.Div([
-                empty_msg, 
-                dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
-            ])
             
             if active_tab == "tab-graph": cyto_out = []
-            elif active_tab == "tab-spreadsheet": sheet_out = sheet_empty_msg
+            elif active_tab == "tab-spreadsheet": 
+                tabs_out = []
+                active_tab_out = None
             elif active_tab == "tab-report": report_out = empty_msg
-            return cyto_out, sheet_out, report_out, error_msg
+            return cyto_out, tabs_out, active_tab_out, report_out, error_msg
 
         if active_tab == "tab-graph":
             cyto_out = elements
@@ -304,10 +301,8 @@ def register_graph_callbacks(app, config):
         elif active_tab == "tab-spreadsheet":
             nodes = [e['data'] for e in elements if 'source' not in e['data']]
             if not nodes:
-                sheet_out = html.Div([
-                    html.Div("No nodes to display.", className="text-muted p-4 text-center"),
-                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
-                ])
+                tabs_out = []
+                active_tab_out = None
             else:
                 nodes_by_type = {}
                 for n in nodes:
@@ -319,18 +314,14 @@ def register_graph_callbacks(app, config):
                     nodes_by_type[t].append(row)
 
                 tabs = []
-                dropdown_cache = {}  # Cache persists across all tabs in this render cycle
+                dropdown_cache = {}
                 
                 for t, data in nodes_by_type.items():
                     data = _resolve_foreign_keys(data, t, config, dropdown_cache)
-                    
                     df = pd.DataFrame(data)
                     
-                    # Create the explicit Action Column data
-                    # Cast x to string before splitting to handle raw integer IDs from the database
                     df['edit_action'] = df['id'].apply(lambda x: f"[✏️ Edit](#edit/{t}/{str(x).split('-')[-1]})")
                     
-                    # Build AG Grid column definitions
                     columns = [{"headerName": "Action", "field": "edit_action", "cellRenderer": "markdown", "width": 90, "pinned": "left"}]
                     for col in df.columns:
                         if col not in ['timestamp', 'version', 'created_by', 'edit_action', 'id', 'status']:
@@ -343,25 +334,28 @@ def register_graph_callbacks(app, config):
                     tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
                         html.Div([
                             dag.AgGrid(
-                                id={'type': 'spreadsheet-table', 'table_name': t},
+                                id=f"spreadsheet-table-{t}",
                                 rowData=df.to_dict('records'),
                                 columnDefs=columns,
                                 defaultColDef={"sortable": True, "filter": True, "resizable": True},
                                 dashGridOptions={
                                     "pagination": True,
-                                     "paginationPageSize": 15,
+                                     "paginationPageSize": 20,
                                      "suppressColumnVirtualisation": True,
+                                     "enableCellTextSelection": True,
                                 },
                                 className="ag-theme-alpine",
                                 style={"height": "600px", "width": "100%"}
                             )
                         ], className="mt-3")
                     ]))
-                # Preserve the currently active spreadsheet tab if it still exists
+                    
                 valid_tab_ids = [f"subtab-{t}" for t in nodes_by_type.keys()]
                 active_subtab = current_sheet_tab if current_sheet_tab in valid_tab_ids else (valid_tab_ids[0] if valid_tab_ids else None)
                 
-                sheet_out = dbc.Tabs(tabs, id="spreadsheet-tabs", active_tab=active_subtab, className="mt-3")
+                # Directly assign tracking variables instead of packing into a new component instance
+                tabs_out = tabs
+                active_tab_out = active_subtab
                 
         elif active_tab == "tab-report":
             try:
@@ -371,7 +365,6 @@ def register_graph_callbacks(app, config):
                 else:
                     report_id = list(reports_cfg.keys())[0]
                     report_cfg = reports_cfg[report_id]
-                    
                     full_md = generate_markdown_report(report_cfg, elements)
 
                     report_out = html.Div([
@@ -395,7 +388,7 @@ def register_graph_callbacks(app, config):
             except Exception as e:
                 report_out = html.Div(f"Error generating report: {e}", className="text-danger p-4")
                 
-        return cyto_out, sheet_out, report_out, error_msg
+        return cyto_out, tabs_out, active_tab_out, report_out, error_msg
 
     # 4. TAB VISIBILITY TOGGLE (Preserves DOM state)
     @app.callback(

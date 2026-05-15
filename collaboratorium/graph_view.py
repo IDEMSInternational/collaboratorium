@@ -319,7 +319,11 @@ def register_graph_callbacks(app, config):
                     nodes_by_type[t].append(row)
 
                 tabs = []
+                dropdown_cache = {}  # Cache persists across all tabs in this render cycle
+                
                 for t, data in nodes_by_type.items():
+                    data = _resolve_foreign_keys(data, t, config, dropdown_cache)
+                    
                     df = pd.DataFrame(data)
                     
                     # Create the explicit Action Column data
@@ -333,7 +337,7 @@ def register_graph_callbacks(app, config):
                             columns.append({
                                 "headerName": col.replace('_', ' ').title(), 
                                 "field": col,
-                                "filter": True # Enables the Excel-style menu filter
+                                "filter": True
                             })
                             
                     tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
@@ -442,3 +446,53 @@ def get_dropdown_options_multi(config, source_tables):
                 opt['value'] = f"{table_name}-{opt['value']}"
                 all_options.append(opt)
     return sorted(all_options, key=lambda x: x['label'])
+
+
+def _resolve_foreign_keys(data, table_name, config, dropdown_cache):
+    """
+    Resolves foreign key IDs to their labels for a given table.
+    Uses dropdown_cache to prevent duplicate DB queries (N+1 problem).
+    """
+    # 1. Identify FK columns for this table
+    table_fks = {
+        child_col: (parent_table, parent_col) 
+        for (child_tbl, child_col), (parent_table, parent_col) in config.fk_map.items() 
+        if child_tbl == table_name
+    }
+    
+    if not table_fks:
+        return data
+        
+    fk_lookups = {}
+    for col, (parent_table, parent_col) in table_fks.items():
+        # 2. Safely extract label_column using .get() chaining instead of try/except
+        label_col = "name"
+        form_name = config.get("default_forms", {}).get(table_name)
+        if form_name:
+            elem_cfg = config.get("forms", {}).get(form_name, {}).get("elements", {}).get(col, {})
+            label_col = elem_cfg.get("parameters", {}).get("label_column", "name")
+            
+        # 3. Cache the DB call by its unique signature
+        cache_key = (parent_table, parent_col, label_col)
+        if cache_key not in dropdown_cache:
+            options = get_dropdown_options(parent_table, parent_col, label_col)
+            dropdown_cache[cache_key] = {str(opt['value']): opt['label'] for opt in (options or [])}
+        
+        fk_lookups[col] = dropdown_cache[cache_key]
+
+    # 4. Apply lookups to data
+    for row in data:
+        for col, lookup in fk_lookups.items():
+            val = row.get(col)
+            # Handle Pandas NaNs and blanks
+            if val is None or val == "" or (isinstance(val, float) and pd.isna(val)):
+                row[col] = ""  
+            else:
+                str_val = str(val).split('.')[0] if str(val).endswith('.0') else str(val)
+                if str_val in lookup:
+                    row[col] = lookup[str_val] if lookup[str_val] else f"Unnamed ({str_val})"
+                else:
+                    row[col] = ""
+                    print(f"Warning: person ID {val} is invalid")
+                    
+    return data

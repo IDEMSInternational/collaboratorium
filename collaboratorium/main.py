@@ -109,10 +109,11 @@ app.layout = html.Div([
 
     dbc.Container([
         dbc.Row([
-            dbc.Col(html.H2(config["title"], className="mb-4")),
+            dbc.Col(html.H2(config["title"], className="mb-4"), width=6),
             dbc.Col([
-                html.Div(id="login-area", className="text-end")
-            ])
+                dbc.Button([html.I(className="bi bi-plus-circle me-2"), "Add Element"], id="btn-add-element", color="success", className="me-3 fw-bold"),
+                html.Div(id="login-area", style={"display": "inline-block"})
+            ], width=6, className="text-end")
         ]),
 
         main_content_row,

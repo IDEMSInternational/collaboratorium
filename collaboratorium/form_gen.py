@@ -186,6 +186,27 @@ def register_click_callbacks(app, config):
             return html.Div(f"Error: Table '{table_name}' not in config['default_forms'].")
         return login_required(generate_form_layout)(form_name, forms_config=forms_config, object_id=object_id)
 
+    @app.callback(
+            [Output("editor-popup", "is_open", allow_duplicate=True),
+            Output("add-dropdown-container", "style"),
+            Output("table-selector", "value")],
+            [Input("btn-add-element", "n_clicks"),
+            Input("cyto", "tapNodeData"),
+            Input("cyto", "tapEdgeData"),
+            Input("url", "hash")],
+            prevent_initial_call=True
+        )
+    def control_editor_flow(add_clicks, node_data, edge_data, url_hash):
+        trigger = ctx.triggered_id
+        if trigger == "btn-add-element":
+            # Pure element addition context: expose target table definition parameters selection dropdown
+            return True, {"display": "block"}, None
+        if trigger in ["cyto", "url"]:
+            if trigger == "url" and (not url_hash or "edit" not in url_hash):
+                return no_update, no_update, no_update
+            # Pure modification context: conceal drop-down component block to isolate form elements
+            return True, {"display": "none"}, no_update
+        return no_update, no_update, no_update
 
 def register_submit_callbacks(app, forms_config):
     """Register one submit callback per form in the config."""

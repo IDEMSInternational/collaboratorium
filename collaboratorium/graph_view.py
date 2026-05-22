@@ -320,16 +320,53 @@ def register_graph_callbacks(app, config):
                     data = _resolve_foreign_keys(data, t, config, dropdown_cache)
                     df = pd.DataFrame(data)
                     
+                    if 'timestamp' in df.columns:
+                        df = df.sort_values('timestamp', ascending=False)
+
+                    if 'description' in df.columns:
+                        from report_generator import format_subform_data
+                        df['description'] = df['description'].apply(lambda x: format_subform_data(x) if pd.notna(x) else x)
+                    
                     df['edit_action'] = df['id'].apply(lambda x: f"[✏️ Edit](#edit/{t}/{str(x).split('-')[-1]})")
                     
                     columns = [{"headerName": "Action", "field": "edit_action", "cellRenderer": "markdown", "width": 90, "pinned": "left"}]
+                    
+                    if 'timestamp' in df.columns:
+                        columns.append({
+                            "headerName": "Updated",
+                            "field": "timestamp",
+                            "width": 120,
+                            "pinned": "left",
+                            "sortable": True,
+                            "valueFormatter": {
+                                "function": (
+                                    "function(params) {"
+                                    "  if (!params.value) return '';"
+                                    "  var diff = (new Date() - new Date(params.value)) / 1000;"
+                                    "  if (isNaN(diff) || diff < 0) return '';"
+                                    "  if (diff < 3600) return Math.floor(diff/60) + 'm';"
+                                    "  if (diff < 86400) return Math.floor(diff/3600) + 'h';"
+                                    "  if (diff < 86400*7) return Math.floor(diff/86400) + 'd';"
+                                    "  return Math.floor(diff/(86400*7)) + 'w';"
+                                    "}"
+                                )
+                            }
+                        })
+                        
+                    # Build out remaining columns dynamically
                     for col in df.columns:
                         if col not in ['timestamp', 'version', 'created_by', 'edit_action', 'id', 'status']:
-                            columns.append({
+                            col_cfg = {
                                 "headerName": col.replace('_', ' ').title(), 
                                 "field": col,
                                 "filter": True
-                            })
+                            }
+                            # Enable the Ag-Grid markdown renderer and row auto-height for beautiful descriptions
+                            if col == 'description':
+                                col_cfg["cellRenderer"] = "markdown"
+                                col_cfg["autoHeight"] = True
+                                
+                            columns.append(col_cfg)
                             
                     tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
                         html.Div([

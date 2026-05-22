@@ -306,6 +306,7 @@ def failsafe_div(label, subform_name, value):
 
 def generate_subform_block(element_config, form_name, value=None):
     label = element_config.get("label", element_config["element_id"])
+    appearance = element_config.get("appearance", None)
     subform_name = form_name+'-'+element_config["element_id"]
 
     if {"source_table", "value_column", "label_column"}.issubset(set(element_config["parameters"].keys())):
@@ -344,29 +345,32 @@ def generate_subform_block(element_config, form_name, value=None):
                 value = dummy_value
             else:
                 return failsafe_div(label, subform_name, value)
-        elements = generate_static_subform_elements(element_config, form_name, value)
+        # Pass appearance flag downwards
+        elements = generate_static_subform_elements(element_config, form_name, value, appearance)
 
-    subform_block = html.Div(
+    # Completely strips border boxes if flat presentation strategy is specified
+    if appearance == "flat":
+        return html.Div(elements, style={'marginBottom': '15px'})
+        
+    return html.Div(
         [
             html.Label(label+' '),
             *elements,
         ], style={'backgroundColor': '#f8f9fa', 'padding': '15px', 'borderRadius': '6px', 'border': '1px solid var(--border-color)', 'marginBottom': '15px'}
     )
-    return subform_block
 
-def generate_static_subform_elements(element_config, form_name, value=None):
+
+def generate_static_subform_elements(element_config, form_name, value=None, appearance=None):
     label = element_config.get("label", element_config["element_id"])
     subform_name = form_name+'-'+element_config["element_id"]
 
     subform_ls = [dict(id=id, **val) for id, val in element_config['parameters'].items()]
 
     elements = []
-    used_subform_idxs = []
     for key, subform_value in value.items():
         subform = None
         for sf in subform_ls:
             if key == str(sf['id']):
-                used_subform_idxs.append(sf['id'])
                 subform = sf
                 break
         sf_elements = []
@@ -383,12 +387,16 @@ def generate_static_subform_elements(element_config, form_name, value=None):
                     form_name=subform_name,
                     value=subform_value[field]
                 ))
+                
+        box_style = {'marginTop': '5px'} if appearance == "flat" else {
+            'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
+            'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'
+        }
+        
         elements.append(html.Div(
-            ([html.B(subform_label)] if subform_label is not None else []) +
-            [
-                *sf_elements
-            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
-                      'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'}
+            ([html.B(subform_label, className="d-block mb-2 text-secondary")] if subform_label is not None else []) +
+            [*sf_elements], 
+            style=box_style
         ))
 
     return elements

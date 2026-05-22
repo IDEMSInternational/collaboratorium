@@ -506,6 +506,7 @@ forms:
       description:
         type: subform
         label: ""
+        appearance: flat
         parameters:
           '1':
             description:

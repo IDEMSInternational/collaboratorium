@@ -52,6 +52,52 @@ app = Dash(
 
 app._favicon = ("cropped-IDEMS_logomark_with_border_circle-32x32.png") 
 
+# Create the centralized overlay editor panel contents
+editor_contents = html.Div([
+    html.Div([
+        html.Label("Add: "),
+        dcc.Dropdown(
+            id="table-selector",
+            options=[{"label": t, "value": t} for t in config["tables"].keys()],
+            placeholder="Add new element...", style={"width": "100%", "marginBottom": "15px"}
+        ),
+    ], id="add-dropdown-container"),
+    html.Div(id="form-container"),
+    html.Div(id="out_msg", children=[], className="mt-3"),
+])
+
+editor_layout_type = config.get("editor_layout", "modal")
+
+# Choose container presentation strictly matching deployment configuration profiles
+if editor_layout_type == "modal":
+    editor_container = dbc.Modal([
+        dbc.ModalHeader(dbc.ModalTitle("Editor")),
+        dbc.ModalBody(editor_contents),
+    ], id="editor-popup", is_open=False, size="xl")
+    main_content_row = dbc.Row([
+        dbc.Col([generate_graph_layout(config)], width=12)
+    ])
+elif editor_layout_type == "sidebar":
+    editor_container = dbc.Offcanvas([
+        editor_contents
+    ], id="editor-popup", title="Editor", is_open=False, placement="end")
+    main_content_row = dbc.Row([
+        dbc.Col([generate_graph_layout(config)], width=12)
+    ])
+else:
+    # Fallback to the traditional 8/4 grid if explicitly designated as inline
+    editor_container = html.Div(id="editor-popup", style={"display": "none"})
+    main_content_row = dbc.Row([
+        dbc.Col([generate_graph_layout(config)], width=8),
+        dbc.Col([
+            dbc.Card([
+                dbc.CardHeader(html.H4("Editor", className="m-0")),
+                dbc.CardBody(editor_contents)
+            ])
+        ], width=4)
+    ])
+
+# Hydrate the complete page application wrapper template
 app.layout = html.Div([
     dcc.Location(id='url', refresh=False),
     dcc.Store(id='selected-action', data=None),
@@ -59,7 +105,7 @@ app.layout = html.Div([
     dcc.Store(id='intermediary-loaded', data=False),
     dcc.Store(id="current-person-id", data=None),
     dcc.Store(id="form-refresh", data=False),
-    dcc.Store(id="current-view-state", data="view-degree"), # Track active view
+    dcc.Store(id="current-view-state", data="view-degree"),
 
     dbc.Container([
         dbc.Row([
@@ -69,32 +115,33 @@ app.layout = html.Div([
             ])
         ]),
 
-        dbc.Row([
-            dbc.Col([
-                generate_graph_layout(config)
-            ], width=8),
-
-            dbc.Col([
-                dbc.Card([
-                    dbc.CardHeader(html.H4("Editor", className="m-0")),
-                    dbc.CardBody(html.Div([
-                        html.Div([
-                            html.Label("Add: "),
-                            dcc.Dropdown(
-                                id="table-selector",
-                                options=[{"label": t, "value": t} for t in config["tables"].keys()],
-                                placeholder="Add new element...", style={"width": "100%", "marginBottom": "15px"}
-                            ),
-                        ]),
-                        html.Div(id="form-container"),
-                        html.Div(id="out_msg", children=[], className="mt-3"),
-                    ]))
-                ])
-            ], width=4)
-        ])
+        main_content_row,
+        editor_container
     ], fluid=True, className="p-4")
 ], style={'minHeight': '100vh', 'backgroundColor': 'var(--idems-bg)'})
 
+
+# Add state persistence listener to automatically trigger modal visibilities on input events
+@app.callback(
+    Output("editor-popup", "is_open"),
+    [Input("table-selector", "value"),
+     Input("cyto", "tapNodeData"),
+     Input("cyto", "tapEdgeData"),
+     Input("url", "hash"),
+     Input("editor-popup", "is_open")],
+    prevent_initial_call=True
+)
+def handle_editor_visibility(table_val, node_data, edge_data, url_hash, is_open_state):
+    trigger = ctx.triggered_id
+    if trigger == "editor-popup":
+        return is_open_state
+    if trigger in ["table-selector", "cyto", "url"]:
+        if trigger == "table-selector" and not table_val:
+            return is_open_state
+        if trigger == "url" and (not url_hash or "edit" not in url_hash):
+            return is_open_state
+        return True
+    return is_open_state
 
 # ---------------------------------------------------------
 # Dash callbacks

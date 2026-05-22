@@ -44,16 +44,16 @@ def generate_form_layout(form_name, forms_config, object_id=None):
     meta = html.Div([
         html.Details(
             [
-                html.Summary(f"metadata"),
+                html.Summary(f"System Metadata Information"),
             ] + [html.Div(f"\t{key}: {record_data.get(key, None)}") for key in forms_config[form_name].get("meta", [])]
         ),
     ])
 
     return html.Div([
-        html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}"),
-        meta,
+        html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}", className="mb-4 text-primary"),
         *meta_hidden,
         *elements,
+        html.Div(meta, style={"marginTop": "25px", "marginBottom": "20px", "opacity": "0.8"}),
         html.Button("Submit", id={"type": "submit", "form": form_name}, n_clicks=0),
         html.Div(id={"type": "output", "form": form_name})
     ])

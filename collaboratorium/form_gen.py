@@ -53,8 +53,11 @@ def generate_form_layout(form_name, forms_config, object_id=None):
         html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}", className="mb-4 text-primary"),
         *meta_hidden,
         *elements,
-        html.Div(meta, style={"marginTop": "25px", "marginBottom": "20px", "opacity": "0.8"}),
-        html.Button("Submit", id={"type": "submit", "form": form_name}, n_clicks=0),
+        html.Div(meta, style={"marginTop": "25px", "marginBottom": "20px", "opacity": "0.7"}),
+        html.Div([
+            dbc.Button("Submit", id={"type": "submit", "form": form_name}, n_clicks=0, color="success", className="me-2 fw-bold"),
+            dbc.Button("Cancel", id={"type": "cancel", "form": form_name}, n_clicks=0, color="secondary", outline=True),
+        ], className="d-flex align-items-center mt-3"),
         html.Div(id={"type": "output", "form": form_name})
     ])
 
@@ -187,24 +190,27 @@ def register_click_callbacks(app, config):
         return login_required(generate_form_layout)(form_name, forms_config=forms_config, object_id=object_id)
 
     @app.callback(
-            [Output("editor-popup", "is_open", allow_duplicate=True),
-            Output("add-dropdown-container", "style"),
-            Output("table-selector", "value")],
-            [Input("btn-add-element", "n_clicks"),
-            Input("cyto", "tapNodeData"),
-            Input("cyto", "tapEdgeData"),
-            Input("url", "hash")],
-            prevent_initial_call=True
-        )
-    def control_editor_flow(add_clicks, node_data, edge_data, url_hash):
+        [Output("editor-popup", "is_open", allow_duplicate=True),
+        Output("add-dropdown-container", "style"),
+        Output("table-selector", "value")],
+        [Input("btn-add-element", "n_clicks"),
+        Input("cyto", "tapNodeData"),
+        Input("cyto", "tapEdgeData"),
+        Input("url", "hash"),
+        Input({"type": "cancel", "form": ALL}, "n_clicks")],
+        prevent_initial_call=True
+    )
+    def control_editor_flow(add_clicks, node_data, edge_data, url_hash, cancel_clicks):
         trigger = ctx.triggered_id
+        # Safely unpack pattern dict callback context assignments 
+        if isinstance(trigger, dict) and trigger.get("type") == "cancel":
+            if any(clicks > 0 for clicks in cancel_clicks if clicks is not None):
+                return False, no_update, no_update
         if trigger == "btn-add-element":
-            # Pure element addition context: expose target table definition parameters selection dropdown
             return True, {"display": "block"}, None
         if trigger in ["cyto", "url"]:
             if trigger == "url" and (not url_hash or "edit" not in url_hash):
                 return no_update, no_update, no_update
-            # Pure modification context: conceal drop-down component block to isolate form elements
             return True, {"display": "none"}, no_update
         return no_update, no_update, no_update
 

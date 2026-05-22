@@ -1,5 +1,5 @@
 title: Collaboratorium
-editor_layout: sidebar # Options: 'modal' (default), 'sidebar' (drawer), 'inline' (legacy fixed side layout)
+editor_layout: 'modal' # Options: 'modal' (default), 'sidebar' (drawer), 'inline' (legacy fixed side layout)
 node_tables:
 - activities
 - contracts

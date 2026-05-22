@@ -2,6 +2,7 @@ from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
 from db import db_connect, get_latest_entry
 import json
+import dash_bootstrap_components as dbc
 
 from analytics import analytics_log
 from auth import login_required

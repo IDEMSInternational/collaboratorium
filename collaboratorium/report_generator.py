@@ -1,5 +1,6 @@
 import re
 import json
+from db import get_dropdown_options, get_relation_links
 
 def format_subform_data(val_str):
     """Attempts to parse JSON subform data and format it cleanly into Markdown."""
@@ -41,6 +42,12 @@ def generate_markdown_report(report_cfg, elements):
     nodes_dict = {e['data']['id']: e['data'] for e in elements if 'source' not in e['data']}
     edges = [e['data'] for e in elements if 'source' in e['data']]
     
+    people_opts = get_dropdown_options('people', 'id', 'name')
+    people_map = {row['value']: row['label'] for row in people_opts} if people_opts else {}
+    
+    # Query all active relationship links securely processed through the database layer
+    act_people_df = get_relation_links('activity_people_links', 'activity_id', 'person_id')
+
     adj = {}
     for e in edges:
         s, t = e['source'], e['target']
@@ -62,6 +69,20 @@ def generate_markdown_report(report_cfg, elements):
                 format_dict[k] = format_subform_data(v)
             else:
                 format_dict[k] = v
+
+        # Context-aware name resolution triggers
+        if node['type'] == 'initiatives':
+            resp_id = node.get('properties', {}).get('responsible_person')
+            if resp_id and resp_id in people_map:
+                format_dict['responsible_person'] = people_map[resp_id]
+            else:
+                format_dict['responsible_person'] = "None"
+                
+        if node['type'] == 'activities':
+            act_id = int(node['id'].split('-')[-1])
+            p_ids = act_people_df[act_people_df['activity_id'] == act_id]['person_id'].tolist()
+            names = [people_map[pid] for pid in p_ids if pid in people_map]
+            format_dict['linked_people'] = ", ".join(names) if names else "None"
 
         def safe_replace(match):
             key = match.group(1)

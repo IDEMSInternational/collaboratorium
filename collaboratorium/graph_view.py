@@ -3,7 +3,7 @@ from dash import html, dcc, Input, Output, State, ctx, ALL, no_update
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from auth import login_required
-from db import build_elements_from_db, get_dropdown_options
+from db import build_elements_from_db, get_dropdown_options, get_relation_links
 from analytics import log_view_event
 import pandas as pd
 import dash_ag_grid as dag
@@ -319,6 +319,34 @@ def register_graph_callbacks(app, config):
                 for t, data in nodes_by_type.items():
                     data = _resolve_foreign_keys(data, t, config, dropdown_cache)
                     df = pd.DataFrame(data)
+
+                    if t == 'activities' and not df.empty:                        
+                        people_opts = get_dropdown_options('people', 'id', 'name')
+                        people_map = {row['value']: row['label'] for row in people_opts} if people_opts else {}
+                        
+                        init_opts = get_dropdown_options('initiatives', 'id', 'name')
+                        init_map = {row['value']: row['label'] for row in init_opts} if init_opts else {}
+                        
+                        activity_ids = df['id'].apply(lambda x: int(str(x).split('-')[-1])).tolist()
+                        
+                        # Fetch batch frames safely directly from the root module function
+                        p_links = get_relation_links('activity_people_links', 'activity_id', 'person_id', activity_ids)
+                        i_links = get_relation_links('activity_initiative_links', 'activity_id', 'initiative_id', activity_ids)
+                        
+                        def map_linked_people(row):
+                            act_id = int(str(row['id']).split('-')[-1])
+                            p_ids = p_links[p_links['activity_id'] == act_id]['person_id'].tolist()
+                            names = [people_map.get(pid, f"Person {pid}") for pid in p_ids if pid in people_map]
+                            return ", ".join(names) if names else "None"
+                            
+                        def map_linked_initiatives(row):
+                            act_id = int(str(row['id']).split('-')[-1])
+                            i_ids = i_links[i_links['activity_id'] == act_id]['initiative_id'].tolist()
+                            names = [init_map.get(iid, f"Initiative {iid}") for iid in i_ids if iid in init_map]
+                            return ", ".join(names) if names else "None"
+                            
+                        df['linked_people'] = df.apply(map_linked_people, axis=1)
+                        df['linked_initiatives'] = df.apply(map_linked_initiatives, axis=1)
                     
                     if 'timestamp' in df.columns:
                         df = df.sort_values('timestamp', ascending=False)

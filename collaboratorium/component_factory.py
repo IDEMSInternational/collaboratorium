@@ -16,6 +16,18 @@ def component_for_element(element_config, form_name, value=None):
     label = element_config.get("label", element_config["element_id"])
     appearance = element_config.get("appearance", None)
 
+    is_required = element_config.get("required", False) in (True, "yes", "true")
+    if is_required and label:
+        label_component = html.Label([
+            label,
+            html.Span(" *", className="text-danger fw-bold ms-1", title="This field is required")
+        ])
+        # Add a subtle red left-border to the field container to draw the eye
+        wrapper_style = {'marginBottom': '15px', 'borderLeft': '3px solid #dc3545', 'paddingLeft': '10px'}
+    else:
+        label_component = html.Label(label)
+        wrapper_style = {'marginBottom': '15px'}
+
     input_type_mapping = {
         "integer": "number",
         "decimal": "number",
@@ -35,7 +47,7 @@ def component_for_element(element_config, form_name, value=None):
                         style={'width': '100%'},
                         value=value or "",
                     ),
-                ]
+                ], style=wrapper_style
             )
         return html.Div(
             [
@@ -46,7 +58,7 @@ def component_for_element(element_config, form_name, value=None):
                     value=value or "",
                     style={'width': '100%'},
                 ),
-            ]
+            ], style=wrapper_style
         )
     
     # --- hidden ---
@@ -66,7 +78,7 @@ def component_for_element(element_config, form_name, value=None):
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     date=value or None,
                 ),
-            ]
+            ], style=wrapper_style
         )
     
     # --- boolean ---
@@ -98,7 +110,7 @@ def component_for_element(element_config, form_name, value=None):
                     value=value,
                     clearable=True,
                 ),
-            ]
+            ], style=wrapper_style
         )
 
     # --- SELECT MULTIPLE ---
@@ -121,7 +133,7 @@ def component_for_element(element_config, form_name, value=None):
                     multi=True,
                     clearable=True,
                 ),
-            ]
+            ], style=wrapper_style
         )
 
     # --- Table ---
@@ -149,7 +161,7 @@ def component_for_element(element_config, form_name, value=None):
                         style_cell={'textAlign': 'left'},
                         style_header={'fontWeight': 'bold'}
                     ),
-                ])
+                ], style=wrapper_style)
         elif element_config['appearance'] == 'markdown':
             markdown_str = '\n'.join([element_config['rowfmt'].format(**d) for d in value if d != empty_row])
             return html.Div(
@@ -170,7 +182,7 @@ def component_for_element(element_config, form_name, value=None):
                     ),
                 ],
                     ),
-                ])
+                ], style=wrapper_style)
 
 
     # --- Subform ---
@@ -179,7 +191,7 @@ def component_for_element(element_config, form_name, value=None):
             html.Div(id={"type": "subform", "form": form_name, "element": element_config["element_id"]}),
             dcc.Store(id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                   data=value)
-            ],)
+            ], style=wrapper_style)
         return subform_block
         
 

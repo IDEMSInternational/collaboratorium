@@ -231,13 +231,37 @@ def register_click_callbacks(app, config):
 def register_submit_callbacks(app, forms_config):
     """Register one submit callback per form in the config."""
     for form_name, fc in forms_config.items():
-        input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         value_key_map = {
             "date": "date",
             "datetime": "date",
             "subform": "data",
             "table": "data",
         }
+        
+        # handle required fields
+        req_inputs = []
+        for e_id, e_val in fc["elements"].items():
+            # Check for ODK-style required syntax
+            if e_val.get("required", False) in (True, "yes", "true"):
+                v_key = value_key_map.get(e_val['type'], "value")
+                req_inputs.append(Input({"type": "input", "form": form_name, "element": e_id}, v_key))
+                
+        if req_inputs:
+            @app.callback(
+                Output({"type": "submit", "form": form_name}, "disabled"),
+                Output({"type": "submit", "form": form_name}, "children"),
+                *req_inputs
+            )
+            def validate_required_fields(*req_values):
+                # If any required field is empty, disable the button and explain why
+                for val in req_values:
+                    if val in (None, "", [], {}):
+                        return True, "Fill Required Fields to Submit"
+                
+                # If everything is valid, enable the button and restore the text
+                return False, "Submit"
+
+        input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         meta_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["meta"].keys()]
         state_args = []
         for e_id, e_val in (fc["elements"] | fc["meta"]).items():

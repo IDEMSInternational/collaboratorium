@@ -295,6 +295,7 @@ forms:
       name:
         type: string
         label: Name
+        required: true
       description:
         type: string
         label: Description
@@ -302,6 +303,7 @@ forms:
       responsible_person:
         type: select_one
         appearance: dropdown
+        required: true
         label: Responsible Person
         parameters:
           source_table: people
@@ -386,6 +388,7 @@ forms:
       name:
         type: string
         label: Name
+        required: true
       role:
         type: string
         label: Role
@@ -448,6 +451,7 @@ forms:
       name:
         type: string
         label: Name
+        required: true
       description:
         type: string
         label: Description
@@ -459,6 +463,7 @@ forms:
         type: select_one
         appearance: dropdown
         label: Contact Person
+        required: true
         parameters:
           source_table: people
           value_column: id
@@ -503,6 +508,7 @@ forms:
       name:
         type: string
         label: Name
+        required: true
       description:
         type: subform
         label: ""
@@ -574,6 +580,7 @@ forms:
         type: select_multiple
         appearance: dropdown
         label: Linked Initiatives
+        required: true
         parameters:
           source_table: initiatives
           value_column: id
@@ -599,6 +606,7 @@ forms:
       people_links:
         type: select_multiple
         appearance: dropdown
+        required: true
         label: Linked People
         parameters:
           source_table: people
@@ -626,6 +634,7 @@ forms:
       name:
         type: string
         label: Name
+        required: true
       description:
         type: string
         label: Description
@@ -649,6 +658,7 @@ forms:
       responsible_person:
         type: select_one
         appearance: dropdown
+        required: true
         label: Responsible Person
         parameters:
           source_table: people

@@ -215,6 +215,19 @@ def register_click_callbacks(app, config):
             return True, {"display": "none"}, no_update
         return no_update, no_update, no_update
 
+    @app.callback(
+        Output('url', 'hash', allow_duplicate=True),
+        Input('editor-popup', 'is_open'),
+        State('url', 'hash'),
+        prevent_initial_call=True
+    )
+    def clear_hash_on_modal_close(is_open, current_hash):
+        # Only clear the hash if the modal is actively closing AND the hash currently holds an edit route
+        if not is_open and current_hash and 'edit' in current_hash:
+            return ""
+        
+        return no_update
+
 def register_submit_callbacks(app, forms_config):
     """Register one submit callback per form in the config."""
     for form_name, fc in forms_config.items():

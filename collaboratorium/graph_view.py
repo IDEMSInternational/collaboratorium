@@ -8,6 +8,7 @@ from analytics import log_view_event
 import pandas as pd
 import dash_ag_grid as dag
 from report_generator import generate_markdown_report
+import time
 
 # ==============================================================
 # LAYOUT GENERATION
@@ -399,7 +400,7 @@ def register_graph_callbacks(app, config):
                     tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
                         html.Div([
                             dag.AgGrid(
-                                id=f"spreadsheet-table-{t}",
+                                id=f"spreadsheet-table-{t}-{int(time.time())}",
                                 rowData=df.to_dict('records'),
                                 columnDefs=columns,
                                 defaultColDef={"sortable": True, "filter": True, "resizable": True},

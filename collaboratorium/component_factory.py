@@ -41,7 +41,7 @@ def component_for_element(element_config, form_name, value=None):
         if appearance == "multiline":
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dcl.Textarea(
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         style={'width': '100%'},
@@ -51,7 +51,7 @@ def component_for_element(element_config, form_name, value=None):
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Input(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     type=input_type_mapping.get(element_type, "text"),
@@ -73,7 +73,7 @@ def component_for_element(element_config, form_name, value=None):
     elif element_type == "date":
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.DatePickerSingle(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     date=value or None,
@@ -103,7 +103,7 @@ def component_for_element(element_config, form_name, value=None):
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Dropdown(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     options=options,
@@ -125,7 +125,7 @@ def component_for_element(element_config, form_name, value=None):
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Dropdown(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     options=options,
@@ -151,7 +151,7 @@ def component_for_element(element_config, form_name, value=None):
         if 'appearance' not in element_config.keys():
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dash_table.DataTable(
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         columns=columns,
@@ -166,7 +166,7 @@ def component_for_element(element_config, form_name, value=None):
             markdown_str = '\n'.join([element_config['rowfmt'].format(**d) for d in value if d != empty_row])
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dcc.Markdown(markdown_str, link_target="_blank"),
                     html.Details(
                 [
@@ -196,7 +196,7 @@ def component_for_element(element_config, form_name, value=None):
         
 
     # --- DEFAULT FALLBACK ---
-    return html.Div([html.Label(label), html.Div("Unsupported element type")])
+    return html.Div([label_component, html.Div("Unsupported element type")])
 
 
 def combine_lists_with_nones(lists):
@@ -379,7 +379,7 @@ def generate_static_subform_elements(element_config, form_name, value=None, appe
     subform_ls = [dict(id=id, **val) for id, val in element_config['parameters'].items()]
 
     elements = []
-    for key, subform_value in value.items():
+    for key, subform_value in (value or {}).items():
         subform = None
         for sf in subform_ls:
             if key == str(sf['id']):

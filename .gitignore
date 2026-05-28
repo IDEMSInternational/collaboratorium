@@ -213,3 +213,4 @@ database.db
 flask_session/
 analytics.db
 test_database.db
+test_analytics.db

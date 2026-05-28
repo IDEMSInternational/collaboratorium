@@ -337,7 +337,7 @@ def register_graph_callbacks(app, config):
                         def map_linked_people(row):
                             act_id = int(str(row['id']).split('-')[-1])
                             p_ids = p_links[p_links['activity_id'] == act_id]['person_id'].tolist()
-                            names = [people_map.get(pid, f"Person {pid}") for pid in p_ids if pid in people_map]
+                            names = [people_map[pid] for pid in p_ids if pid in people_map]
                             return ", ".join(names) if names else "None"
                             
                         def map_linked_initiatives(row):
@@ -552,6 +552,6 @@ def _resolve_foreign_keys(data, table_name, config, dropdown_cache):
                     row[col] = lookup[str_val] if lookup[str_val] else f"Unnamed ({str_val})"
                 else:
                     row[col] = ""
-                    print(f"Warning: person ID {val} is invalid")
+                    print(f"Warning: {col} ID {val} is invalid")
                     
     return data

@@ -255,7 +255,7 @@ def register_submit_callbacks(app, forms_config):
             def validate_required_fields(*req_values):
                 # If any required field is empty, disable the button and explain why
                 for val in req_values:
-                    if val in (None, "", [], {}):
+                    if val in (None, "", [], {}, "{}", "[]"):
                         return True, "Fill Required Fields to Submit"
                 
                 # If everything is valid, enable the button and restore the text

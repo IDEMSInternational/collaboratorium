@@ -556,7 +556,9 @@ def get_relation_links(link_table, source_col, target_col, source_ids=None):
     
     where_clause = ""
     params = []
-    if source_ids:
+    if source_ids is not None:
+        if not source_ids:
+            return pd.DataFrame(columns=[source_col, target_col])
         placeholders = ",".join(["?"] * len(source_ids))
         where_clause = f'WHERE "{source_col}" IN ({placeholders})'
         params = list(source_ids)

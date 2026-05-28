@@ -124,7 +124,7 @@ app.layout = html.Div([
 
 # Add state persistence listener to automatically trigger modal visibilities on input events
 @app.callback(
-    Output("editor-popup", "is_open"),
+    Output("editor-popup", "is_open", allow_duplicate=True),
     [Input("table-selector", "value"),
      Input("cyto", "tapNodeData"),
      Input("cyto", "tapEdgeData"),

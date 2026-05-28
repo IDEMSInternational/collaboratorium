@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 from visual_customization import dcl
 from db import get_dropdown_options
+import dash_bootstrap_components as dbc
 
 
 # ==============================================================
@@ -42,7 +43,7 @@ def component_for_element(element_config, form_name, value=None):
             return html.Div(
                 [
                     label_component,
-                    dcl.Textarea(
+                    dbc.Textarea(
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         style={'width': '100%'},
                         value=value or "",

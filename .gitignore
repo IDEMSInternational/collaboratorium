@@ -212,3 +212,4 @@ __marimo__/
 database.db
 flask_session/
 analytics.db
+test_database.db

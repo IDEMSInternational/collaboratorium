@@ -97,7 +97,8 @@ def load_data():
             how='left'
         )
         df_analytics_enriched.rename(columns={'name': 'user_name'}, inplace=True)
-        df_analytics_enriched['user_name'].fillna('Unknown', inplace=True)
+        # Needed so system doesn't crash on empty DB
+        df_analytics_enriched['user_name'] = df_analytics_enriched['user_name'].astype('object').fillna('Unknown')
 
         df_latest_content = df_content_all.sort_values('version').drop_duplicates(['id', 'type'], keep='last')
 
@@ -133,8 +134,15 @@ def init_analytics_app(server):
     app.title = "Collaboratorium Analytics"
 
     df_analytics_init, df_creations_init, _, _ = load_data()
+
+    dates_to_concat = []
+    if not df_analytics_init.empty and 'timestamp' in df_analytics_init.columns:
+        dates_to_concat.append(df_analytics_init['timestamp'])
+    if not df_creations_init.empty and 'timestamp' in df_creations_init.columns:
+        dates_to_concat.append(df_creations_init['timestamp'])
+
     if not df_analytics_init.empty or not df_creations_init.empty:
-        all_dates = pd.concat([df_analytics_init['timestamp'], df_creations_init['timestamp']])
+        all_dates = pd.concat(dates_to_concat)
         min_date = all_dates.min()
         max_date = datetime.now()
     else:

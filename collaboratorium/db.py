@@ -83,8 +83,6 @@ def init_db(config):
 def get_latest_record(table_name, object_id=None):
     """
     Get the latest (non-deleted) record from a versioned table.
-    If object_id is provided, return the most recent version of that record.
-    Otherwise return the latest record overall.
     """
     conn = db_connect()
     cur = conn.cursor()
@@ -95,7 +93,6 @@ def get_latest_record(table_name, object_id=None):
             SELECT *
             FROM {table_name}
             WHERE id = ?
-              AND (status IS NULL OR status != 'deleted')
             ORDER BY version DESC
             LIMIT 1
             """,
@@ -113,9 +110,18 @@ def get_latest_record(table_name, object_id=None):
         )
 
     row = cur.fetchone()
-    cols = [d[0] for d in cur.description]
+    cols = [d[0] for d in cur.description] if cur.description else []
     conn.close()
-    return dict(zip(cols, row)) if row else {}
+    
+    if not row:
+        return {}
+        
+    data = dict(zip(cols, row))
+    # If the absolute latest version is deleted, the object doesn't exist.
+    if object_id and data.get('status') == 'deleted':
+        return {}
+        
+    return data
 
 
 def get_all_records(table_name):

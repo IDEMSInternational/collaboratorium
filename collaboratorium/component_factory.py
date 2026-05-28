@@ -46,6 +46,7 @@ def component_for_element(element_config, form_name, value=None):
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         style={'width': '100%'},
                         value=value or "",
+                        debounce=True,
                     ),
                 ], style=wrapper_style
             )

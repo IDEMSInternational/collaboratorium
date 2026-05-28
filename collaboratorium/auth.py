@@ -54,12 +54,13 @@ def simulate_local_login():
     """Automatically log in as a fake user for local development."""
     in_docker = os.getcwd() == "/app"
     debug_env = os.environ.get("DEBUG", None)
-    if not in_docker and (debug_env is None or debug_env.lower() in ("1", "true", "yes", "on")):
+    is_testing = os.environ.get("IS_TESTING") == "TRUE"
+    if (not in_docker or is_testing) and (debug_env is None or debug_env.lower() in ("1", "true", "yes", "on")):
         if "user" not in session:
             session["user"] = {
-                "sub": "localdev",
-                "email": "localhost@example.com",
-                "name": "Local Developer",
+                "sub": "testrunner",
+                "email": "testrunner@idems.international", # Needs valid domain
+                "name": "Automated Tester",
                 "picture": None,
             }
 

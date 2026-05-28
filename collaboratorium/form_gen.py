@@ -2,6 +2,7 @@ from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
 from db import db_connect, get_latest_entry
 import json
+import dash_bootstrap_components as dbc
 
 from analytics import analytics_log
 from auth import login_required
@@ -44,17 +45,20 @@ def generate_form_layout(form_name, forms_config, object_id=None):
     meta = html.Div([
         html.Details(
             [
-                html.Summary(f"metadata"),
+                html.Summary(f"System Metadata Information"),
             ] + [html.Div(f"\t{key}: {record_data.get(key, None)}") for key in forms_config[form_name].get("meta", [])]
         ),
     ])
 
     return html.Div([
-        html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}"),
-        meta,
+        html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}", className="mb-4 text-primary"),
         *meta_hidden,
         *elements,
-        html.Button("Submit", id={"type": "submit", "form": form_name}, n_clicks=0),
+        html.Div(meta, style={"marginTop": "25px", "marginBottom": "20px", "opacity": "0.7"}),
+        html.Div([
+            dbc.Button("Submit", id={"type": "submit", "form": form_name}, n_clicks=0, color="success", className="me-2 fw-bold"),
+            dbc.Button("Cancel", id={"type": "cancel", "form": form_name}, n_clicks=0, color="secondary", outline=True),
+        ], className="d-flex align-items-center mt-3"),
         html.Div(id={"type": "output", "form": form_name})
     ])
 
@@ -186,17 +190,78 @@ def register_click_callbacks(app, config):
             return html.Div(f"Error: Table '{table_name}' not in config['default_forms'].")
         return login_required(generate_form_layout)(form_name, forms_config=forms_config, object_id=object_id)
 
+    @app.callback(
+        [Output("editor-popup", "is_open", allow_duplicate=True),
+        Output("add-dropdown-container", "style"),
+        Output("table-selector", "value")],
+        [Input("btn-add-element", "n_clicks"),
+        Input("cyto", "tapNodeData"),
+        Input("cyto", "tapEdgeData"),
+        Input("url", "hash"),
+        Input({"type": "cancel", "form": ALL}, "n_clicks")],
+        prevent_initial_call=True
+    )
+    def control_editor_flow(add_clicks, node_data, edge_data, url_hash, cancel_clicks):
+        trigger = ctx.triggered_id
+        # Safely unpack pattern dict callback context assignments 
+        if isinstance(trigger, dict) and trigger.get("type") == "cancel":
+            if any(clicks > 0 for clicks in cancel_clicks if clicks is not None):
+                return False, no_update, no_update
+        if trigger == "btn-add-element":
+            return True, {"display": "block"}, None
+        if trigger in ["cyto", "url"]:
+            if trigger == "url" and (not url_hash or "edit" not in url_hash):
+                return no_update, no_update, no_update
+            return True, {"display": "none"}, no_update
+        return no_update, no_update, no_update
+
+    @app.callback(
+        Output('url', 'hash', allow_duplicate=True),
+        Input('editor-popup', 'is_open'),
+        State('url', 'hash'),
+        prevent_initial_call=True
+    )
+    def clear_hash_on_modal_close(is_open, current_hash):
+        # Only clear the hash if the modal is actively closing AND the hash currently holds an edit route
+        if not is_open and current_hash and 'edit' in current_hash:
+            return ""
+        
+        return no_update
 
 def register_submit_callbacks(app, forms_config):
     """Register one submit callback per form in the config."""
     for form_name, fc in forms_config.items():
-        input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         value_key_map = {
             "date": "date",
             "datetime": "date",
             "subform": "data",
             "table": "data",
         }
+        
+        # handle required fields
+        req_inputs = []
+        for e_id, e_val in fc["elements"].items():
+            # Check for ODK-style required syntax
+            if e_val.get("required", False) in (True, "yes", "true"):
+                v_key = value_key_map.get(e_val['type'], "value")
+                req_inputs.append(Input({"type": "input", "form": form_name, "element": e_id}, v_key))
+                
+        if req_inputs:
+            @app.callback(
+                Output({"type": "submit", "form": form_name}, "disabled"),
+                Output({"type": "submit", "form": form_name}, "children"),
+                *req_inputs
+            )
+            def validate_required_fields(*req_values):
+                # If any required field is empty, disable the button and explain why
+                for val in req_values:
+                    if val in (None, "", [], {}, "{}", "[]"):
+                        return True, "Fill Required Fields to Submit"
+                
+                # If everything is valid, enable the button and restore the text
+                return False, "Submit"
+
+        input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         meta_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["meta"].keys()]
         state_args = []
         for e_id, e_val in (fc["elements"] | fc["meta"]).items():

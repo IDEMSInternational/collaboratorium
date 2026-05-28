@@ -83,8 +83,6 @@ def init_db(config):
 def get_latest_record(table_name, object_id=None):
     """
     Get the latest (non-deleted) record from a versioned table.
-    If object_id is provided, return the most recent version of that record.
-    Otherwise return the latest record overall.
     """
     conn = db_connect()
     cur = conn.cursor()
@@ -95,7 +93,6 @@ def get_latest_record(table_name, object_id=None):
             SELECT *
             FROM {table_name}
             WHERE id = ?
-              AND (status IS NULL OR status != 'deleted')
             ORDER BY version DESC
             LIMIT 1
             """,
@@ -113,9 +110,18 @@ def get_latest_record(table_name, object_id=None):
         )
 
     row = cur.fetchone()
-    cols = [d[0] for d in cur.description]
+    cols = [d[0] for d in cur.description] if cur.description else []
     conn.close()
-    return dict(zip(cols, row)) if row else {}
+    
+    if not row:
+        return {}
+        
+    data = dict(zip(cols, row))
+    # If the absolute latest version is deleted, the object doesn't exist.
+    if object_id and data.get('status') == 'deleted':
+        return {}
+        
+    return data
 
 
 def get_all_records(table_name):
@@ -539,3 +545,44 @@ def get_person_id_for_user(user):
     conn.commit()
     conn.close()
     return new_id
+
+def get_relation_links(link_table, source_col, target_col, source_ids=None):
+    """
+    Fetch version-safe relationship links from a many-to-many link table.
+    Partitions by the structural row 'id' to find the latest version of each 
+    individual link entry, safely filtering out deleted states.
+    """
+    conn = db_connect()
+    
+    where_clause = ""
+    params = []
+    if source_ids is not None:
+        if not source_ids:
+            return pd.DataFrame(columns=[source_col, target_col])
+        placeholders = ",".join(["?"] * len(source_ids))
+        where_clause = f'WHERE "{source_col}" IN ({placeholders})'
+        params = list(source_ids)
+        
+    sql_query = f'''
+    WITH RankedLinks AS (
+        SELECT 
+            "{source_col}", 
+            "{target_col}", 
+            "status",
+            ROW_NUMBER() OVER(PARTITION BY id ORDER BY "version" DESC) as rn
+        FROM "{link_table}"
+        {where_clause}
+    )
+    SELECT "{source_col}", "{target_col}"
+    FROM RankedLinks
+    WHERE rn = 1 AND ("status" IS NULL OR "status" != 'deleted')
+    '''
+    
+    try:
+        df = pd.read_sql_query(sql_query, conn, params=params)
+        conn.close()
+        return df
+    except Exception as e:
+        print(f"[WARN] Error fetching root relations from {link_table}: {e}")
+        conn.close()
+        return pd.DataFrame(columns=[source_col, target_col])

@@ -3,11 +3,12 @@ from dash import html, dcc, Input, Output, State, ctx, ALL, no_update
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
 from auth import login_required
-from db import build_elements_from_db, get_dropdown_options
+from db import build_elements_from_db, get_dropdown_options, get_relation_links
 from analytics import log_view_event
 import pandas as pd
 import dash_ag_grid as dag
 from report_generator import generate_markdown_report
+import time
 
 # ==============================================================
 # LAYOUT GENERATION
@@ -47,6 +48,12 @@ def generate_graph_layout(config):
             )
         )
 
+    settings_accordion = dbc.Accordion([
+        dbc.AccordionItem([
+            html.Div(filter_rows)
+        ], title="View and Filter Settings")
+    ], start_collapsed=True)
+
     yaml_editor = dbc.Accordion([
         dbc.AccordionItem([
             dcc.Textarea(
@@ -78,16 +85,15 @@ def generate_graph_layout(config):
         dbc.CardBody([
             dbc.Collapse(
                 dbc.Card(dbc.CardBody([
-                    html.H6(id="active-view-title", className="mb-3 text-primary fw-bold"),
-                    html.Div(filter_rows),
+                    settings_accordion,
                     yaml_editor,
-                ]), className="mb-3 border-0 bg-white shadow-sm"),
+                ]), className="border-0 bg-white shadow-sm"),
                 id="collapse-filters", is_open=False
             ),
-            dbc.Tabs(id="output-tabs", active_tab="tab-graph", children=[
-                dbc.Tab(label="Network Graph", tab_id="tab-graph"),
+            dbc.Tabs(id="output-tabs", active_tab="tab-spreadsheet", children=[
                 dbc.Tab(label="Spreadsheet", tab_id="tab-spreadsheet"),
                 dbc.Tab(label="Report", tab_id="tab-report"),
+                dbc.Tab(label="Network Graph", tab_id="tab-graph"),
             ], className="mb-3"),
             html.Div([
                 html.Div(
@@ -100,7 +106,7 @@ def generate_graph_layout(config):
                     id='graph-container'
                 ),
                 html.Div([
-                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
+                    dbc.Tabs(id="spreadsheet-tabs", className="mt-3")
                 ], id='spreadsheet-container', style={'display': 'none'}),
                 html.Div(id='report-container', style={'display': 'none'})
             ])
@@ -149,12 +155,12 @@ def register_graph_callbacks(app, config):
     # 1. THE VIEW MANAGER
     @app.callback(
         [Output("collapse-filters", "is_open"), 
-         Output("active-view-title", "children"),
          Output("current-view-state", "data"),
          Output("layout-selector", "value"),
-         Output("pipeline-yaml-editor", "value")] + # <-- OUTPUT TO EDITOR
+         Output("pipeline-yaml-editor", "value")] + 
         [Output(f"container-{f_id}", "style") for f_id in registry.keys()] +
-        [Output(f"filter-target-entity", "options")], 
+        [Output(f"filter-target-entity", "options")] +
+        [Output(v_id, "className") for v_id in views.keys()],
         [Input(v_id, "n_clicks") for v_id in views.keys()],
         [State("collapse-filters", "is_open"), 
          State("current-view-state", "data"),
@@ -194,12 +200,25 @@ def register_graph_callbacks(app, config):
         source_tables = params.get("source_tables", default_params.get("source_tables", []))
         options = get_dropdown_options_multi(config, source_tables)
         
-        return [new_is_open, title, active_view_id, new_layout, yaml_string] + styles + [options]
+        # Determine button classes
+        button_classes = []
+        for v_id in views.keys():
+            if v_id == active_view_id:
+                button_classes.append("btn btn-warning btn-sm me-2 fw-bold text-dark shadow-sm")
+            else:
+                if v_id == first_view_id:
+                    button_classes.append("btn btn-light btn-sm me-2 border text-dark fw-bold")
+                else:
+                    button_classes.append("btn btn-primary btn-sm me-2")
+        
+        # Return the new sequence of outputs
+        return [new_is_open, active_view_id, new_layout, yaml_string] + styles + [options] + button_classes
 
     # 2. QUERY-ON-DEMAND & ACTIVE TAB RENDERER
     @app.callback(
         Output('cyto', 'elements'),
-        Output('spreadsheet-container', 'children'),
+        Output('spreadsheet-tabs', 'children'),
+        Output('spreadsheet-tabs', 'active_tab'),
         Output('report-container', 'children'),
         Output('pipeline-error-msg', 'children'),
         Input('intermediary-loaded', 'data'),
@@ -223,7 +242,6 @@ def register_graph_callbacks(app, config):
         error_msg = ""
         used_advanced = 0
 
-        # Parse YAML only if they've actively used the advanced pipeline editor
         if yaml_text and apply_clicks and apply_clicks > 0:
             used_advanced = 1
             try:
@@ -247,7 +265,6 @@ def register_graph_callbacks(app, config):
             custom_pipeline=custom_pipeline,
         )
         
-        # Log analytics ONLY if a filter changed (prevent log spam when just switching tabs)
         if ctx.triggered_id != 'output-tabs':
             node_count = sum(1 for e in elements if 'source' not in e.get('data', {}))
             log_view_event(
@@ -263,23 +280,21 @@ def register_graph_callbacks(app, config):
                 end_date=end,
                 node_count=node_count
             )
-            
-        # 3. Only generate the UI for the Tab that is currently active.
+
         cyto_out = no_update
-        sheet_out = no_update
+        tabs_out = no_update
+        active_tab_out = no_update
         report_out = no_update
         
         if not elements:
             empty_msg = html.Div("No data to display. Adjust filters or select a target entity.", className="text-muted p-4 text-center")
-            sheet_empty_msg = html.Div([
-                empty_msg, 
-                dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
-            ])
             
             if active_tab == "tab-graph": cyto_out = []
-            elif active_tab == "tab-spreadsheet": sheet_out = sheet_empty_msg
+            elif active_tab == "tab-spreadsheet": 
+                tabs_out = []
+                active_tab_out = None
             elif active_tab == "tab-report": report_out = empty_msg
-            return cyto_out, sheet_out, report_out, error_msg
+            return cyto_out, tabs_out, active_tab_out, report_out, error_msg
 
         if active_tab == "tab-graph":
             cyto_out = elements
@@ -287,56 +302,126 @@ def register_graph_callbacks(app, config):
         elif active_tab == "tab-spreadsheet":
             nodes = [e['data'] for e in elements if 'source' not in e['data']]
             if not nodes:
-                sheet_out = html.Div([
-                    html.Div("No nodes to display.", className="text-muted p-4 text-center"),
-                    dbc.Tabs(id="spreadsheet-tabs", style={'display': 'none'})
-                ])
+                tabs_out = []
+                active_tab_out = None
             else:
                 nodes_by_type = {}
                 for n in nodes:
                     t = n.get('type')
                     if t not in nodes_by_type:
                         nodes_by_type[t] = []
-                    row = {'id': n['id'], 'label': n['label']}
+                    row = {'id': n['id']}
                     row.update(n.get('properties', {}))
                     nodes_by_type[t].append(row)
 
                 tabs = []
+                dropdown_cache = {}
+                
                 for t, data in nodes_by_type.items():
+                    data = _resolve_foreign_keys(data, t, config, dropdown_cache)
                     df = pd.DataFrame(data)
+
+                    if t == 'activities' and not df.empty:                        
+                        people_opts = get_dropdown_options('people', 'id', 'name')
+                        people_map = {row['value']: row['label'] for row in people_opts} if people_opts else {}
+                        
+                        init_opts = get_dropdown_options('initiatives', 'id', 'name')
+                        init_map = {row['value']: row['label'] for row in init_opts} if init_opts else {}
+                        
+                        activity_ids = df['id'].apply(lambda x: int(str(x).split('-')[-1])).tolist()
+                        
+                        # Fetch batch frames safely directly from the root module function
+                        p_links = get_relation_links('activity_people_links', 'activity_id', 'person_id', activity_ids)
+                        i_links = get_relation_links('activity_initiative_links', 'activity_id', 'initiative_id', activity_ids)
+                        
+                        def map_linked_people(row):
+                            act_id = int(str(row['id']).split('-')[-1])
+                            p_ids = p_links[p_links['activity_id'] == act_id]['person_id'].tolist()
+                            names = [people_map[pid] for pid in p_ids if pid in people_map]
+                            return ", ".join(names) if names else "None"
+                            
+                        def map_linked_initiatives(row):
+                            act_id = int(str(row['id']).split('-')[-1])
+                            i_ids = i_links[i_links['activity_id'] == act_id]['initiative_id'].tolist()
+                            names = [init_map.get(iid, f"Initiative {iid}") for iid in i_ids if iid in init_map]
+                            return ", ".join(names) if names else "None"
+                            
+                        df['linked_people'] = df.apply(map_linked_people, axis=1)
+                        df['linked_initiatives'] = df.apply(map_linked_initiatives, axis=1)
                     
-                    # Create the explicit Action Column data
-                    # Cast x to string before splitting to handle raw integer IDs from the database
+                    if 'timestamp' in df.columns:
+                        df = df.sort_values('timestamp', ascending=False)
+
+                    if 'description' in df.columns:
+                        from report_generator import format_subform_data
+                        df['description'] = df['description'].apply(lambda x: format_subform_data(x) if pd.notna(x) else x)
+                    
                     df['edit_action'] = df['id'].apply(lambda x: f"[✏️ Edit](#edit/{t}/{str(x).split('-')[-1]})")
                     
-                    # Build AG Grid column definitions
                     columns = [{"headerName": "Action", "field": "edit_action", "cellRenderer": "markdown", "width": 90, "pinned": "left"}]
+                    
+                    if 'timestamp' in df.columns:
+                        columns.append({
+                            "headerName": "Updated",
+                            "field": "timestamp",
+                            "width": 120,
+                            "pinned": "left",
+                            "sortable": True,
+                            "valueFormatter": {
+                                "function": (
+                                    "function(params) {"
+                                    "  if (!params.value) return '';"
+                                    "  var diff = (new Date() - new Date(params.value)) / 1000;"
+                                    "  if (isNaN(diff) || diff < 0) return '';"
+                                    "  if (diff < 3600) return Math.floor(diff/60) + 'm';"
+                                    "  if (diff < 86400) return Math.floor(diff/3600) + 'h';"
+                                    "  if (diff < 86400*7) return Math.floor(diff/86400) + 'd';"
+                                    "  return Math.floor(diff/(86400*7)) + 'w';"
+                                    "}"
+                                )
+                            }
+                        })
+                        
+                    # Build out remaining columns dynamically
                     for col in df.columns:
-                        if col not in ['timestamp', 'version', 'created_by', 'edit_action']:
-                            columns.append({
+                        if col not in ['timestamp', 'version', 'created_by', 'edit_action', 'id', 'status']:
+                            col_cfg = {
                                 "headerName": col.replace('_', ' ').title(), 
                                 "field": col,
-                                "filter": True # Enables the Excel-style menu filter
-                            })
+                                "filter": True
+                            }
+                            # Enable the Ag-Grid markdown renderer and row auto-height for beautiful descriptions
+                            if col == 'description':
+                                col_cfg["cellRenderer"] = "markdown"
+                                col_cfg["autoHeight"] = True
+                                
+                            columns.append(col_cfg)
                             
                     tabs.append(dbc.Tab(label=t.replace('_', ' ').title(), tab_id=f"subtab-{t}", children=[
                         html.Div([
                             dag.AgGrid(
-                                id={'type': 'spreadsheet-table', 'table_name': t},
+                                id=f"spreadsheet-table-{t}-{int(time.time())}",
                                 rowData=df.to_dict('records'),
                                 columnDefs=columns,
                                 defaultColDef={"sortable": True, "filter": True, "resizable": True},
-                                dashGridOptions={"pagination": True, "paginationPageSize": 15},
+                                dashGridOptions={
+                                    "pagination": True,
+                                     "paginationPageSize": 20,
+                                     "suppressColumnVirtualisation": True,
+                                     "enableCellTextSelection": True,
+                                },
                                 className="ag-theme-alpine",
                                 style={"height": "600px", "width": "100%"}
                             )
                         ], className="mt-3")
                     ]))
-                # Preserve the currently active spreadsheet tab if it still exists
+                    
                 valid_tab_ids = [f"subtab-{t}" for t in nodes_by_type.keys()]
                 active_subtab = current_sheet_tab if current_sheet_tab in valid_tab_ids else (valid_tab_ids[0] if valid_tab_ids else None)
                 
-                sheet_out = dbc.Tabs(tabs, id="spreadsheet-tabs", active_tab=active_subtab, className="mt-3")
+                # Directly assign tracking variables instead of packing into a new component instance
+                tabs_out = tabs
+                active_tab_out = active_subtab
                 
         elif active_tab == "tab-report":
             try:
@@ -346,7 +431,6 @@ def register_graph_callbacks(app, config):
                 else:
                     report_id = list(reports_cfg.keys())[0]
                     report_cfg = reports_cfg[report_id]
-                    
                     full_md = generate_markdown_report(report_cfg, elements)
 
                     report_out = html.Div([
@@ -370,7 +454,7 @@ def register_graph_callbacks(app, config):
             except Exception as e:
                 report_out = html.Div(f"Error generating report: {e}", className="text-danger p-4")
                 
-        return cyto_out, sheet_out, report_out, error_msg
+        return cyto_out, tabs_out, active_tab_out, report_out, error_msg
 
     # 4. TAB VISIBILITY TOGGLE (Preserves DOM state)
     @app.callback(
@@ -421,3 +505,53 @@ def get_dropdown_options_multi(config, source_tables):
                 opt['value'] = f"{table_name}-{opt['value']}"
                 all_options.append(opt)
     return sorted(all_options, key=lambda x: x['label'])
+
+
+def _resolve_foreign_keys(data, table_name, config, dropdown_cache):
+    """
+    Resolves foreign key IDs to their labels for a given table.
+    Uses dropdown_cache to prevent duplicate DB queries (N+1 problem).
+    """
+    # 1. Identify FK columns for this table
+    table_fks = {
+        child_col: (parent_table, parent_col) 
+        for (child_tbl, child_col), (parent_table, parent_col) in config.fk_map.items() 
+        if child_tbl == table_name
+    }
+    
+    if not table_fks:
+        return data
+        
+    fk_lookups = {}
+    for col, (parent_table, parent_col) in table_fks.items():
+        # 2. Safely extract label_column using .get() chaining instead of try/except
+        label_col = "name"
+        form_name = config.get("default_forms", {}).get(table_name)
+        if form_name:
+            elem_cfg = config.get("forms", {}).get(form_name, {}).get("elements", {}).get(col, {})
+            label_col = elem_cfg.get("parameters", {}).get("label_column", "name")
+            
+        # 3. Cache the DB call by its unique signature
+        cache_key = (parent_table, parent_col, label_col)
+        if cache_key not in dropdown_cache:
+            options = get_dropdown_options(parent_table, parent_col, label_col)
+            dropdown_cache[cache_key] = {str(opt['value']): opt['label'] for opt in (options or [])}
+        
+        fk_lookups[col] = dropdown_cache[cache_key]
+
+    # 4. Apply lookups to data
+    for row in data:
+        for col, lookup in fk_lookups.items():
+            val = row.get(col)
+            # Handle Pandas NaNs and blanks
+            if val is None or val == "" or (isinstance(val, float) and pd.isna(val)):
+                row[col] = ""  
+            else:
+                str_val = str(val).split('.')[0] if str(val).endswith('.0') else str(val)
+                if str_val in lookup:
+                    row[col] = lookup[str_val] if lookup[str_val] else f"Unnamed ({str_val})"
+                else:
+                    row[col] = ""
+                    print(f"Warning: {col} ID {val} is invalid")
+                    
+    return data

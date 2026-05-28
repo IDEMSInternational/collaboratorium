@@ -16,6 +16,18 @@ def component_for_element(element_config, form_name, value=None):
     label = element_config.get("label", element_config["element_id"])
     appearance = element_config.get("appearance", None)
 
+    is_required = element_config.get("required", False) in (True, "yes", "true")
+    if is_required and label:
+        label_component = html.Label([
+            label,
+            html.Span(" *", className="text-danger fw-bold ms-1", title="This field is required")
+        ])
+        # Add a subtle red left-border to the field container to draw the eye
+        wrapper_style = {'marginBottom': '15px', 'borderLeft': '3px solid #dc3545', 'paddingLeft': '10px'}
+    else:
+        label_component = html.Label(label)
+        wrapper_style = {'marginBottom': '15px'}
+
     input_type_mapping = {
         "integer": "number",
         "decimal": "number",
@@ -29,24 +41,24 @@ def component_for_element(element_config, form_name, value=None):
         if appearance == "multiline":
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dcl.Textarea(
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         style={'width': '100%'},
                         value=value or "",
                     ),
-                ]
+                ], style=wrapper_style
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Input(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     type=input_type_mapping.get(element_type, "text"),
                     value=value or "",
                     style={'width': '100%'},
                 ),
-            ]
+            ], style=wrapper_style
         )
     
     # --- hidden ---
@@ -61,12 +73,12 @@ def component_for_element(element_config, form_name, value=None):
     elif element_type == "date":
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.DatePickerSingle(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     date=value or None,
                 ),
-            ]
+            ], style=wrapper_style
         )
     
     # --- boolean ---
@@ -91,14 +103,14 @@ def component_for_element(element_config, form_name, value=None):
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Dropdown(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     options=options,
                     value=value,
                     clearable=True,
                 ),
-            ]
+            ], style=wrapper_style
         )
 
     # --- SELECT MULTIPLE ---
@@ -113,7 +125,7 @@ def component_for_element(element_config, form_name, value=None):
             )
         return html.Div(
             [
-                html.Label(label),
+                label_component,
                 dcc.Dropdown(
                     id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                     options=options,
@@ -121,7 +133,7 @@ def component_for_element(element_config, form_name, value=None):
                     multi=True,
                     clearable=True,
                 ),
-            ]
+            ], style=wrapper_style
         )
 
     # --- Table ---
@@ -139,7 +151,7 @@ def component_for_element(element_config, form_name, value=None):
         if 'appearance' not in element_config.keys():
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dash_table.DataTable(
                         id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                         columns=columns,
@@ -149,12 +161,12 @@ def component_for_element(element_config, form_name, value=None):
                         style_cell={'textAlign': 'left'},
                         style_header={'fontWeight': 'bold'}
                     ),
-                ])
+                ], style=wrapper_style)
         elif element_config['appearance'] == 'markdown':
             markdown_str = '\n'.join([element_config['rowfmt'].format(**d) for d in value if d != empty_row])
             return html.Div(
                 [
-                    html.Label(label),
+                    label_component,
                     dcc.Markdown(markdown_str, link_target="_blank"),
                     html.Details(
                 [
@@ -170,7 +182,7 @@ def component_for_element(element_config, form_name, value=None):
                     ),
                 ],
                     ),
-                ])
+                ], style=wrapper_style)
 
 
     # --- Subform ---
@@ -179,12 +191,12 @@ def component_for_element(element_config, form_name, value=None):
             html.Div(id={"type": "subform", "form": form_name, "element": element_config["element_id"]}),
             dcc.Store(id={"type": "input", "form": form_name, "element": element_config["element_id"]},
                   data=value)
-            ],)
+            ], style=wrapper_style)
         return subform_block
         
 
     # --- DEFAULT FALLBACK ---
-    return html.Div([html.Label(label), html.Div("Unsupported element type")])
+    return html.Div([label_component, html.Div("Unsupported element type")])
 
 
 def combine_lists_with_nones(lists):
@@ -306,6 +318,7 @@ def failsafe_div(label, subform_name, value):
 
 def generate_subform_block(element_config, form_name, value=None):
     label = element_config.get("label", element_config["element_id"])
+    appearance = element_config.get("appearance", None)
     subform_name = form_name+'-'+element_config["element_id"]
 
     if {"source_table", "value_column", "label_column"}.issubset(set(element_config["parameters"].keys())):
@@ -344,29 +357,32 @@ def generate_subform_block(element_config, form_name, value=None):
                 value = dummy_value
             else:
                 return failsafe_div(label, subform_name, value)
-        elements = generate_static_subform_elements(element_config, form_name, value)
+        # Pass appearance flag downwards
+        elements = generate_static_subform_elements(element_config, form_name, value, appearance)
 
-    subform_block = html.Div(
+    # Completely strips border boxes if flat presentation strategy is specified
+    if appearance == "flat":
+        return html.Div(elements, style={'marginBottom': '15px'})
+        
+    return html.Div(
         [
             html.Label(label+' '),
             *elements,
         ], style={'backgroundColor': '#f8f9fa', 'padding': '15px', 'borderRadius': '6px', 'border': '1px solid var(--border-color)', 'marginBottom': '15px'}
     )
-    return subform_block
 
-def generate_static_subform_elements(element_config, form_name, value=None):
+
+def generate_static_subform_elements(element_config, form_name, value=None, appearance=None):
     label = element_config.get("label", element_config["element_id"])
     subform_name = form_name+'-'+element_config["element_id"]
 
     subform_ls = [dict(id=id, **val) for id, val in element_config['parameters'].items()]
 
     elements = []
-    used_subform_idxs = []
-    for key, subform_value in value.items():
+    for key, subform_value in (value or {}).items():
         subform = None
         for sf in subform_ls:
             if key == str(sf['id']):
-                used_subform_idxs.append(sf['id'])
                 subform = sf
                 break
         sf_elements = []
@@ -383,12 +399,16 @@ def generate_static_subform_elements(element_config, form_name, value=None):
                     form_name=subform_name,
                     value=subform_value[field]
                 ))
+                
+        box_style = {'marginTop': '5px'} if appearance == "flat" else {
+            'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
+            'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'
+        }
+        
         elements.append(html.Div(
-            ([html.B(subform_label)] if subform_label is not None else []) +
-            [
-                *sf_elements
-            ], style={'border': '1px solid var(--border-color)', 'backgroundColor': 'var(--idems-panel)',
-                      'padding': '15px', 'borderRadius': '6px', 'marginTop': '10px'}
+            ([html.B(subform_label, className="d-block mb-2 text-secondary")] if subform_label is not None else []) +
+            [*sf_elements], 
+            style=box_style
         ))
 
     return elements

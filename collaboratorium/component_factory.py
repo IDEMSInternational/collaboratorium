@@ -146,7 +146,7 @@ def component_for_element(element_config, form_name, value=None):
             columns = []
 
         empty_row = {c['id']: None for c in columns}
-        if value is None:
+        if not value:
             value = [empty_row]
         if value[-1] != empty_row:
             value.append(empty_row) # always new row
@@ -399,7 +399,7 @@ def generate_static_subform_elements(element_config, form_name, value=None, appe
                 sf_elements.append(component_for_element(
                     element_config=dict(element_id=f'{key}|{field}', **config),
                     form_name=subform_name,
-                    value=subform_value[field]
+                    value=subform_value.get(field)
                 ))
                 
         box_style = {'marginTop': '5px'} if appearance == "flat" else {
@@ -467,7 +467,7 @@ def generate_dynamic_subform_elements(element_config, form_name, value=None):
                 sf_elements.append(component_for_element(
                     element_config=dict(element_id=f'{key}|{field}', **config),
                     form_name=subform_name,
-                    value=subform_value[field]
+                    value=subform_value.get(field)
                 ))
         elements.append(html.Div(
             [

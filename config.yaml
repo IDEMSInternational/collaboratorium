@@ -62,41 +62,6 @@ network_vis:
       text-wrap: wrap
       text-max-width: 60px
 tables:
-  initiatives:
-    fields:
-      id: integer
-      version: integer
-      name: string
-      description: string
-      responsible_person: integer
-      timestamp: timestamp
-      tag_groups: json
-      status: string
-      created_by: integer
-  people:
-    fields:
-      id: integer
-      version: integer
-      name: string
-      role: string
-      email: string
-      active: boolean
-      timestamp: timestamp
-      tag_groups: json
-      status: string
-      created_by: integer
-  organisations:
-    fields:
-      id: integer
-      version: integer
-      timestamp: timestamp
-      name: string
-      description: string
-      location: string
-      contact_person: integer
-      tag_groups: json
-      status: string
-      created_by: integer
   activities:
     fields:
       id: integer
@@ -107,6 +72,17 @@ tables:
       location: string
       start_date: timestamp
       end_date: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  initiatives:
+    fields:
+      id: integer
+      version: integer
+      name: string
+      description: string
+      responsible_person: integer
+      timestamp: timestamp
       tag_groups: json
       status: string
       created_by: integer
@@ -122,6 +98,30 @@ tables:
       responsible_person: integer
       start_date: timestamp
       end_date: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  organisations:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      location: string
+      contact_person: integer
+      tag_groups: json
+      status: string
+      created_by: integer
+  people:
+    fields:
+      id: integer
+      version: integer
+      name: string
+      role: string
+      email: string
+      active: boolean
+      timestamp: timestamp
       tag_groups: json
       status: string
       created_by: integer

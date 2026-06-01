@@ -82,10 +82,15 @@ def live_server():
         cur.execute("INSERT INTO activity_people_links (id, version, activity_id, person_id, status, timestamp, created_by) VALUES (?, 1, ?, 1, 'active', ?, 1)", 
                     (i, i, now))
         
-    # Link the remaining activities (4 through 15) to other random people/initiatives
-    for i in range(4, 16):
-        cur.execute("INSERT INTO activity_initiative_links (id, version, activity_id, initiative_id, status, timestamp, created_by) VALUES (?, 1, ?, 2, 'active', ?, 1)", 
-                    (i, i, now))
+    # REALISTIC DISTRIBUTION: Link 3 unique activities to each of the 5 initiatives
+    # Init 1 -> Acts 1,2,3 | Init 2 -> Acts 4,5,6 | Init 3 -> Acts 7,8,9 | etc.
+    link_id = 1
+    for init_id in range(1, 6):
+        start_act = (init_id - 1) * 3 + 1
+        for act_id in range(start_act, start_act + 3):
+            cur.execute("INSERT INTO activity_initiative_links (id, version, activity_id, initiative_id, status, timestamp, created_by) VALUES (?, 1, ?, ?, 'active', ?, 1)", 
+                        (link_id, act_id, init_id, now))
+            link_id += 1
     
     conn.commit()
     conn.close()

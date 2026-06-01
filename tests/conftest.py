@@ -3,7 +3,9 @@ import os
 import sys
 import threading
 import sqlite3
+import logging
 from werkzeug.serving import make_server
+logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'collaboratorium')))
 

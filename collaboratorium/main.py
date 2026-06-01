@@ -14,8 +14,11 @@ from db import init_db, db_connect
 from analytics import init_db as analytics_init_db
 from config_parser import load_config
 
-# --- New Imports ---
-from graph_view import generate_graph_layout, register_graph_callbacks
+from views.view_layout import generate_main_layout, register_layout_callbacks
+from views.data_pipeline import register_pipeline_callbacks
+from views.tab_graph import register_graph_callbacks
+from views.tab_spreadsheet import register_spreadsheet_callbacks
+from views.tab_report import register_report_callbacks
 from tools.analysis_report import init_analytics_app
 
 # ---------------------------------------------------------
@@ -75,20 +78,20 @@ if editor_layout_type == "modal":
         dbc.ModalBody(editor_contents),
     ], id="editor-popup", is_open=False, size="xl")
     main_content_row = dbc.Row([
-        dbc.Col([generate_graph_layout(config)], width=12)
+        dbc.Col([generate_main_layout(config)], width=12)
     ])
 elif editor_layout_type == "sidebar":
     editor_container = dbc.Offcanvas([
         editor_contents
     ], id="editor-popup", title="Editor", is_open=False, placement="end")
     main_content_row = dbc.Row([
-        dbc.Col([generate_graph_layout(config)], width=12)
+        dbc.Col([generate_main_layout(config)], width=12)
     ])
 else:
     # Fallback to the traditional 8/4 grid if explicitly designated as inline
     editor_container = html.Div(id="editor-popup", style={"display": "none"})
     main_content_row = dbc.Row([
-        dbc.Col([generate_graph_layout(config)], width=8),
+        dbc.Col([generate_main_layout(config)], width=8),
         dbc.Col([
             dbc.Card([
                 dbc.CardHeader(html.H4("Editor", className="m-0")),
@@ -149,7 +152,11 @@ def handle_editor_visibility(table_val, node_data, edge_data, url_hash, is_open_
 # ---------------------------------------------------------
 register_auth_callbacks(app)
 register_form_callbacks(app, config)
+register_layout_callbacks(app, config)
+register_pipeline_callbacks(app, config)
 register_graph_callbacks(app, config)
+register_spreadsheet_callbacks(app, config)
+register_report_callbacks(app, config)
 register_admin_routes(server)
 
 # ---------------------------------------------------------

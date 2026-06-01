@@ -110,8 +110,11 @@ def register_spreadsheet_callbacks(app, config):
             p_links = get_relation_links('activity_people_links', 'activity_id', 'person_id', activity_ids)
             i_links = get_relation_links('activity_initiative_links', 'activity_id', 'initiative_id', activity_ids)
             
-            df['linked_people'] = df.apply(lambda r: ", ".join([people_map[pid] for pid in p_links[p_links['activity_id'] == int(str(r['id']).split('-')[-1])]['person_id'].tolist() if pid in people_map]) or "None", axis=1)
-            df['linked_initiatives'] = df.apply(lambda r: ", ".join([init_map.get(iid, f"Initiative {iid}") for iid in i_links[i_links['activity_id'] == int(str(r['id']).split('-')[-1])]['initiative_id'].tolist() if iid in init_map]) or "None", axis=1)
+            p_links_map = p_links.groupby('activity_id')['person_id'].apply(list).to_dict()
+            i_links_map = i_links.groupby('activity_id')['initiative_id'].apply(list).to_dict()
+            
+            df['linked_people'] = df.apply(lambda r: ", ".join([people_map[pid] for pid in p_links_map.get(int(str(r['id']).split('-')[-1]), []) if pid in people_map]) or "None", axis=1)
+            df['linked_initiatives'] = df.apply(lambda r: ", ".join([init_map.get(iid, f"Initiative {iid}") for iid in i_links_map.get(int(str(r['id']).split('-')[-1]), []) if iid in init_map]) or "None", axis=1)
         
         if 'timestamp' in df.columns:
             df = df.sort_values('timestamp', ascending=False)

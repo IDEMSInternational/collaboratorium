@@ -316,9 +316,14 @@ forms:
           source_table: tag_groups
           value_column: id
           label_column: name
-      status:
-        type: string
+      status: &status_form_config
+        type: select_one
         label: Status
+        status_list:
+          - active
+          - deleted
+        list_name: status_list
+        default: active
       parents:
         type: select_multiple
         appearance: dropdown
@@ -405,9 +410,7 @@ forms:
           source_table: tag_groups
           value_column: id
           label_column: name
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       organisations_links:
         type: select_multiple
         appearance: dropdown
@@ -475,9 +478,7 @@ forms:
           source_table: tag_groups
           value_column: id
           label_column: name
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       people_links:
         type: select_multiple
         appearance: dropdown
@@ -547,9 +548,7 @@ forms:
           source_table: tag_groups
           value_column: id
           label_column: name
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       parents:
         type: select_multiple
         appearance: dropdown
@@ -677,9 +676,7 @@ forms:
           source_table: tag_groups
           value_column: id
           label_column: name
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       activities_links:
         type: select_multiple
         appearance: dropdown
@@ -720,9 +717,7 @@ forms:
     label: Activity Activity Links
     default_table: activity_activity_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       parent_id:
         type: select_one
         appearance: dropdown
@@ -756,9 +751,7 @@ forms:
     label: Initiative Initiative Links
     default_table: initiative_initiative_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       parent_id:
         type: select_one
         appearance: dropdown
@@ -792,9 +785,7 @@ forms:
     label: Activity Initiative Links
     default_table: activity_initiative_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       activity_id:
         type: select_one
         appearance: dropdown
@@ -828,9 +819,7 @@ forms:
     label: Activity Contract Links
     default_table: activity_contract_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       activity_id:
         type: select_one
         appearance: dropdown
@@ -864,9 +853,7 @@ forms:
     label: Contract Initiative Links
     default_table: contract_initiative_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       contract_id:
         type: select_one
         appearance: dropdown
@@ -900,9 +887,7 @@ forms:
     label: Organisation People Links
     default_table: organisation_people_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       organisation_id:
         type: select_one
         appearance: dropdown
@@ -936,9 +921,7 @@ forms:
     label: Activity People Links
     default_table: activity_people_links
     elements:
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
       activity_id:
         type: select_one
         appearance: dropdown
@@ -994,9 +977,7 @@ forms:
       contracts:
         type: string
         label: Contracts
-      status:
-        type: string
-        label: Status
+      status: *status_form_config
     meta:
       id:
         strategy: uuid

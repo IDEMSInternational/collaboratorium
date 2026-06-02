@@ -103,6 +103,8 @@ def component_for_element(element_config, form_name, value=None):
                 element_config["parameters"]["value_column"],
                 element_config["parameters"]["label_column"],
             )
+        if 'default' in element_config and value is None:
+            value=element_config['default']
         return html.Div(
             [
                 label_component,
@@ -125,6 +127,8 @@ def component_for_element(element_config, form_name, value=None):
                 element_config["parameters"]["value_column"],
                 element_config["parameters"]["label_column"],
             )
+        if 'default' in element_config and value is None:
+            value=element_config['default']
         return html.Div(
             [
                 label_component,

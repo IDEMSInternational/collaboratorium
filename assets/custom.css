@@ -156,3 +156,11 @@ summary:hover {
 .btn-active-view:hover {
     background-color: #e5a700 !important;
 }
+
+#report-container h2 {
+    color: #ff6900;
+}
+
+#report-container h3 {
+    color: #9b51e0;
+}

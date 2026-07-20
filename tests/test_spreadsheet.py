@@ -40,7 +40,11 @@ STATE_MATRIX = [
 @pytest.mark.parametrize("view_id, tab_name, steps", STATE_MATRIX)
 def test_spreadsheet_pipeline_state_transitions(page: Page, view_id, tab_name, steps):
     page.goto("http://localhost:8055")
-    
+
+    # The app lands on the Dashboard, so reach Explore before driving its filters
+    page.locator("#nav-explore").click()
+    expect(page.locator(f"#{view_id}")).to_be_visible()
+
     # 1. Select the View ONLY if it is not already active to prevent toggling the panel closed
     view_button = page.locator(f"#{view_id}")
     if "btn-warning" not in view_button.get_attribute("class"):

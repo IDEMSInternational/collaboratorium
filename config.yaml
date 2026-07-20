@@ -1,5 +1,14 @@
 title: Collaboratorium
 editor_layout: 'modal' # Options: 'modal' (default), 'sidebar' (drawer), 'inline' (legacy fixed side layout)
+dashboard:
+  # The dashboard is a rolling recency prompt, not a report: the annual report
+  # is the Report tab's job. Windows are in days.
+  default_window_days: 90
+  window_options_days: [30, 90]
+  # 'Nothing recorded in a while' is Mine-only and self-directed. Set false to
+  # remove it from the deployment entirely; each person can also hide it on
+  # their own page, which is remembered in their browser.
+  show_quiet_box: true
 node_tables:
 - activities
 - contracts

@@ -26,9 +26,21 @@ def _get_max_id_from_cursor(cur, table_name):
 # ==============================================================
 
 
-def generate_form_layout(form_name, forms_config, object_id=None):
-    """Generate a Dash form layout from a form config"""
-    record_data = get_latest_entry(form_name, forms_config, object_id) if object_id else {}
+def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None, title=None):
+    """
+    Generate a Dash form layout from a form config.
+
+    initial_values pre-populates an add form, keyed by element name and using the
+    same shapes an edit form would load (so a links element takes a list of ids).
+
+    title overrides the heading (e.g. "Add activity to <initiative>"). It's part
+    of the form DOM, so it's set atomically when the form renders — no separate
+    callback to race.
+    """
+    if object_id:
+        record_data = get_latest_entry(form_name, forms_config, object_id)
+    else:
+        record_data = dict(initial_values or {})
 
     elements = []
     for element_name, element_def in forms_config[form_name].get("elements", {}).items():
@@ -50,8 +62,12 @@ def generate_form_layout(form_name, forms_config, object_id=None):
         ),
     ])
 
+    heading = title or (
+        f"Edit {forms_config[form_name]['label']}" if object_id
+        else f"Add {forms_config[form_name]['label']}"
+    )
     return html.Div([
-        html.H3(f"Edit {forms_config[form_name]['label']}" if object_id else f"Add {forms_config[form_name]['label']}", className="mb-4 text-primary"),
+        html.H3(heading, id="form-heading", className="mb-4 text-primary"),
         *meta_hidden,
         *elements,
         html.Div(meta, style={"marginTop": "25px", "marginBottom": "20px", "opacity": "0.7"}),
@@ -83,9 +99,10 @@ def register_click_callbacks(app, config):
         Input('url', 'hash'),
         State("current-person-id", "data"),
         Input("form-refresh", "data"),
+        State("form-prefill", "data"),
     )
     @login_required
-    def load_form(table_name, tap_node, tap_edge, url_hash, person_id, refresh_signal):
+    def load_form(table_name, tap_node, tap_edge, url_hash, person_id, refresh_signal, prefill):
         """
         Display form based on trigger: Add selector, Graph tap, or URL hash link.
         """
@@ -108,7 +125,8 @@ def register_click_callbacks(app, config):
         # If the table selector is the trigger, show the add form (explicit user choice)
         if trigger and trigger.startswith("table-selector"):
             if table_name:
-                return show_add_form(table_name, person_id)
+                values, title = _prefill_for(table_name, prefill)
+                return show_add_form(table_name, person_id, values, title)
             return "Select a table"
 
         # If cyto's tapEdgeData triggered, prefer edge form
@@ -125,7 +143,8 @@ def register_click_callbacks(app, config):
         # No explicit trigger (initial or programmatic call).
         # Fall back to previous behavior but prefer node/edge when both present.
         if table_name and not (tap_node or tap_edge):
-            return show_add_form(table_name, person_id)
+            values, title = _prefill_for(table_name, prefill)
+            return show_add_form(table_name, person_id, values, title)
 
         # Helper to decide which of node/edge is the most recent when both are present
         def _is_node_newer(n, e):
@@ -158,11 +177,22 @@ def register_click_callbacks(app, config):
         return html.Div("Select a table or click a node/edge in the graph.")
 
 
-    def show_add_form(table_name, person_id):
+    def _prefill_for(table_name, prefill):
+        """
+        A prefill only applies to the table it was requested for, so a stale
+        request can never leak into a different form. Returns (values, title).
+        """
+        if not isinstance(prefill, dict) or prefill.get("table") != table_name:
+            return None, None
+        return prefill.get("values") or None, prefill.get("title")
+
+    def show_add_form(table_name, person_id, initial_values=None, title=None):
         if not table_name:
             return "Select a table"
         form_name = config["default_forms"][table_name]
-        return login_required(generate_form_layout)(form_name, forms_config=forms_config)
+        return login_required(generate_form_layout)(
+            form_name, forms_config=forms_config, initial_values=initial_values, title=title
+        )
 
 
     def show_node_form(tap_node, person_id):

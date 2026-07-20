@@ -182,7 +182,7 @@ def register_click_callbacks(app, config):
         A prefill only applies to the table it was requested for, so a stale
         request can never leak into a different form. Returns (values, title).
         """
-        if not prefill or prefill.get("table") != table_name:
+        if not isinstance(prefill, dict) or prefill.get("table") != table_name:
             return None, None
         return prefill.get("values") or None, prefill.get("title")
 

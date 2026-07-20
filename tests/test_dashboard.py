@@ -130,6 +130,50 @@ def dashboard_rows(live_server):
     conn.close()
 
 
+def _collect_ids(node, out):
+    """Walk a Dash component tree collecting every dict-shaped component id."""
+    cid = getattr(node, "id", None)
+    if isinstance(cid, dict):
+        out.append(cid)
+    children = getattr(node, "children", None)
+    if isinstance(children, (list, tuple)):
+        for child in children:
+            _collect_ids(child, out)
+    elif children is not None and not isinstance(children, (str, int, float, bool)):
+        _collect_ids(children, out)
+
+
+def test_shared_activity_produces_unique_open_ids():
+    """
+    An activity linked to several initiatives renders once under each. Their
+    "dash-open" ids must stay distinct: Dash silently stops dispatching a
+    pattern-matching callback when two components share an id, which is the bug
+    the per-render slot exists to prevent. This is the case _open_card's .first
+    would mask, so it is asserted directly here.
+    """
+    from views.tab_dashboard import _render_recent
+
+    event = {
+        "activity_id": 7, "activity_name": "Shared Activity",
+        "actor_name": "Someone", "verb": "updated", "timestamp": "2026-01-01",
+    }
+    initiatives = [
+        {"id": 1, "name": "Init A", "events": [event], "activity_count": 1,
+         "responsible_person": 1, "responsible_name": "Me", "last_touched": "2026-01-01"},
+        {"id": 2, "name": "Init B", "events": [event], "activity_count": 1,
+         "responsible_person": 1, "responsible_name": "Me", "last_touched": "2026-01-01"},
+    ]
+
+    ids = []
+    _collect_ids(_render_recent(initiatives, scope="mine", person_id=1), ids)
+    open_ids = [i for i in ids if i.get("type") == "dash-open"]
+
+    # Two initiative links + the shared activity under each = four links.
+    assert len(open_ids) == 4, open_ids
+    serialized = [tuple(sorted(i.items())) for i in open_ids]
+    assert len(set(serialized)) == len(serialized), f"duplicate dash-open ids: {open_ids}"
+
+
 def _dashboard(page: Page):
     page.goto("http://localhost:8055")
     expect(page.locator("#dashboard-page")).to_be_visible()

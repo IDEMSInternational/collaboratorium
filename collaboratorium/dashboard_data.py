@@ -426,9 +426,13 @@ def format_tags(raw, defs):
         key_values = defs.get(str(group_id), {})
         for element_key, element_val in elements.items():
             cfg = key_values.get(element_key, {})
+            if not isinstance(cfg, dict):
+                cfg = {}
             label = cfg.get("label") or element_key.replace("_", " ").title()
             list_name = cfg.get("list_name")
             options = cfg.get(list_name, {}) if list_name else {}
+            if not isinstance(options, dict):
+                options = {}
             vals = element_val if isinstance(element_val, list) else [element_val]
             text = ", ".join(
                 str(options.get(v, str(v).replace("_", " ").title()))

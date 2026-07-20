@@ -7,7 +7,6 @@ registry or the YAML pipeline — it is a fixed read-only projection, so the
 layout is hand-built and the queries live in dashboard_data.py. It never
 writes: every action hands off to the existing generic editor or to Explore.
 """
-import itertools
 from datetime import datetime
 
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update
@@ -39,10 +38,14 @@ DEFAULT_WINDOW = 90
 
 # The same record legitimately appears more than once on the page: an activity
 # linked to three initiatives shows under each, and an initiative can be both in
-# the feed and in "Touching your work". Dash silently stops dispatching a
+# the feed and in "Near Your Work". Dash silently stops dispatching a
 # pattern-matching callback when two components share an id, so every generated
-# id carries a unique slot. The counter only has to be unique within a render.
-_slot = itertools.count()
+# id carries a "slot" that makes it unique. Slots are built from the render
+# context (section + parent + entity), so they stay stable across renders and
+# React can update in place instead of remounting.
+def _slot_id(base, *parts):
+    """A stable, render-context-unique value for a pattern-matching id's slot."""
+    return "-".join([base, *(str(p) for p in parts)])
 
 
 def _dash_cfg(config):
@@ -109,15 +112,23 @@ def _chip(kind):
     return html.Span(kind.title(), className=f"dash-chip dash-chip-{kind}")
 
 
-def _entity_link(kind, entity_id, name, className="dash-entity-link"):
-    """Opens the detail card. Used for feed rows and for links inside a card."""
+def _entity_link(kind, entity_id, name, className="dash-entity-link", slot=None):
+    """Opens the detail card. Used for feed rows and for links inside a card.
+
+    ``slot`` disambiguates otherwise-identical ids. The same entity can appear in
+    several rows at once (an activity linked to multiple initiatives), and Dash
+    silently stops dispatching a pattern-matching callback when two components
+    share an id. Pass a value that is stable across renders (so React reuses the
+    DOM rather than remounting) yet unique within one render; it defaults to
+    kind+id, which is enough only when the entity appears once.
+    """
     return html.A(
         name or f"{kind[:-1].title()} {entity_id}",
         id={
             "type": "dash-open",
             "kind": kind,
             "index": int(entity_id),
-            "slot": next(_slot),
+            "slot": slot if slot is not None else f"{kind}-{entity_id}",
         },
         className=className,
         n_clicks=0,
@@ -125,12 +136,15 @@ def _entity_link(kind, entity_id, name, className="dash-entity-link"):
     )
 
 
-def _initiative_link(initiative_id, name):
-    return _entity_link("initiatives", initiative_id, name)
+def _initiative_link(initiative_id, name, slot=None):
+    return _entity_link("initiatives", initiative_id, name, slot=slot)
 
 
-def _activity_link(activity_id, name):
-    return _entity_link("activities", activity_id, name, className="dash-entity-link dash-ev-name")
+def _activity_link(activity_id, name, slot=None):
+    return _entity_link(
+        "activities", activity_id, name,
+        className="dash-entity-link dash-ev-name", slot=slot,
+    )
 
 
 def _panel(title, count=None, children=None, subtitle=None, header_extra=None):
@@ -165,7 +179,7 @@ def _render_recent(initiatives, scope, person_id=None, read_only=False):
                 actions.append(
                     dbc.Button(
                         "Add an activity",
-                        id={"type": "dash-empty-add-activity", "slot": next(_slot)},
+                        id={"type": "dash-empty-add-activity", "slot": "empty"},
                         className="dash-mini dash-mini-go",
                         n_clicks=0,
                     )
@@ -173,7 +187,7 @@ def _render_recent(initiatives, scope, person_id=None, read_only=False):
             actions.append(
                 dbc.Button(
                     "See the whole organisation",
-                    id={"type": "dash-empty-everyone", "slot": next(_slot)},
+                    id={"type": "dash-empty-everyone", "slot": "empty"},
                     className="dash-mini",
                     n_clicks=0,
                 )
@@ -202,7 +216,10 @@ def _render_recent(initiatives, scope, person_id=None, read_only=False):
                 html.Div(
                     [
                         _chip("activity"),
-                        _activity_link(e["activity_id"], e["activity_name"]),
+                        _activity_link(
+                            e["activity_id"], e["activity_name"],
+                            slot=_slot_id("recent", i["id"], e["activity_id"]),
+                        ),
                         html.Span(className="dash-spacer"),
                         _avatar(e.get("actor_name")),
                         html.Span(e["verb"], className="dash-verb"),
@@ -229,7 +246,9 @@ def _render_recent(initiatives, scope, person_id=None, read_only=False):
                     html.Div(
                         [
                             _chip("initiative"),
-                            _initiative_link(i["id"], i["name"]),
+                            _initiative_link(
+                                i["id"], i["name"], slot=_slot_id("recent-init", i["id"]),
+                            ),
                             html.Span(className="dash-spacer"),
                             html.Span(_fmt_date(i["last_touched"]), className="dash-ts"),
                         ],
@@ -247,7 +266,10 @@ def _render_recent(initiatives, scope, person_id=None, read_only=False):
 
 
 def _near_row(t, read_only):
-    why = [html.Span(["on ", _initiative_link(t["initiative_id"], t["initiative_name"])])]
+    why = [html.Span(["on ", _initiative_link(
+        t["initiative_id"], t["initiative_name"],
+        slot=_slot_id("near", t["activity_id"], "init", t["initiative_id"]),
+    )])]
     if not read_only:
         why.append(html.Span(className="dash-spacer"))
         why.append(
@@ -255,7 +277,11 @@ def _near_row(t, read_only):
                 # Ellipsis: this opens the activity's form to add yourself,
                 # rather than adding you in one click.
                 "Add yourself…",
-                id={"type": "dash-add-self", "index": int(t["activity_id"]), "slot": next(_slot)},
+                id={
+                    "type": "dash-add-self",
+                    "index": int(t["activity_id"]),
+                    "slot": _slot_id("near", t["activity_id"]),
+                },
                 className="dash-mini",
                 n_clicks=0,
             )
@@ -265,7 +291,10 @@ def _near_row(t, read_only):
             html.Div(
                 [
                     _chip("activity"),
-                    _activity_link(t["activity_id"], t["activity_name"]),
+                    _activity_link(
+                        t["activity_id"], t["activity_name"],
+                        slot=_slot_id("near", t["activity_id"], "act"),
+                    ),
                     html.Span(className="dash-spacer"),
                     _avatar(t.get("actor_name")),
                     html.Span("linked", className="dash-verb"),
@@ -363,7 +392,11 @@ def _render_new(items, scope, read_only=False):
             meta.append(
                 dbc.Button(
                     "Add activity",
-                    id={"type": "dash-add-activity", "index": int(r["id"]), "slot": next(_slot)},
+                    id={
+                        "type": "dash-add-activity",
+                        "index": int(r["id"]),
+                        "slot": _slot_id("new", r["id"]),
+                    },
                     className="dash-mini dash-mini-go",
                     n_clicks=0,
                 )
@@ -371,7 +404,10 @@ def _render_new(items, scope, read_only=False):
         rows.append(
             html.Div(
                 [
-                    html.P(_initiative_link(r["id"], r["name"]), className="dash-item-n"),
+                    html.P(
+                        _initiative_link(r["id"], r["name"], slot=_slot_id("new-init", r["id"])),
+                        className="dash-item-n",
+                    ),
                     html.Div(meta, className="dash-item-m"),
                 ],
                 className="dash-item dash-invite",
@@ -409,7 +445,11 @@ def _render_quiet(items, hidden, read_only=False):
             meta.append(
                 dbc.Button(
                     "Add activity",
-                    id={"type": "dash-add-activity", "index": int(r["id"]), "slot": next(_slot)},
+                    id={
+                        "type": "dash-add-activity",
+                        "index": int(r["id"]),
+                        "slot": _slot_id("quiet", r["id"]),
+                    },
                     className="dash-mini",
                     n_clicks=0,
                 )
@@ -417,7 +457,10 @@ def _render_quiet(items, hidden, read_only=False):
         rows.append(
             html.Div(
                 [
-                    html.P(_initiative_link(r["id"], r["name"]), className="dash-item-n"),
+                    html.P(
+                        _initiative_link(r["id"], r["name"], slot=_slot_id("quiet-init", r["id"])),
+                        className="dash-item-n",
+                    ),
                     html.Div(meta, className="dash-item-m"),
                 ],
                 className="dash-item",
@@ -452,7 +495,11 @@ def _render_unlinked(items, read_only=False):
             meta.append(
                 dbc.Button(
                     "Link an initiative",
-                    id={"type": "dash-link-initiative", "index": int(a["id"]), "slot": next(_slot)},
+                    id={
+                        "type": "dash-link-initiative",
+                        "index": int(a["id"]),
+                        "slot": _slot_id("unlinked", a["id"]),
+                    },
                     className="dash-mini",
                     n_clicks=0,
                 )
@@ -460,7 +507,10 @@ def _render_unlinked(items, read_only=False):
         rows.append(
             html.Div(
                 [
-                    html.P(_activity_link(a["id"], a["name"]), className="dash-item-n"),
+                    html.P(
+                        _activity_link(a["id"], a["name"], slot=_slot_id("unlinked-act", a["id"])),
+                        className="dash-item-n",
+                    ),
                     html.Div(meta, className="dash-item-m"),
                 ],
                 className="dash-item",
@@ -523,7 +573,10 @@ def _linked_list(title, items, kind):
             html.P(title, className="dash-card-sec"),
             html.Div(
                 [
-                    html.Div(_entity_link(kind, r["id"], r["name"]), className="dash-linked-row")
+                    html.Div(
+                        _entity_link(kind, r["id"], r["name"], slot=_slot_id("card", kind, r["id"])),
+                        className="dash-linked-row",
+                    )
                     for r in items
                 ],
                 className="dash-linked",
@@ -562,7 +615,11 @@ def _card_footer(kind, entity_id, read_only=False):
             buttons.append(
                 dbc.Button(
                     "Add activity",
-                    id={"type": "dash-add-activity", "index": int(entity_id), "slot": next(_slot)},
+                    id={
+                        "type": "dash-add-activity",
+                        "index": int(entity_id),
+                        "slot": _slot_id("card", entity_id),
+                    },
                     className="dash-mini dash-mini-go me-2",
                     n_clicks=0,
                 )

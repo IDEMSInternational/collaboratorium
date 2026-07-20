@@ -23,6 +23,14 @@ OTHERS_ACTIVITY = "Seeded Activity By Someone Else"
 INVOLVED_NOT_OWNED = "Seeded Involved But Not Responsible"
 NEAR_VIA_INVOLVEMENT = "Seeded Near Via Involvement"
 
+# Shared by the fixture and the tests that assert on seeded dates.
+_NOW = datetime.datetime.now()
+RECENT = (_NOW - datetime.timedelta(days=5)).isoformat()
+OLD = (_NOW - datetime.timedelta(days=200)).isoformat()
+# Newer than RECENT: used only for the someone-else activity on the
+# involved-but-not-owned initiative, so its date can't be mistaken for mine.
+NEWER = (_NOW - datetime.timedelta(days=1)).isoformat()
+
 
 @pytest.fixture(scope="module", autouse=True)
 def dashboard_rows(live_server):
@@ -32,9 +40,8 @@ def dashboard_rows(live_server):
     The session database is shared, and other suites assert on exact row counts,
     so anything added here has to be taken back out.
     """
-    now = datetime.datetime.now()
-    recent = (now - datetime.timedelta(days=5)).isoformat()
-    old = (now - datetime.timedelta(days=200)).isoformat()
+    recent = RECENT
+    old = OLD
 
     conn = sqlite3.connect(TEST_DB)
     cur = conn.cursor()
@@ -108,12 +115,12 @@ def dashboard_rows(live_server):
     cur.execute(
         "INSERT INTO activities (id, version, name, status, timestamp, created_by)"
         " VALUES (905, 1, ?, 'active', ?, 2)",
-        (NEAR_VIA_INVOLVEMENT, recent),
+        (NEAR_VIA_INVOLVEMENT, NEWER),
     )
     cur.execute(
         "INSERT INTO activity_initiative_links (id, version, activity_id, initiative_id, status, timestamp, created_by)"
         " VALUES (905, 1, 905, 904, 'active', ?, 2)",
-        (recent,),
+        (NEWER,),
     )
     conn.commit()
     conn.close()
@@ -172,6 +179,23 @@ def test_shared_activity_produces_unique_open_ids():
     assert len(open_ids) == 4, open_ids
     serialized = [tuple(sorted(i.items())) for i in open_ids]
     assert len(set(serialized)) == len(serialized), f"duplicate dash-open ids: {open_ids}"
+
+
+def test_involved_only_feed_date_follows_my_activity():
+    """
+    On an initiative I only contribute to, a later activity by someone else must
+    not float it up the feed under their date. The sort/header date should track
+    the activity actually shown — mine (RECENT), not the newer one (NEWER).
+    """
+    from dashboard_data import recently_updated
+
+    feed = recently_updated(person_id=1, window_days=90)
+    row = next(r for r in feed if r["id"] == 904)
+    assert row["involved_only"], "904 is not owned by me, so it's involved-only"
+    assert row["last_touched"] == RECENT, (
+        f"expected my activity's date, got {row['last_touched']} "
+        f"(the newer someone-else activity was {NEWER})"
+    )
 
 
 def _dashboard(page: Page):

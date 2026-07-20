@@ -204,10 +204,18 @@ def recently_updated(person_id, window_days, scope="mine", limit=25):
                     continue
                 i["activity_count"] = len(evs)
                 i["involved_only"] = True
+                # The sort and header date must track the activities actually
+                # shown, not the global latest touch. Otherwise someone else's
+                # later work floats an initiative you only contribute to up the
+                # feed under a date that has nothing to do with you.
+                i["last_touched"] = max(e["timestamp"] for e in evs)
             else:
                 i["involved_only"] = False
             i["events"] = evs[:5]
             result.append(i)
+        # last_touched was rewritten for involved-only rows, so re-establish the
+        # newest-first order the SQL gave us (ISO timestamps sort lexically).
+        result.sort(key=lambda r: r["last_touched"], reverse=True)
         return result
     finally:
         conn.close()

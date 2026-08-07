@@ -26,7 +26,7 @@ services:
       - ./database.db:/app/database.db
       - ./analytics.db:/app/analytics.db
       # Also mount config so container and host share the same config file
-      - ./config.yaml:/app/config.yaml:ro
+      - ./config:/app/config:ro
       - ./.env:/app/.env
     restart: unless-stopped
 

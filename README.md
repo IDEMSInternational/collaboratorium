@@ -21,7 +21,21 @@ that make it a particular product. See
     src/pantograph_explore/     graph / spreadsheet / report; works on any schema
     src/pantograph_dashboard/   the Collaboratorium dashboard; assumes its tables
 
-Which pages a deployment mounts is the `plugins:` list in `config.yaml`.
+## Configuration
+
+A deployment is configured by the `config/` directory, whose files are merged on
+their top-level keys in filename order:
+
+    config/core.yaml        title, editor layout, and which pages to mount
+    config/schema.yaml      tables, links, and which form edits each table
+    config/forms.yaml       form definitions
+    config/explore.yaml     graph styling, filters and views for the Explore page
+    config/dashboard.yaml   the dashboard plugin's options
+
+Two files may contribute to the same top-level mapping — a plugin adding its own
+`tables:` alongside the deployment's, say — but defining the same sub-key twice
+is an error rather than a silent last-one-wins. A single YAML file still works
+too; point `PANTOGRAPH_CONFIG` at it.
 
 ## Development
 

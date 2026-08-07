@@ -21,7 +21,7 @@ The current order is:
 
 So to fill the three fields you must supply, you scroll past nine optional ones,
 and the two rarely-used self-referential link fields (Parent/Child Activities)
-sit *above* Linked Initiatives. Reordering `elements` in `config.yaml` so the
+sit *above* Linked Initiatives. Reordering `elements` in `config/forms.yaml` so the
 required fields lead would markedly cut the effort of recording an activity —
 this is the highest value-per-effort item of the follow-ups.
 

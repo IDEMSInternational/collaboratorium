@@ -189,59 +189,29 @@ alongside the value and surface it in the report.
 
 ## Config layout
 
-Split `config.yaml` into a merged directory:
+`config.yaml` is now a merged directory:
 
 ```
 config/
-  core.yaml          # title, editor_layout, auth, plugins list
+  core.yaml          # title, editor_layout, plugins list
   schema.yaml        # tables, links, default_forms
   forms.yaml         # form definitions
-  explore.yaml       # filter_registry, views, network_vis
+  explore.yaml       # node_tables, network_vis, filter_registry, views, reports
   dashboard.yaml     # the dashboard plugin block
   gdpr.yaml          # ROPA tables, forms and checklist definitions
 ```
 
-Loaded and merged at startup, validated against the plugin list. A GDPR
-deployment's field inventory will be large; keeping it in the same file as the
-graph stylesheet is already uncomfortable at 1213 lines.
+Files are merged on their top-level keys in filename order. Two files may
+contribute to the same top-level *mapping* — `gdpr.yaml` adding its own `tables:`
+alongside `schema.yaml`'s is the motivating case, and it is what lets a plugin
+ship a schema without either file knowing about the other. Defining the same
+sub-key twice is an error naming both files, because silent last-one-wins would
+make the winner depend on filenames. A duplicated scalar or list is an error
+outright: concatenating `plugins:` across files would be a guess, and its order
+is meaningful.
 
-## The producer interface
-
-The static-analysis / LLM enrichment pipeline is a separate project, coupled to
-this one by data rather than by Python API. That keeps model SDKs, API keys and
-source-code read access out of a web application whose entire subject is data
-protection, and lets an organisation run the register with no LLM exposure at
-all.
-
-The contract is **derived from the config, never written alongside it** — a
-hand-maintained API document drifts from `config.yaml` within two sprints, a
-generated one cannot. Core emits a projection of the config containing only what
-a producer needs (table, element names, types, choice lists, required/relevant
-conditions) as JSON Schema; the pipeline validates its output against that
-before shipping it.
-
-Four properties to build in from the start:
-
-1. **Suggestions are never records.** The pipeline writes proposals against
-   `(table, element, value)`, never a ROPA row. A human confirms. Putting this
-   in the wire format means the line cannot later be crossed by accident.
-2. **Choice lists are validated on import.** The dominant failure mode will be a
-   model inventing a lawful basis that is not in the enum. The config holds the
-   enum, so core can reject or flag out-of-vocabulary values — this alone
-   justifies config-as-contract over free-form JSON.
-3. **Stable external keys.** A finding — "field `user.email` at
-   `apps/api/models.py`" — has an identity independent of our database ids. Each
-   suggestion carries a `source_ref` and core dedupes on it, so re-running the
-   scanner is idempotent. Without this the third run is unusable.
-4. **A versioned contract.** The export carries a hash of the config it came
-   from; a suggestions file declares which it was built against; core warns on a
-   mismatch rather than silently applying suggestions for a renamed field.
-
-Transport starts as an authenticated **file drop**, not HTTP: the artefact *is*
-the audit trail, which matters when the subject is compliance, and it is
-reproducible, reviewable and offline-capable with no new auth surface.
-`admin_routes.py` already has an authenticated upload route with validation. Add
-an endpoint later only if the pipeline needs to run continuously.
+A single file still loads, so `config_gen`'s output works unchanged and a small
+deployment need not split anything.
 
 ## Migration order
 
@@ -257,7 +227,9 @@ an endpoint later only if the pipeline needs to run continuously.
    (`pantograph/editor.py`), and the graph's node-versus-edge disambiguation
    moved to `pantograph_explore/editor_bridge.py`. Core names no Explore
    component, and a test asserts it stays that way.
-3. **Config split** into the directory above, plus per-plugin validation.
+3. ~~**Config split**~~ **Done.** The 1213-line `config.yaml` became the
+   directory above; the split was verified to be a pure reorganisation by
+   comparing the merged result against the original.
 4. **Relevance, dynamic required, constraints** in core forms. Ships a real
    improvement to existing forms (TODO B) independently of the GDPR work.
 5. **Multi-page forms**, then `pantograph_gdpr_ropa` — schema, checklist forms,

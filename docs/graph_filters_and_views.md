@@ -1,6 +1,6 @@
 # Collaboratorium Graph View Configuration & Filter System
 
-The Collaboratorium graph utilizes a **Composable Filter Pipeline** architecture. Instead of hardcoding graph traversal logic (like finding downstream children or upstream parents) into the application's core codebase, traversals are defined dynamically in `config.yaml`. 
+The Collaboratorium graph utilizes a **Composable Filter Pipeline** architecture. Instead of hardcoding graph traversal logic (like finding downstream children or upstream parents) into the application's core codebase, traversals are defined dynamically in `config/explore.yaml`. 
 
 This allows administrators to create complex, highly customized graph views without writing any Python code.
 
@@ -18,7 +18,7 @@ The final set of nodes at the end of the pipeline determines exactly what is ren
 
 ## 2. Filter Reference Guide
 
-Here are the discrete filter operations available to use in your `config.yaml` pipelines.
+Here are the discrete filter operations available to use in your `config/explore.yaml` pipelines.
 
 ### `TraversalFilter`
 Crawls the graph's edges starting from the current nodes.
@@ -66,7 +66,7 @@ Available dynamic variables:
 
 ## 4. User Guide: Creating a New View
 
-To create a new view, open your `config.yaml` and navigate to the `views:` section. 
+To create a new view, open `config/explore.yaml` and navigate to the `views:` section. 
 
 A view consists of four parts:
 1. **Identifier:** The YAML key (e.g., `view-custom`).

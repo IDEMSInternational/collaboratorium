@@ -18,7 +18,7 @@ def register_report_callbacks(app, config):
         try:
             reports_cfg = config.get("reports", {})
             if not reports_cfg:
-                return html.Div("No reports configured in config.yaml under 'reports:'.", className="text-muted p-4 text-center")
+                return html.Div("No reports configured under 'reports:'.", className="text-muted p-4 text-center")
                 
             report_id = list(reports_cfg.keys())[0]
             report_cfg = reports_cfg[report_id]

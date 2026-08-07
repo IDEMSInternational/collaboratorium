@@ -34,7 +34,7 @@ class Settings:
     @classmethod
     def from_env(cls):
         return cls(
-            config_path=_env_path("PANTOGRAPH_CONFIG", "config.yaml"),
+            config_path=_env_path("PANTOGRAPH_CONFIG", "config"),
             database_path=_env_path("PANTOGRAPH_DB", "database.db"),
             analytics_path=_env_path("PANTOGRAPH_ANALYTICS_DB", "analytics.db"),
             assets_path=_env_path("PANTOGRAPH_ASSETS", "assets"),

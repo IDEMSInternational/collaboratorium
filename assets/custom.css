@@ -168,7 +168,7 @@ summary:hover {
 /* =========================================================
    Dashboard page
    Entity colours below are the same hues as the network graph
-   stylesheet in config.yaml, so a chip reads as the node it
+   stylesheet in config/explore.yaml, so a chip reads as the node it
    will become in Explore.
    ========================================================= */
 :root {

@@ -36,7 +36,7 @@ def clean_db(monkeypatch):
         except PermissionError:
             pass
             
-    config = load_config("config.yaml")
+    config = load_config("config")
     pantograph.db.init_db(config)
     
     yield config

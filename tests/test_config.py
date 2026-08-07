@@ -103,6 +103,16 @@ def test_an_empty_config_directory_is_an_error(tmp_path):
         load_config(tmp_path)
 
 
+def test_a_missing_config_path_says_so_and_hints_at_the_mount(tmp_path):
+    """
+    The likely cause in a container is a missing bind mount, and a bare
+    FileNotFoundError on the relative path 'config' does not suggest that.
+    """
+    with pytest.raises(ConfigError) as exc:
+        load_config(tmp_path / "not-there")
+    assert "No config at" in str(exc.value) and "bind mount" in str(exc.value)
+
+
 def test_non_yaml_files_are_ignored(tmp_path):
     (tmp_path / "notes.md").write_text("not config", encoding="utf-8")
     (tmp_path / ".hidden.yaml").write_text("title: hidden", encoding="utf-8")

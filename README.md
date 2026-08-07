@@ -21,6 +21,10 @@ that make it a particular product. See
     src/pantograph_explore/     graph / spreadsheet / report; works on any schema
     src/pantograph_dashboard/   the Collaboratorium dashboard; assumes its tables
 
+Upgrading an existing deployment to this layout: see [UPGRADING.md](UPGRADING.md).
+Your data is unaffected, but the config location, the Docker bind mount and the
+entrypoint all change.
+
 ## Configuration
 
 A deployment is configured by the `config/` directory, whose files are merged on

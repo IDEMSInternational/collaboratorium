@@ -79,6 +79,13 @@ def load_config(filepath):
     """
     path = Path(filepath)
 
+    if not path.exists():
+        raise ConfigError(
+            f"No config at {path.absolute()}. Set PANTOGRAPH_CONFIG to a YAML "
+            f"file or a directory of them. (In Docker this usually means the "
+            f"config bind mount is missing or points at the wrong path.)"
+        )
+
     if not path.is_dir():
         with open(path, "r") as f:
             return Config(yaml.safe_load(f))

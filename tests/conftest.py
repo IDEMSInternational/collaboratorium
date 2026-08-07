@@ -7,24 +7,23 @@ import logging
 from werkzeug.serving import make_server
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'collaboratorium')))
-
-# 2. ISOLATE DATABASES BEFORE IMPORTING MAIN
-import db
-import analytics
-import tools.analysis_report
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
 TEST_DB = "test_database.db"
 TEST_ANALYTICS_DB = "test_analytics.db"
 
-db.DB = TEST_DB
-analytics.DB = TEST_ANALYTICS_DB
-tools.analysis_report.MAIN_DB = TEST_DB
-tools.analysis_report.ANALYTICS_DB = TEST_ANALYTICS_DB
+# Point the app at the test databases before anything reads them. Paths are
+# resolved at call time now, so this no longer depends on import order.
+from pantograph import settings
+settings.configure(database_path=TEST_DB, analytics_path=TEST_ANALYTICS_DB)
 
-from main import app, config
-from db import init_db
-from analytics import init_db as init_analytics_db
+from pantograph.app import create_app
+from pantograph.config import load_config
+from pantograph.db import init_db
+from pantograph.analytics import init_db as init_analytics_db
+
+config = load_config(settings.get_settings().config_path)
+app = create_app()
 
 class ServerThread(threading.Thread):
     def __init__(self, app, host='0.0.0.0', port=8055):

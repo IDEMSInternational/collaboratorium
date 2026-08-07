@@ -14,10 +14,10 @@ import dash_bootstrap_components as dbc
 
 from flask import session
 
-import admin_routes
-from auth import login_required
-from db import get_dropdown_options
-from dashboard_data import (
+import pantograph.admin_routes as admin_routes
+from pantograph.auth import login_required
+from pantograph.db import get_dropdown_options
+from pantograph_dashboard.dashboard_data import (
     activity_detail,
     format_tags,
     initiative_detail,
@@ -31,7 +31,7 @@ from dashboard_data import (
     near_your_work,
     unlinked_activities,
 )
-from report_generator import format_subform_data
+from pantograph.report_generator import format_subform_data
 
 WINDOW_OPTIONS = [30, 90]
 DEFAULT_WINDOW = 90
@@ -815,7 +815,7 @@ def generate_dashboard_layout(config):
 # ---------------------------------------------------------
 # Callbacks
 # ---------------------------------------------------------
-def register_dashboard_callbacks(app, config):
+def register_dashboard_callbacks(app, config, page_id="dashboard"):
     cfg = _dash_cfg(config)
     # Deployment-level default; a person can still switch it on their own page
     # unless the deployment has turned the section off entirely.
@@ -926,7 +926,7 @@ def register_dashboard_callbacks(app, config):
     )
     @login_required
     def render_dashboard(scope, window, hide_quiet, near_expanded, person_id, view_as, _refresh, page):
-        if page != "dashboard":
+        if page != page_id:
             return no_update, no_update, no_update
 
         scope = scope or "mine"

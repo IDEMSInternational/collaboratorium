@@ -3,7 +3,7 @@ from flask import Flask, session, redirect, url_for, request, render_template_st
 from flask_session import Session
 from authlib.integrations.flask_client import OAuth
 from dash import html, Input, Output, State, no_update
-from db import get_person_id_for_user
+from pantograph.db import get_person_id_for_user
 from dotenv import load_dotenv
 import os
 

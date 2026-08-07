@@ -1,5 +1,14 @@
 title: Collaboratorium
 editor_layout: 'modal' # Options: 'modal' (default), 'sidebar' (drawer), 'inline' (legacy fixed side layout)
+# Which pages this deployment mounts, in nav order. Each id resolves to a plugin
+# (see pyproject's pantograph.plugins entry points). 'landing' picks the page
+# shown on arrival; without it the first entry wins. A plugin that assumes
+# particular tables declares them, and startup fails here rather than at first
+# click if this config doesn't define them.
+plugins:
+- id: dashboard
+  landing: true
+- id: explore
 dashboard:
   # The dashboard is a rolling recency prompt, not a report: the annual report
   # is the Report tab's job. Windows are in days.

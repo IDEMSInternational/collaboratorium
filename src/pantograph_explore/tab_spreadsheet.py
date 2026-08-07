@@ -7,8 +7,8 @@ import pandas as pd
 from dash import html, Input, Output
 import dash_ag_grid as dag
 import dash_bootstrap_components as dbc
-from db import get_dropdown_options, get_relation_links
-from report_generator import format_subform_data
+from pantograph.db import get_dropdown_options, get_relation_links
+from pantograph.report_generator import format_subform_data
 
 def _resolve_foreign_keys(data, table_name, config, dropdown_cache):
     table_fks = {

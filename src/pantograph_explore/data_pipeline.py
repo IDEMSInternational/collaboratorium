@@ -5,9 +5,9 @@ Listens to frontend filter inputs and dumps raw element JSON into dcc.Store.
 """
 import yaml
 from dash import Input, Output, State
-from auth import login_required
-from db import build_elements_from_db
-from analytics import log_view_event
+from pantograph.auth import login_required
+from pantograph.db import build_elements_from_db
+from pantograph.analytics import log_view_event
 
 def register_pipeline_callbacks(app, config):
     @app.callback(

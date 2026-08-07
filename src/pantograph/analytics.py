@@ -2,13 +2,18 @@ import sqlite3
 from datetime import datetime
 import os
 
-DB = "analytics.db"
+from pantograph.settings import get_settings
+
+
+def _db_path():
+    return str(get_settings().analytics_path)
+
 
 def analytics_connect():
-    return sqlite3.connect(DB)
+    return sqlite3.connect(_db_path())
 
 def init_db():
-    existed = os.path.exists(DB)
+    existed = os.path.exists(_db_path())
 
     conn = analytics_connect()
     cur = conn.cursor()

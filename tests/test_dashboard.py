@@ -158,7 +158,7 @@ def test_shared_activity_produces_unique_open_ids():
     the per-render slot exists to prevent. This is the case _open_card's .first
     would mask, so it is asserted directly here.
     """
-    from views.tab_dashboard import _render_recent
+    from pantograph_dashboard.tab_dashboard import _render_recent
 
     event = {
         "activity_id": 7, "activity_name": "Shared Activity",
@@ -187,7 +187,7 @@ def test_involved_only_feed_date_follows_my_activity():
     not float it up the feed under their date. The sort/header date should track
     the activity actually shown — mine (RECENT), not the newer one (NEWER).
     """
-    from dashboard_data import recently_updated
+    from pantograph_dashboard.dashboard_data import recently_updated
 
     feed = recently_updated(person_id=1, window_days=90)
     row = next(r for r in feed if r["id"] == 904)
@@ -445,7 +445,7 @@ def test_view_as_control_is_hidden_for_non_admins(page: Page):
 
 def test_admin_can_view_another_users_dashboard_read_only(page: Page, monkeypatch):
     """Admin 'view as' shows that person's dashboard with write affordances gone."""
-    import admin_routes
+    from pantograph import admin_routes
 
     # The live server runs in this same process, so patching the module global
     # makes the dev user (Automated Tester) an admin for this test.

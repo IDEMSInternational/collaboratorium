@@ -4,7 +4,7 @@ Renders formatted hierarchical Markdown reports based on the stable data cache.
 """
 from dash import html, dcc, Input, Output
 import dash_bootstrap_components as dbc
-from report_generator import generate_markdown_report
+from pantograph.report_generator import generate_markdown_report
 
 def register_report_callbacks(app, config):
     @app.callback(

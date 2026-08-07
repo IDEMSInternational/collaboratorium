@@ -1,8 +1,8 @@
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH, dash_table
 from datetime import datetime
 import json
-from visual_customization import dcl
-from db import get_dropdown_options
+from pantograph.visual_customization import dcl
+from pantograph.db import get_dropdown_options
 import dash_bootstrap_components as dbc
 
 

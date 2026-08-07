@@ -1,12 +1,12 @@
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
-from db import db_connect, get_latest_entry
+from pantograph.db import db_connect, get_latest_entry
 import json
 import dash_bootstrap_components as dbc
 
-from analytics import analytics_log
-from auth import login_required
-from component_factory import component_for_element, register_subform_blocks
+from pantograph.analytics import analytics_log
+from pantograph.auth import login_required
+from pantograph.component_factory import component_for_element, register_subform_blocks
 
 
 # ==============================================================

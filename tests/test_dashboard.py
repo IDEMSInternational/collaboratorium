@@ -198,13 +198,23 @@ def test_involved_only_feed_date_follows_my_activity():
     )
 
 
-def _dashboard(page: Page):
-    page.goto("http://localhost:8055")
+def _await_dashboard(page: Page):
+    """
+    Wait until the dashboard is interactive, not merely present.
+
+    #dashboard-page is in the served layout, so it is visible almost at once.
+    The body arrives by callback, and a click landing before that initial pass
+    finishes gets its form overwritten by the pass's own response — the symptom
+    is a missing #form-heading rather than a wrong one.
+    """
     expect(page.locator("#dashboard-page")).to_be_visible()
-    # The body arrives by callback; without waiting for it a click can land
-    # before Dash has attached its handlers.
     expect(page.locator("#dashboard-body .dash-panel").first).to_be_visible()
     return page
+
+
+def _dashboard(page: Page):
+    page.goto("http://localhost:8055")
+    return _await_dashboard(page)
 
 
 def _open_card(page: Page, name: str):
@@ -366,7 +376,7 @@ def test_header_quick_add_buttons_skip_the_table_dropdown(page: Page):
     expect(page.locator("#add-dropdown-container")).to_be_hidden()
 
     page.reload()
-    expect(page.locator("#dashboard-page")).to_be_visible()
+    _await_dashboard(page)
     page.locator("#btn-add-initiative").click()
     expect(page.locator("#form-heading")).to_contain_text("Add initiative")
 

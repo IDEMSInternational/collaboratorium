@@ -12,7 +12,7 @@ below always means the highest version of a given id.
 import json
 from datetime import datetime, timedelta
 
-from db import db_connect
+from pantograph.db import db_connect
 
 # Rows whose status is 'deleted' are tombstones and never appear on the page.
 _LIVE = "status IS NOT 'deleted'"

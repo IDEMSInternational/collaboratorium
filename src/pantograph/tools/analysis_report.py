@@ -9,12 +9,12 @@ import os
 import random
 from datetime import datetime, timedelta
 
+from pantograph.settings import get_settings
+
 # ==========================================
 # PART 1: CONFIGURATION
 # ==========================================
 
-ANALYTICS_DB = 'analytics.db'
-MAIN_DB = 'database.db'
 SHOW_REAL_NAMES = False 
 EXCLUDED_USER_ID = 23
 
@@ -31,8 +31,8 @@ def get_db_connection(db_file):
         return None
 
 def load_data():
-    conn_main = get_db_connection(MAIN_DB)
-    conn_analytics = get_db_connection(ANALYTICS_DB)
+    conn_main = get_db_connection(str(get_settings().database_path))
+    conn_analytics = get_db_connection(str(get_settings().analytics_path))
 
     if not conn_main or not conn_analytics:
         print("Error: Database files not found.")

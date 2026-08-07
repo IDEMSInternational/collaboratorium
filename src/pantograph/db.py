@@ -5,13 +5,17 @@ import json
 import pandas as pd
 import networkx as nx  # Import networkx for degree filtering
 
+from pantograph.settings import get_settings
 
-DB = 'database.db'
+
+def _db_path():
+    """Read at call time, never captured, so settings.configure() is honoured."""
+    return str(get_settings().database_path)
 
 
 def db_connect():
     """Returns a new connection to the SQLite database."""
-    return sqlite3.connect(DB)
+    return sqlite3.connect(_db_path())
 
 
 def _now_utc_iso():
@@ -36,7 +40,7 @@ def init_db(config):
     """
     Create the database schema dynamically from the config file.
     """
-    existed = os.path.exists(DB)
+    existed = os.path.exists(_db_path())
     
     if existed:
         print("Database already exists. Skipping initialization.")

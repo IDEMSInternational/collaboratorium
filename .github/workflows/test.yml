@@ -1,0 +1,90 @@
+name: Tests
+
+on:
+  push:
+    branches: ["main", "staging"]
+  pull_request:
+
+jobs:
+  pytest:
+    runs-on: ubuntu-latest
+
+    env:
+      # The app reads this from .env locally; CI has no .env, and Flask's
+      # session (used by the auth layer every test goes through) needs it set.
+      SECRET_KEY: ci-test-secret-not-used-anywhere-real
+      # Enables the local-development auto-login in auth.py, so the browser
+      # tests reach the app without a Google OAuth round trip.
+      IS_TESTING: "TRUE"
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          # Matches the Dockerfile. 3.12 is also the floor for the f-string
+          # syntax in form_gen.py — see requires-python in pyproject.toml.
+          python-version: "3.12"
+          cache: pip
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+          pip install -e .
+
+      - name: Install Playwright browser
+        run: python -m playwright install --with-deps chromium
+
+      - name: Verify plugin entry points resolve
+        # The loader falls back to an import convention when entry points are
+        # missing, so a broken install would otherwise pass the suite silently.
+        run: |
+          python -c "
+          from importlib.metadata import entry_points
+          eps = {e.name for e in entry_points(group='pantograph.plugins')}
+          assert eps == {'explore', 'dashboard'}, f'unexpected entry points: {eps}'
+          print('entry points OK:', sorted(eps))
+          "
+
+      - name: Run tests
+        run: pytest -q
+
+  docker:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        # docker-publish.yml pushes on merge to main; failing here first means a
+        # broken image is never tagged latest.
+        run: docker build -t pantograph:ci .
+
+      - name: Entry points resolve inside the image
+        run: |
+          docker run --rm --entrypoint python pantograph:ci -c "
+          from importlib.metadata import entry_points
+          eps = {e.name for e in entry_points(group='pantograph.plugins')}
+          assert eps == {'explore', 'dashboard'}, f'unexpected entry points: {eps}'
+          print('entry points OK:', sorted(eps))
+          "
+
+      - name: Container serves the app
+        run: |
+          docker run -d --name pg-ci -p 8050:8050 \
+            -v "$PWD/config:/app/config:ro" \
+            -e SECRET_KEY=ci-test-secret -e IS_TESTING=TRUE -e DEBUG=1 \
+            pantograph:ci
+          for i in $(seq 1 30); do
+            code=$(curl -s -o /dev/null -w '%{http_code}' http://127.0.0.1:8050/ || true)
+            [ "$code" = "200" ] && echo "served 200" && exit 0
+            sleep 2
+          done
+          echo "app did not serve 200 in time"; docker logs pg-ci; exit 1
+
+      - name: Container logs
+        if: always()
+        run: docker logs pg-ci || true

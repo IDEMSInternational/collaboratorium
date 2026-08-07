@@ -7,7 +7,7 @@ import yaml
 from dash import html, dcc, Input, Output, State, ctx, no_update
 import dash_bootstrap_components as dbc
 import dash_cytoscape as cyto
-from db import get_dropdown_options
+from pantograph.db import get_dropdown_options
 
 def component_for_filter(config, f_id, f_cfg):
     """Generates standard Dash components for the filter registry."""

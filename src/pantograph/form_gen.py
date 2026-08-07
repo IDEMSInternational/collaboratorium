@@ -1,12 +1,12 @@
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
-from db import db_connect, get_latest_entry
+from pantograph.db import db_connect, get_latest_entry
 import json
 import dash_bootstrap_components as dbc
 
-from analytics import analytics_log
-from auth import login_required
-from component_factory import component_for_element, register_subform_blocks
+from pantograph.analytics import analytics_log
+from pantograph.auth import login_required
+from pantograph.component_factory import component_for_element, register_subform_blocks
 
 
 # ==============================================================
@@ -94,23 +94,27 @@ def register_click_callbacks(app, config):
     @app.callback(
         Output("form-container", "children"),
         Input("table-selector", "value"),
-        Input('cyto', 'tapNodeData'),
-        Input('cyto', 'tapEdgeData'),
+        Input("editor-request", "data"),
         Input('url', 'hash'),
         State("current-person-id", "data"),
         Input("form-refresh", "data"),
         State("form-prefill", "data"),
     )
     @login_required
-    def load_form(table_name, tap_node, tap_edge, url_hash, person_id, refresh_signal, prefill):
+    def load_form(table_name, request, url_hash, person_id, refresh_signal, prefill):
         """
-        Display form based on trigger: Add selector, Graph tap, or URL hash link.
+        Display a form based on what triggered: the Add selector, a URL hash
+        link, or an editor-request published by a page.
+
+        Core knows nothing about where a request came from. A page that wants to
+        open the editor writes to the `editor-request` store; see
+        `EDITOR_REQUEST` in pantograph.editor for the shape.
         """
         trigger = ctx.triggered[0].get('prop_id', '') if ctx.triggered else None
 
         if trigger == "form-refresh.data":
             return html.Div("Select a table or click an element to edit.")
-            
+
         # 1. Hash Routing (from Report links and AG Grid Edit column)
         if trigger == 'url.hash' and url_hash:
             # url_hash comes in as "#edit/table/id"
@@ -118,7 +122,7 @@ def register_click_callbacks(app, config):
             if len(parts) == 3 and parts[0] == 'edit':
                 tbl, obj_id = parts[1], parts[2]
                 try:
-                    return show_node_form({'id': f"{tbl}-{obj_id}"}, person_id)
+                    return show_edit_form(tbl, obj_id, person_id)
                 except Exception:
                     pass
 
@@ -129,52 +133,37 @@ def register_click_callbacks(app, config):
                 return show_add_form(table_name, person_id, values, title)
             return "Select a table"
 
-        # If cyto's tapEdgeData triggered, prefer edge form
-        if trigger and "cyto.tapEdgeData" in trigger:
-            if tap_edge:
-                # pick edge if it has editable table info
-                return show_edge_form(tap_edge, person_id)
+        if trigger and trigger.startswith("editor-request") and request:
+            return _form_for_request(request, person_id)
 
-        # If cyto's tapNodeData triggered, prefer node form
-        if trigger and "cyto.tapNodeData" in trigger:
-            if tap_node:
-                return show_node_form(tap_node, person_id)
-
-        # No explicit trigger (initial or programmatic call).
-        # Fall back to previous behavior but prefer node/edge when both present.
-        if table_name and not (tap_node or tap_edge):
+        # No explicit trigger (initial or programmatic call): fall back to the
+        # add form when a table is already selected. Gated on there being no
+        # trigger at all, because a leftover table-selector value must not turn
+        # an unrelated event — the hash being cleared as the editor closes —
+        # into an add form for whatever was last selected.
+        if not trigger and table_name:
             values, title = _prefill_for(table_name, prefill)
             return show_add_form(table_name, person_id, values, title)
 
-        # Helper to decide which of node/edge is the most recent when both are present
-        def _is_node_newer(n, e):
-            try:
-                nt = int(n.get('timeStamp')) if n and n.get('timeStamp') is not None else None
-            except Exception:
-                nt = None
-            try:
-                et = int(e.get('timeStamp')) if e and e.get('timeStamp') is not None else None
-            except Exception:
-                et = None
-            if nt is None and et is None:
-                return False
-            if nt is None:
-                return False
-            if et is None:
-                return True
-            return nt >= et
+        return html.Div("Select a table or click an element to edit.")
 
-        # If an edge exists and is newer than the node, show edge form
-        if tap_edge:
-            if not tap_node or _is_node_newer(tap_edge, tap_node):
-                return show_edge_form(tap_edge, person_id)
+    def _form_for_request(request, person_id):
+        if not isinstance(request, dict):
+            return html.Div("Select a table or click an element to edit.")
 
-        if tap_node:
-            if not tap_edge or _is_node_newer(tap_node, tap_edge):
-                return show_node_form(tap_node, person_id)
-
-        # If nothing else, show a helpful message
-        return html.Div("Select a table or click a node/edge in the graph.")
+        mode = request.get("mode")
+        if mode == "message":
+            # The requesting page decided this thing isn't editable and supplied
+            # its own wording; core has no better one to offer.
+            return html.P(request.get("text") or "This element is not editable.")
+        if mode == "edit":
+            return show_edit_form(request.get("table"), request.get("id"), person_id)
+        if mode == "add":
+            return show_add_form(
+                request.get("table"), person_id,
+                request.get("values") or None, request.get("title"),
+            )
+        return html.Div("Select a table or click an element to edit.")
 
 
     def _prefill_for(table_name, prefill):
@@ -195,29 +184,16 @@ def register_click_callbacks(app, config):
         )
 
 
-    def show_node_form(tap_node, person_id):
+    def show_edit_form(table_name, object_id, person_id):
         try:
-            table_name, id_str = tap_node['id'].split('-', 1)
-            object_id = int(id_str)
+            object_id = int(object_id)
         except (ValueError, TypeError):
-            return html.Div("Invalid node clicked.")
+            return html.Div("Invalid record requested.")
         form_name = config["default_forms"].get(table_name, None)
         if not form_name:
             return html.Div(f"Error: Table '{table_name}' not in config['default_forms'].")
-        
-        analytics_log(person_id, table_name, object_id)
-        return login_required(generate_form_layout)(form_name, forms_config=forms_config, object_id=object_id)
 
-
-    def show_edge_form(tap_edge, person_id):
-        table_name = tap_edge.get('table_name')
-        object_id = tap_edge.get('object_id')
         analytics_log(person_id, table_name, object_id)
-        if not table_name or object_id is None:
-            return html.P(f"This edge ({tap_edge.get('label')}) is not editable.")
-        form_name = config["default_forms"].get(table_name, None)
-        if not form_name:
-            return html.Div(f"Error: Table '{table_name}' not in config['default_forms'].")
         return login_required(generate_form_layout)(form_name, forms_config=forms_config, object_id=object_id)
 
     @app.callback(
@@ -225,22 +201,23 @@ def register_click_callbacks(app, config):
         Output("add-dropdown-container", "style"),
         Output("table-selector", "value")],
         [Input("btn-add-element", "n_clicks"),
-        Input("cyto", "tapNodeData"),
-        Input("cyto", "tapEdgeData"),
+        Input("editor-request", "data"),
         Input("url", "hash"),
         Input({"type": "cancel", "form": ALL}, "n_clicks")],
         prevent_initial_call=True
     )
-    def control_editor_flow(add_clicks, node_data, edge_data, url_hash, cancel_clicks):
+    def control_editor_flow(add_clicks, request, url_hash, cancel_clicks):
         trigger = ctx.triggered_id
-        # Safely unpack pattern dict callback context assignments 
+        # Safely unpack pattern dict callback context assignments
         if isinstance(trigger, dict) and trigger.get("type") == "cancel":
             if any(clicks > 0 for clicks in cancel_clicks if clicks is not None):
                 return False, no_update, no_update
         if trigger == "btn-add-element":
             return True, {"display": "block"}, None
-        if trigger in ["cyto", "url"]:
+        if trigger in ["editor-request", "url"]:
             if trigger == "url" and (not url_hash or "edit" not in url_hash):
+                return no_update, no_update, no_update
+            if trigger == "editor-request" and not request:
                 return no_update, no_update, no_update
             return True, {"display": "none"}, no_update
         return no_update, no_update, no_update

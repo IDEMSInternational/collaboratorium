@@ -1,6 +1,6 @@
 import re
 import json
-from db import get_dropdown_options, get_relation_links
+from pantograph.db import get_dropdown_options, get_relation_links
 
 def format_subform_data(val_str):
     """Attempts to parse JSON subform data and format it cleanly into Markdown."""

@@ -1,0 +1,242 @@
+# The data model: tables, how they link, and which form edits each one.
+
+tables:
+  activities:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      location: string
+      start_date: timestamp
+      end_date: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  initiatives:
+    fields:
+      id: integer
+      version: integer
+      name: string
+      description: string
+      responsible_person: integer
+      timestamp: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  contracts:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      organisation: integer
+      organisation_person: integer
+      responsible_person: integer
+      start_date: timestamp
+      end_date: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  organisations:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      location: string
+      contact_person: integer
+      tag_groups: json
+      status: string
+      created_by: integer
+  people:
+    fields:
+      id: integer
+      version: integer
+      name: string
+      role: string
+      email: string
+      active: boolean
+      timestamp: timestamp
+      tag_groups: json
+      status: string
+      created_by: integer
+  activity_activity_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      parent_id: integer
+      child_id: integer
+      type: string
+      created_by: integer
+  initiative_initiative_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      parent_id: integer
+      child_id: integer
+      type: string
+      created_by: integer
+  activity_initiative_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      activity_id: integer
+      initiative_id: integer
+      type: string
+      created_by: integer
+  activity_contract_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      activity_id: integer
+      contract_id: integer
+      type: string
+      created_by: integer
+  contract_initiative_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      contract_id: integer
+      initiative_id: integer
+      type: string
+      created_by: integer
+  organisation_people_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      organisation_id: integer
+      person_id: integer
+      type: string
+      created_by: integer
+  activity_people_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      activity_id: integer
+      person_id: integer
+      type: string
+      created_by: integer
+  tag_groups:
+    fields:
+      id: integer
+      version: integer
+      name: string
+      key_values: json
+      initiatives: string
+      people: string
+      organisations: string
+      activities: string
+      contracts: string
+      timestamp: timestamp
+      status: string
+      created_by: integer
+links:
+  initiatives:
+    mappings:
+    - link_col: responsible_person
+      target_table: people
+      target_col: id
+  organisations:
+    mappings:
+    - link_col: contact_person
+      target_table: people
+      target_col: id
+  contracts:
+    mappings:
+    - link_col: organisation_person
+      target_table: people
+      target_col: id
+    - link_col: responsible_person
+      target_table: people
+      target_col: id
+    - link_col: organisation
+      target_table: organisations
+      target_col: id
+  activity_activity_links:
+    mappings:
+    - link_col: parent_id
+      target_table: activities
+      target_col: id
+    - link_col: child_id
+      target_table: activities
+      target_col: id
+  initiative_initiative_links:
+    mappings:
+    - link_col: parent_id
+      target_table: initiatives
+      target_col: id
+    - link_col: child_id
+      target_table: initiatives
+      target_col: id
+  activity_initiative_links:
+    mappings:
+    - link_col: activity_id
+      target_table: activities
+      target_col: id
+    - link_col: initiative_id
+      target_table: initiatives
+      target_col: id
+  activity_contract_links:
+    mappings:
+    - link_col: activity_id
+      target_table: activities
+      target_col: id
+    - link_col: contract_id
+      target_table: contracts
+      target_col: id
+  contract_initiative_links:
+    mappings:
+    - link_col: contract_id
+      target_table: contracts
+      target_col: id
+    - link_col: initiative_id
+      target_table: initiatives
+      target_col: id
+  organisation_people_links:
+    mappings:
+    - link_col: organisation_id
+      target_table: organisations
+      target_col: id
+    - link_col: person_id
+      target_table: people
+      target_col: id
+  activity_people_links:
+    mappings:
+    - link_col: activity_id
+      target_table: activities
+      target_col: id
+    - link_col: person_id
+      target_table: people
+      target_col: id
+default_forms:
+  initiatives: initiatives_form
+  people: people_form
+  organisations: organisations_form
+  activities: activities_form
+  contracts: contracts_form
+  activity_activity_links: activity_activity_links_form
+  initiative_initiative_links: initiative_initiative_links_form
+  activity_initiative_links: activity_initiative_links_form
+  activity_contract_links: activity_contract_links_form
+  contract_initiative_links: contract_initiative_links_form
+  organisation_people_links: organisation_people_links_form
+  activity_people_links: activity_people_links_form
+  tag_groups: tag_groups_form

@@ -3,13 +3,26 @@ requires = ["setuptools>=61.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
-name = "collaboratorium"
+name = "pantograph"
 version = "0.1.0"
-description = "An environment for collaborative innovation"
+description = "A config-driven database viewer and form engine"
+# 3.12 is a hard floor, not a preference: form_gen.py nests same-type quotes
+# inside f-strings (PEP 701), which is a SyntaxError on 3.11 and earlier.
+requires-python = ">=3.12"
 dependencies = [] # Relying on your existing requirements.txt
+
+# Page plugins are discovered through this group, so moving one out of this
+# repository into its own distribution is a packaging change and nothing else —
+# no core code refers to any plugin by name.
+[project.entry-points."pantograph.plugins"]
+explore = "pantograph_explore.plugin:Plugin"
+dashboard = "pantograph_dashboard.plugin:Plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 
 [tool.setuptools]
-packages = ["collaboratorium"]
+package-dir = {"" = "src"}
+
+[tool.setuptools.packages.find]
+where = ["src"]

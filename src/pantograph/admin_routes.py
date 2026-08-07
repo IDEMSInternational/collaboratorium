@@ -4,7 +4,7 @@ import secrets
 import tempfile
 import shutil
 from flask import send_file, request, abort, render_template_string, session, after_this_request
-from auth import login_required
+from pantograph.auth import login_required
 
 ADMIN_EMAILS = [email.strip() for email in os.environ.get("ADMIN_EMAILS", "").split(",") if email.strip()]
 

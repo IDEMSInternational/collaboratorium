@@ -3,15 +3,18 @@ import sqlite3
 import pandas as pd
 import os
 from datetime import datetime
-import collaboratorium.db
-from collaboratorium.db import (
+from dataclasses import replace
+from pathlib import Path
+import pantograph.db
+import pantograph.settings as pg_settings
+from pantograph.db import (
     db_connect, 
     get_latest_record, 
     get_dropdown_options, 
     build_elements_from_db,
     init_db
 )
-from collaboratorium.config_parser import load_config
+from pantograph.config import load_config
 
 
 # --- Fixture for an isolated DB connection per test ---
@@ -20,8 +23,12 @@ def clean_db(monkeypatch):
     """Ensures every test runs against a fresh schema, avoiding WinError 32 collisions."""
     test_db_path = "test_unit_database.db"
     
-    # Force collaboratorium to use our isolated test file instead of the live database.db
-    monkeypatch.setattr(collaboratorium.db, "DB", test_db_path)
+    # Point pantograph at our isolated test file instead of the live database.
+    # monkeypatch reverts it after the test; db paths are read at call time.
+    monkeypatch.setattr(
+        pg_settings, "_settings",
+        replace(pg_settings.get_settings(), database_path=Path(test_db_path)),
+    )
     
     if os.path.exists(test_db_path):
         try:
@@ -29,8 +36,8 @@ def clean_db(monkeypatch):
         except PermissionError:
             pass
             
-    config = load_config("config.yaml")
-    collaboratorium.db.init_db(config)
+    config = load_config("config")
+    pantograph.db.init_db(config)
     
     yield config
     

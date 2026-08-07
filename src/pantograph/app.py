@@ -56,14 +56,17 @@ def _editor_contents(config):
     ])
 
 
-def _header(config, plugins):
+def _header(config, plugins, landing_id):
     """Title, plugin nav, and the plugins' own header items."""
+    # The landing page is marked active in the served layout, not left for the
+    # navigation callback to correct on first fire — otherwise the nav renders
+    # with no page highlighted for as long as that round trip takes.
     nav_buttons = [
         dbc.Button(
             p.label,
             id=f"nav-{p.id}",
             n_clicks=0,
-            className="nav-page-btn me-1",
+            className="nav-page-btn active me-1" if p.id == landing_id else "nav-page-btn me-1",
         )
         for p in plugins
     ]
@@ -163,7 +166,7 @@ def create_app(settings=None):
         *CORE_STORES,
         dcc.Store(id="page-store", data=landing_id),
         *plugin_stores,
-        dbc.Container([_header(config, plugins)] + body, fluid=True, className="p-4"),
+        dbc.Container([_header(config, plugins, landing_id)] + body, fluid=True, className="p-4"),
     ], style={"minHeight": "100vh", "backgroundColor": "var(--idems-bg)"})
 
     _register_navigation(app, plugins, landing_id)

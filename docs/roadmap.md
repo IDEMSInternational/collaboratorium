@@ -4,9 +4,8 @@ Where we are after #54, and what stands between here and a working Records of
 Processing Activities deployment with LLM-assisted prefill.
 
 Design rationale lives in [architecture-plugins.md](architecture-plugins.md);
-this document is the work breakdown. Each numbered item below is written to drop
-straight into a GitHub issue, following the convention already used in
-[TODO.md](../TODO.md).
+this document is the work breakdown. Every item below is filed as an issue
+(#56–#72); this page is the map, the issues are where the work is tracked.
 
 ## Done
 
@@ -47,7 +46,7 @@ their own — item 2 resolves TODO B); then 8–10 to stand the register up; the
 
 # Decisions needed before code
 
-## D1. Do processing activities link to Explore's entities?
+## D1. Do processing activities link to Explore's entities?  ([#56](https://github.com/IDEMSInternational/collaboratorium/issues/56))
 
 **Labels:** discussion, architecture
 
@@ -76,7 +75,7 @@ standalone or an extension.
 
 ---
 
-## D2. Deployment topology for the second site
+## D2. Deployment topology for the second site  ([#57](https://github.com/IDEMSInternational/collaboratorium/issues/57))
 
 **Labels:** discussion, ops
 
@@ -93,7 +92,7 @@ register site from the same image, with its own config directory and database.
 
 # Core form capabilities
 
-## 1. Relevance: render a field based on the answers above it
+## 1. Relevance: render a field based on the answers above it  ([#58](https://github.com/IDEMSInternational/collaboratorium/issues/58))
 
 **Labels:** enhancement, forms, core
 
@@ -130,7 +129,7 @@ existing data.
 
 ---
 
-## 2. Required follows relevance, and the submit button says what is missing
+## 2. Required follows relevance, and the submit button says what is missing  ([#59](https://github.com/IDEMSInternational/collaboratorium/issues/59))
 
 **Labels:** enhancement, forms, core, ux
 **Depends on:** 1
@@ -152,7 +151,7 @@ filled.
 
 ---
 
-## 3. Constraints and validation messages
+## 3. Constraints and validation messages  ([#60](https://github.com/IDEMSInternational/collaboratorium/issues/60))
 
 **Labels:** enhancement, forms, core
 **Depends on:** 1 (shares the expression evaluator)
@@ -168,7 +167,7 @@ generic.
 
 ---
 
-## 4. Multi-page forms
+## 4. Multi-page forms  ([#61](https://github.com/IDEMSInternational/collaboratorium/issues/61))
 
 **Labels:** enhancement, forms, core
 
@@ -187,7 +186,7 @@ saves and reloads correctly.
 
 These are independent of the critical path.
 
-## 5. Make the app constructible more than once per process
+## 5. Make the app constructible more than once per process  ([#62](https://github.com/IDEMSInternational/collaboratorium/issues/62))
 
 **Labels:** refactor, testing, core
 
@@ -205,7 +204,7 @@ process; the `cyto` guard is rewritten as a plugin-subset assertion.
 
 ---
 
-## 6. Move graph element building out of core
+## 6. Move graph element building out of core  ([#63](https://github.com/IDEMSInternational/collaboratorium/issues/63))
 
 **Labels:** refactor, core, plugins
 
@@ -219,7 +218,7 @@ validation without defining `node_tables`.
 
 ---
 
-## 7. Constrain dependency ranges
+## 7. Constrain dependency ranges  ([#64](https://github.com/IDEMSInternational/collaboratorium/issues/64))
 
 **Labels:** ops, dependencies
 
@@ -236,7 +235,7 @@ the same versions.
 
 # The GDPR / ROPA plugin
 
-## 8. ROPA schema and forms in config
+## 8. ROPA schema and forms in config  ([#65](https://github.com/IDEMSInternational/collaboratorium/issues/65))
 
 **Labels:** feature, gdpr, config
 **Depends on:** D1, 1–4
@@ -255,7 +254,7 @@ for the plugin yet.
 
 ---
 
-## 9. The `pantograph_gdpr_ropa` plugin: checklist and completeness
+## 9. The `pantograph_gdpr_ropa` plugin: checklist and completeness  ([#66](https://github.com/IDEMSInternational/collaboratorium/issues/66))
 
 **Labels:** feature, gdpr, plugins
 **Depends on:** 8
@@ -274,7 +273,7 @@ generic editor as the dashboard does.
 
 ---
 
-## 10. Stand up the register deployment
+## 10. Stand up the register deployment  ([#67](https://github.com/IDEMSInternational/collaboratorium/issues/67))
 
 **Labels:** ops, gdpr
 **Depends on:** D2, 9
@@ -289,7 +288,7 @@ different config directory; `UPGRADING.md`-style notes exist for it.
 
 # The producer interface and the LLM pipeline
 
-## 11. Export the producer contract, derived from config
+## 11. Export the producer contract, derived from config  ([#68](https://github.com/IDEMSInternational/collaboratorium/issues/68))
 
 **Labels:** feature, gdpr, integration
 
@@ -306,7 +305,7 @@ and its hash.
 
 ---
 
-## 12. Ingest suggestions
+## 12. Ingest suggestions  ([#69](https://github.com/IDEMSInternational/collaboratorium/issues/69))
 
 **Labels:** feature, gdpr, integration
 **Depends on:** 11
@@ -338,7 +337,7 @@ a contract-hash mismatch warns rather than silently applying.
 
 ---
 
-## 13. Suggested-vs-confirmed field state and provenance
+## 13. Suggested-vs-confirmed field state and provenance  ([#70](https://github.com/IDEMSInternational/collaboratorium/issues/70))
 
 **Labels:** feature, gdpr, forms, core
 **Depends on:** 12
@@ -359,7 +358,7 @@ record and in the exported report.
 
 ---
 
-## 14. The static-analysis pipeline (separate repository)
+## 14. The static-analysis pipeline (separate repository)  ([#71](https://github.com/IDEMSInternational/collaboratorium/issues/71))
 
 **Labels:** feature, gdpr, integration
 **Depends on:** 11
@@ -380,7 +379,7 @@ item 12 imports without manual editing.
 
 # Pre-existing debt
 
-## 15. Migrate legacy `tag_groups` values
+## 15. Migrate legacy `tag_groups` values  ([#72](https://github.com/IDEMSInternational/collaboratorium/issues/72))
 
 **Labels:** bug, data-quality
 

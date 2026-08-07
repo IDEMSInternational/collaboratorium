@@ -215,6 +215,10 @@ deployment need not split anything.
 
 ## Migration order
 
+Steps 1–3 are done. The remaining work is broken down as issues in
+[roadmap.md](roadmap.md).
+
+
 1. ~~**Plugin loader + nav registry.**~~ **Done.** Core moved to
    `src/pantograph/`, Explore and the Dashboard to `src/pantograph_explore/` and
    `src/pantograph_dashboard/`, discovered through entry points. The package is

@@ -4,11 +4,14 @@ Follow-up issues surfaced while building the Dashboard page. These concern
 shared machinery (the generic form builder, the editor modal, app-wide assets)
 rather than the dashboard itself, so they are scoped separately: a change to any
 of them affects Explore and any organisation that adapts this tool from its own
-schema. Each is written to drop straight into a GitHub issue.
+schema. Each was written to drop straight into a GitHub issue; A, C and D are now
+filed, B is absorbed by the dynamic-`required` work, and E still needs a
+policy decision before it becomes work at all. Kept here as the record of
+why each was scoped out of #53 — the issues carry the same text.
 
 ---
 
-## A. Activity form: put the required link fields near the top
+## A. Activity form: put the required link fields near the top  ([#73](https://github.com/IDEMSInternational/collaboratorium/issues/73))
 
 **Labels:** enhancement, forms
 
@@ -36,7 +39,7 @@ optional ones; verify the form still renders and saves from every entry point
 
 ---
 
-## B. Disabled submit button should name the missing fields
+## B. Disabled submit button should name the missing fields  (absorbed by [#59](https://github.com/IDEMSInternational/collaboratorium/issues/59))
 
 **Labels:** enhancement, forms, ux
 
@@ -54,7 +57,7 @@ outstanding; the button enables the moment the last one is filled.
 
 ---
 
-## C. Editor modal is a dead end after a successful save
+## C. Editor modal is a dead end after a successful save  ([#74](https://github.com/IDEMSInternational/collaboratorium/issues/74))
 
 **Labels:** enhancement, editor, ux
 
@@ -76,7 +79,7 @@ primary text implies nothing happened; no raw record id is shown as the result.
 
 ---
 
-## D. Bootstrap Icons font does not load
+## D. Bootstrap Icons font does not load  ([#75](https://github.com/IDEMSInternational/collaboratorium/issues/75))
 
 **Labels:** bug, assets
 
@@ -93,7 +96,7 @@ that resolves to nothing.
 
 ---
 
-## E. No guard against duplicate records
+## E. No guard against duplicate records  (not filed — needs a policy decision first)
 
 **Labels:** discussion, data-quality
 

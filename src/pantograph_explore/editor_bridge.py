@@ -14,10 +14,10 @@ from pantograph.editor import STORE_ID, edit_request, message_request
 
 def _timestamp(tap):
     """
-    Cytoscape stamps each tap, which is what makes a second tap on the same
-    element a distinct value. Used both to break a tie between a node and an
-    edge arriving together, and as the request token so an unchanged selection
-    still reopens the editor.
+    Cytoscape stamps each tap. Used to break a tie between a node and an edge
+    arriving together, and as the request token so each request is unique to the
+    event that raised it (see pantograph.editor on why that is belt-and-braces
+    rather than load-bearing).
     """
     try:
         return int(tap.get("timeStamp")) if tap and tap.get("timeStamp") is not None else None

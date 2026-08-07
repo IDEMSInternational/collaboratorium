@@ -248,9 +248,12 @@ publishes a request to the shared `editor-request` store:
 {"mode": "message", "text": str,                              "token": ...}
 ```
 
-`token` carries the source event's timestamp, because Dash fires only on a
-*changed* value: two taps on the same node would otherwise publish identical
-requests and the editor would not reopen after being closed.
+`token` carries the source event's timestamp so a request identifies the event
+that raised it. It is belt-and-braces rather than load-bearing: dash-renderer
+re-dispatches downstream callbacks when a Store's `data` is reassigned even to
+an equal value, so a repeat tap reopens the editor either way. It is kept
+because depending on that is depending on a renderer implementation detail, and
+because a unique request is much easier to read in devtools.
 
 `message` exists so a page that has decided something is not editable can say so
 in its own words — core has no better wording for "this edge is drawn from a

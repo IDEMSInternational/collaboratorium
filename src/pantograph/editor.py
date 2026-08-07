@@ -15,11 +15,16 @@ Request shapes::
                         "title": str | None,               "token": ...}
     {"mode": "message", "text": str,                       "token": ...}
 
-`token` exists because Dash only fires a callback when a property's value
-changes: tapping the same node twice would otherwise publish an identical
-request and the editor would not reopen. Pass something that differs per event —
-the source event's timestamp is ideal, since it also makes the store's history
-readable when debugging.
+`token` makes each request unique to the event that raised it. Pass something
+that differs per event; the source event's timestamp is ideal.
+
+It is not load-bearing today: dash-renderer re-dispatches downstream callbacks
+when a Store's `data` is reassigned, even to an equal value, so tapping the same
+node twice reopens the editor with or without it (verified by breaking the token
+and watching test_graph_editor still pass). It is kept because relying on that
+is relying on an implementation detail of the renderer, and because a request
+that is unique per event is far easier to read in devtools than a stream of
+identical ones.
 
 `message` is for a page that has decided the thing the user clicked is not
 editable and wants to say so in its own words. Core has no better wording to

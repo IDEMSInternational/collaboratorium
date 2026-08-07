@@ -109,8 +109,9 @@ def test_object_id_zero_is_a_record_not_a_missing_value():
 
 def test_token_comes_from_the_tap_timestamp():
     """
-    Dash only fires on a *changed* value, so two taps on the same node must not
-    produce equal requests or the editor would not reopen after being closed.
+    Two taps on the same node produce distinct requests, so a request identifies
+    the event that raised it. Belt-and-braces rather than load-bearing — see
+    pantograph.editor — but the property is asserted so it does not drift.
     """
     first = _request_for_node({"id": "activities-1", "timeStamp": 100})
     second = _request_for_node({"id": "activities-1", "timeStamp": 250})

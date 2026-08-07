@@ -26,6 +26,12 @@ config = load_config(settings.get_settings().config_path)
 app = create_app()
 
 @pytest.fixture(scope="session")
+def app_config():
+    """The merged deployment config the app under test was built from."""
+    return config
+
+
+@pytest.fixture(scope="session")
 def dash_app():
     """The assembled app, for tests that inspect wiring rather than drive a page."""
     return app

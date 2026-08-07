@@ -251,7 +251,12 @@ an endpoint later only if the pipeline needs to run continuously.
    now importable as a library: internal imports are absolute, and the database
    paths that were module globals monkeypatched by the test suite are now
    `pantograph.settings`, read at call time.
-2. **Decouple the editor from Explore** — see "Known remaining coupling".
+2. ~~**Decouple the editor from Explore.**~~ **Done.** Core hosted the editor
+   but took its inputs from `cyto`, the Explore graph. It now listens to a
+   shared `editor-request` store that any page publishes to
+   (`pantograph/editor.py`), and the graph's node-versus-edge disambiguation
+   moved to `pantograph_explore/editor_bridge.py`. Core names no Explore
+   component, and a test asserts it stays that way.
 3. **Config split** into the directory above, plus per-plugin validation.
 4. **Relevance, dynamic required, constraints** in core forms. Ships a real
    improvement to existing forms (TODO B) independently of the GDPR work.
@@ -260,20 +265,30 @@ an endpoint later only if the pipeline needs to run continuously.
    core can't do, that is the signal to add it to core, not to the plugin.
 6. **Prefill provider + provenance**, then wire in the static-analysis output.
 
-## Known remaining coupling
+## The editor seam
 
-Core still names `cyto`, an Explore component, in three callbacks: the editor
-visibility handler in `app.py`, and `control_editor_flow` and `load_form` in
-`form_gen.py`. With `suppress_callback_exceptions` a deployment without Explore
-degrades rather than crashes, but core is not yet honestly independent.
+Core hosts one editor and knows nothing about what might open it. A page
+publishes a request to the shared `editor-request` store:
 
-The fix is a core `editor-request` store that any page writes to
-(`{mode, table, id, prefill, title}`), with core's editor listening only to that,
-`table-selector` and the URL hash. The graph's node-versus-edge disambiguation —
-currently a timestamp heuristic inside core's `load_form` — moves into the
-Explore plugin, which is where it belongs. It was left out of the restructure
-because it changes runtime behaviour rather than structure, and no test covers
-the graph-tap path, so it wants its own commit and its own tests.
+```python
+{"mode": "edit",    "table": str, "id": int,                  "token": ...}
+{"mode": "add",     "table": str, "values": {...}, "title": str | None, "token": ...}
+{"mode": "message", "text": str,                              "token": ...}
+```
+
+`token` carries the source event's timestamp, because Dash fires only on a
+*changed* value: two taps on the same node would otherwise publish identical
+requests and the editor would not reopen after being closed.
+
+`message` exists so a page that has decided something is not editable can say so
+in its own words — core has no better wording for "this edge is drawn from a
+column, there is no record behind it".
+
+Before this, core's form callbacks read `cyto` directly, so core named a
+plugin's component and no other page could open the editor without pretending to
+be the graph. The tap-to-request translation is now a set of plain functions in
+`pantograph_explore/editor_bridge.py`, which is also the first time that path
+has had any test coverage.
 
 ## Open questions
 

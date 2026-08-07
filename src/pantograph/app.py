@@ -15,6 +15,7 @@ from pantograph.analytics import init_db as analytics_init_db
 from pantograph.auth import server, register_auth_callbacks
 from pantograph.config import load_config
 from pantograph.db import init_db
+from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
 from pantograph.form_gen import register_form_callbacks
 from pantograph.plugins import load_plugins
 from pantograph.settings import get_settings
@@ -27,12 +28,14 @@ from pantograph.tools.analysis_report import init_analytics_app
 #   current-person-id    the signed-in user's person record
 #   form-refresh         bumped after a successful submit
 #   form-prefill         a page asking for an add-form with fields filled in
+#   editor-request       a page asking core to open the editor (see editor.py)
 #   intermediary-loaded  bumped when the underlying data changed
 #   page-store           the active plugin id; writable, so a page can navigate
 CORE_STORES = [
     dcc.Store(id="current-person-id", data=None),
     dcc.Store(id="form-refresh", data=False),
     dcc.Store(id="form-prefill", data=None),
+    dcc.Store(id=EDITOR_REQUEST_STORE, data=None),
     dcc.Store(id="intermediary-loaded", data=False),
 ]
 
@@ -211,25 +214,22 @@ def _register_navigation(app, plugins, landing_id):
 
 
 def _register_editor_visibility(app):
-    # TODO: `cyto` is an Explore component; core should not name it. The fix is
-    # a core `editor-request` store that pages write to, which also lets the
-    # graph's node-vs-edge disambiguation move into the Explore plugin where it
-    # belongs. Left as the next commit so the restructure stays behaviour-neutral.
     @app.callback(
         Output("editor-popup", "is_open", allow_duplicate=True),
         [Input("table-selector", "value"),
-         Input("cyto", "tapNodeData"),
-         Input("cyto", "tapEdgeData"),
+         Input(EDITOR_REQUEST_STORE, "data"),
          Input("url", "hash"),
          Input("editor-popup", "is_open")],
         prevent_initial_call=True,
     )
-    def handle_editor_visibility(table_val, node_data, edge_data, url_hash, is_open_state):
+    def handle_editor_visibility(table_val, request, url_hash, is_open_state):
         trigger = ctx.triggered_id
         if trigger == "editor-popup":
             return is_open_state
-        if trigger in ["table-selector", "cyto", "url"]:
+        if trigger in ["table-selector", EDITOR_REQUEST_STORE, "url"]:
             if trigger == "table-selector" and not table_val:
+                return is_open_state
+            if trigger == EDITOR_REQUEST_STORE and not request:
                 return is_open_state
             if trigger == "url" and (not url_hash or "edit" not in url_hash):
                 return is_open_state

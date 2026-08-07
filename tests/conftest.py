@@ -25,6 +25,12 @@ from pantograph.analytics import init_db as init_analytics_db
 config = load_config(settings.get_settings().config_path)
 app = create_app()
 
+@pytest.fixture(scope="session")
+def dash_app():
+    """The assembled app, for tests that inspect wiring rather than drive a page."""
+    return app
+
+
 class ServerThread(threading.Thread):
     def __init__(self, app, host='0.0.0.0', port=8055):
         threading.Thread.__init__(self)

@@ -12,6 +12,7 @@ import dash_cytoscape as cyto
 from pantograph.plugins import Plugin as BasePlugin
 
 from pantograph_explore.data_pipeline import register_pipeline_callbacks
+from pantograph_explore.editor_bridge import register_editor_bridge_callbacks
 from pantograph_explore.tab_graph import register_graph_callbacks
 from pantograph_explore.tab_report import register_report_callbacks
 from pantograph_explore.tab_spreadsheet import register_spreadsheet_callbacks
@@ -38,6 +39,7 @@ class Plugin(BasePlugin):
     def register(self, app, config):
         register_layout_callbacks(app, config)
         register_pipeline_callbacks(app, config)
+        register_editor_bridge_callbacks(app, config)
         register_graph_callbacks(app, config)
         register_spreadsheet_callbacks(app, config)
         register_report_callbacks(app, config)

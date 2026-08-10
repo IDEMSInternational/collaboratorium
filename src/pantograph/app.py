@@ -18,6 +18,7 @@ from pantograph.db import init_db
 from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
 from pantograph.form_gen import register_form_callbacks
 from pantograph.plugins import load_plugins
+from pantograph.relevance import validate_forms
 from pantograph.settings import get_settings
 from pantograph.tools.analysis_report import init_analytics_app
 
@@ -101,6 +102,11 @@ def create_app(settings=None):
     """
     settings = settings or get_settings()
     config = load_config(settings.config_path)
+
+    # Before anything is built: a `relevant:` that cannot be parsed, or that
+    # names an element its form does not define, should stop the deployment
+    # rather than surface later as a field that silently never appears.
+    validate_forms(config)
 
     init_db(config)
     analytics_init_db()

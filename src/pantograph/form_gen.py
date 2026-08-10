@@ -7,6 +7,7 @@ import dash_bootstrap_components as dbc
 from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
 from pantograph.component_factory import component_for_element, register_subform_blocks
+from pantograph import relevance
 
 
 # ==============================================================
@@ -46,7 +47,12 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     for element_name, element_def in forms_config[form_name].get("elements", {}).items():
         val = record_data.get(element_name) if record_data else None
         element_def = {**element_def, "element_id": element_name}
-        elements.append(component_for_element(element_def, form_name=form_name, value=val))
+        component = component_for_element(element_def, form_name=form_name, value=val)
+        if element_def.get("relevant"):
+            # Only conditional elements are wrapped, so nothing about an
+            # existing deployment's DOM changes.
+            component = relevance.wrap(component, form_name, element_name)
+        elements.append(component)
 
     meta_hidden = []
     for element_name, element_def in forms_config[form_name].get("meta", {}).items():
@@ -87,6 +93,7 @@ def register_form_callbacks(app, config):
     register_click_callbacks(app, config)
     register_submit_callbacks(app, config.get("forms", {}))
     register_subform_blocks(app, config.get("forms", {}))
+    relevance.register_relevance_callbacks(app, config.get("forms", {}))
 
 def register_click_callbacks(app, config):
     forms_config = config.get("forms", {})
@@ -300,6 +307,15 @@ def register_submit_callbacks(app, forms_config):
             # Part 1: Handle the main object (Person, Initiative, etc.)
             element_ids = list(_fc["elements"].keys())
             data = dict(zip(element_ids + list(_fc["meta"].keys()), values))
+
+            # An answer to a question that no longer applies is worse than no
+            # answer -- a record claiming a legitimate-interest balancing test
+            # when the basis has since become Consent would be actively
+            # misleading. Recomputed here rather than trusting what the browser
+            # had on screen. Nothing is lost: the schema is append-only, so the
+            # previous answer stays in the record's history.
+            for element_id in relevance.irrelevant_elements(_fc, data):
+                data[element_id] = None
 
             object_id = data.get('id')
             if object_id == "":

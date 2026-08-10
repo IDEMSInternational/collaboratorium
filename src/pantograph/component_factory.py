@@ -3,6 +3,7 @@ from datetime import datetime
 import json
 from pantograph.visual_customization import dcl
 from pantograph.db import get_dropdown_options
+from pantograph.requirements import can_be_required
 import dash_bootstrap_components as dbc
 
 
@@ -17,7 +18,10 @@ def component_for_element(element_config, form_name, value=None):
     label = element_config.get("label", element_config["element_id"])
     appearance = element_config.get("appearance", None)
 
-    is_required = element_config.get("required", False) in (True, "yes", "true")
+    # A conditional `required:` still marks the field: it is required in some
+    # states, and no asterisk at all would be a worse cue than one that is
+    # occasionally premature.
+    is_required = can_be_required(element_config.get("required"))
     if is_required and label:
         label_component = html.Label([
             label,

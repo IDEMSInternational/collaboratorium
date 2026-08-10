@@ -98,6 +98,43 @@ Relevance is recomputed on the server at submit rather than inferred from what
 was on screen. Visibility is a client-side fact and the client is not the
 authority on what gets written.
 
+## `required:` follows relevance
+
+`required:` takes the same expression language, so a field can be required only
+under a condition:
+
+```yaml
+collection_purpose:
+  type: string
+  relevant: "${lawful_basis} = 'legitimate_interest'"
+  required: "${lawful_basis} = 'legitimate_interest'"
+```
+
+`required: true` on a conditional element means "required whenever you can see
+it", which is the common case and needs no expression.
+
+**A field is never required while it is not relevant.** Relevance always wins,
+so a form cannot demand an answer to a question it is not showing — which would
+be unfillable, with no cue as to why.
+
+Because the outstanding set is recomputed per render rather than frozen when
+callbacks are registered, the disabled submit button names the fields it is
+waiting for:
+
+    Add Name and Linked Initiatives to submit
+
+Four or more outstanding fields are summarised — `Add Name, Notes and 2 more to
+submit` — since reciting a long list is worse than a count.
+
+A conditionally required field still shows the required asterisk. The label is
+rendered once and cannot know the answers, and being required in some states is
+closer to the truth than no cue at all.
+
+The disabled button is a courtesy to the user, not a gate: the client posts the
+callback directly and can send whatever it likes. The same check runs on submit,
+and a save that arrives with questions unanswered is refused with
+`Not saved — still needed: …`.
+
 ## Limits
 
 `relevant:` on a **subform** element is rejected at startup rather than silently

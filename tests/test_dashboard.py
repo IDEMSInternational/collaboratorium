@@ -13,7 +13,14 @@ import sqlite3
 import pytest
 from playwright.sync_api import Page, expect
 
-TEST_DB = "test_database.db"
+def _db():
+    """
+    Ask the app where its database is rather than naming a path. These helpers
+    and conftest previously agreed on the same relative filename by coincidence,
+    which broke the moment the suite moved its databases somewhere unique.
+    """
+    from pantograph.settings import get_settings
+    return str(get_settings().database_path)
 
 NEW_EMPTY = "Seeded New Empty Initiative"
 OLD_EMPTY = "Seeded Quiet Initiative"
@@ -43,7 +50,7 @@ def dashboard_rows(live_server):
     recent = RECENT
     old = OLD
 
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(_db())
     cur = conn.cursor()
 
     # Created inside the window, nothing linked -> "New — no activity yet"
@@ -127,7 +134,7 @@ def dashboard_rows(live_server):
 
     yield
 
-    conn = sqlite3.connect(TEST_DB)
+    conn = sqlite3.connect(_db())
     cur = conn.cursor()
     cur.execute("DELETE FROM initiatives WHERE id IN (901, 902, 903, 904)")
     cur.execute("DELETE FROM activities WHERE id IN (901, 902, 903, 905)")
@@ -213,7 +220,7 @@ def _await_dashboard(page: Page):
 
 
 def _dashboard(page: Page):
-    page.goto("http://localhost:8055")
+    page.goto("/")
     return _await_dashboard(page)
 
 
@@ -448,8 +455,21 @@ def test_card_edit_opens_the_generic_editor(page: Page):
     expect(page.locator("#dashboard-detail-modal")).to_be_hidden()
 
 
-def test_view_as_control_is_hidden_for_non_admins(page: Page):
+def test_view_as_control_is_hidden_for_non_admins(page: Page, monkeypatch):
+    """
+    The control starts hidden in the served layout and is revealed by a
+    callback, so asserting "hidden" without making the user a non-admin passes
+    only by winning a race against that callback — and the dev user is in
+    ADMIN_EMAILS on most machines. Patch the list so this tests what it says.
+    """
+    from pantograph import admin_routes
+
+    monkeypatch.setattr(admin_routes, "ADMIN_EMAILS", [])
+
     _dashboard(page)
+    # Give the reveal callback the chance it would need, so a pass means the
+    # control stayed hidden rather than that we looked too early.
+    page.wait_for_timeout(2000)
     expect(page.locator("#view-as-container")).to_be_hidden()
 
 

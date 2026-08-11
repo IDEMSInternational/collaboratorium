@@ -1,7 +1,7 @@
 from playwright.sync_api import Page, expect
 
 def test_add_element_form_opens(page: Page):
-    page.goto("http://localhost:8055")
+    page.goto("/")
     
     # Click 'Add Element'
     page.click("#btn-add-element")

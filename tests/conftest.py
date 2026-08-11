@@ -3,14 +3,19 @@ import os
 import sys
 import threading
 import sqlite3
+import shutil
+import tempfile
 import logging
 from werkzeug.serving import make_server
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
 
-TEST_DB = "test_database.db"
-TEST_ANALYTICS_DB = "test_analytics.db"
+# A directory of this run's own, so two suites running at once cannot read each
+# other's rows. Relative names collided for anything sharing a working directory.
+_DB_DIR = tempfile.mkdtemp(prefix="pantograph-tests-")
+TEST_DB = os.path.join(_DB_DIR, "test_database.db")
+TEST_ANALYTICS_DB = os.path.join(_DB_DIR, "test_analytics.db")
 
 # Point the app at the test databases before anything reads them. Paths are
 # resolved at call time now, so this no longer depends on import order.
@@ -26,6 +31,16 @@ config = load_config(settings.get_settings().config_path)
 app = create_app()
 
 @pytest.fixture(scope="session")
+def base_url(live_server):
+    """
+    Overrides pytest-playwright's own fixture, which otherwise comes from
+    --base-url. Naming it this means `page.goto("/")` resolves against the
+    server this run started, so no test carries a port.
+    """
+    return live_server
+
+
+@pytest.fixture(scope="session")
 def app_config():
     """The merged deployment config the app under test was built from."""
     return config
@@ -38,9 +53,16 @@ def dash_app():
 
 
 class ServerThread(threading.Thread):
-    def __init__(self, app, host='0.0.0.0', port=8055):
+    def __init__(self, app, host="127.0.0.1", port=0):
+        """
+        Port 0 lets the OS pick a free one. A fixed port made the suite
+        un-runnable twice at once anywhere on the machine: the second run bound
+        nothing and its browser tests silently drove the first run's app, backed
+        by a different database, failing differently every time.
+        """
         threading.Thread.__init__(self)
         self.server = make_server(host, port, app.server)
+        self.port = self.server.server_port
         self.ctx = app.server.app_context()
         self.ctx.push()
 
@@ -109,15 +131,10 @@ def live_server():
     conn.close()
     # ---------------------------------------------------------
 
-    server = ServerThread(app, port=8055)
+    server = ServerThread(app)
     server.start()
-    
-    yield 
-    
+
+    yield f"http://127.0.0.1:{server.port}"
+
     server.shutdown()
-    for f in [TEST_DB, TEST_ANALYTICS_DB]:
-        if os.path.exists(f):
-            try:
-                os.remove(f)
-            except PermissionError:
-                pass
+    shutil.rmtree(_DB_DIR, ignore_errors=True)

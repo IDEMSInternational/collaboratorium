@@ -39,7 +39,7 @@ STATE_MATRIX = [
 
 @pytest.mark.parametrize("view_id, tab_name, steps", STATE_MATRIX)
 def test_spreadsheet_pipeline_state_transitions(page: Page, view_id, tab_name, steps):
-    page.goto("http://localhost:8055")
+    page.goto("/")
 
     # The app lands on the Dashboard, so reach Explore before driving its filters
     page.locator("#nav-explore").click()

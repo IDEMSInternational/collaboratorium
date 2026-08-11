@@ -6,8 +6,8 @@ import dash_bootstrap_components as dbc
 
 from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
-from pantograph.component_factory import component_for_element, register_subform_blocks
-from pantograph import relevance, requirements
+from pantograph.component_factory import component_for_element, register_subform_blocks, wrap_provenance
+from pantograph import provenance, relevance, requirements
 
 
 # ==============================================================
@@ -27,12 +27,19 @@ def _get_max_id_from_cursor(cur, table_name):
 # ==============================================================
 
 
-def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None, title=None):
+def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None,
+                         title=None, provenances=None):
     """
     Generate a Dash form layout from a form config.
 
     initial_values pre-populates an add form, keyed by element name and using the
     same shapes an edit form would load (so a links element takes a list of ids).
+
+    provenances says where those values came from — {element_name: provenance
+    record}, see pantograph.provenance. It is a parallel map rather than a
+    wrapper around each value because several element types are already dict- or
+    list-valued, and a value that might or might not be a `{"value": ...}` box
+    would have to be unpicked in every one of them.
 
     title overrides the heading (e.g. "Add activity to <initiative>"). It's part
     of the form DOM, so it's set atomically when the form renders — no separate
@@ -42,12 +49,17 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
         record_data = get_latest_entry(form_name, forms_config, object_id)
     else:
         record_data = dict(initial_values or {})
+    provenances = provenances or {}
 
     elements = []
     for element_name, element_def in forms_config[form_name].get("elements", {}).items():
         val = record_data.get(element_name) if record_data else None
         element_def = {**element_def, "element_id": element_name}
         component = component_for_element(element_def, form_name=form_name, value=val)
+        # Wrapped inside the relevance container, so hiding an irrelevant
+        # element hides the claim about where its value came from too.
+        component = wrap_provenance(component, form_name, element_name,
+                                    provenances.get(element_name))
         if element_def.get("relevant"):
             # Only conditional elements are wrapped, so nothing about an
             # existing deployment's DOM changes.
@@ -93,6 +105,7 @@ def register_form_callbacks(app, config):
     register_click_callbacks(app, config)
     register_submit_callbacks(app, config.get("forms", {}))
     register_subform_blocks(app, config.get("forms", {}))
+    provenance.register_provenance_callbacks(app)
     relevance.register_relevance_callbacks(app, config.get("forms", {}))
     requirements.register_required_callbacks(app, config.get("forms", {}))
 
@@ -137,8 +150,8 @@ def register_click_callbacks(app, config):
         # If the table selector is the trigger, show the add form (explicit user choice)
         if trigger and trigger.startswith("table-selector"):
             if table_name:
-                values, title = _prefill_for(table_name, prefill)
-                return show_add_form(table_name, person_id, values, title)
+                values, title, provenances = _prefill_for(table_name, prefill)
+                return show_add_form(table_name, person_id, values, title, provenances)
             return "Select a table"
 
         if trigger and trigger.startswith("editor-request") and request:
@@ -150,8 +163,8 @@ def register_click_callbacks(app, config):
         # an unrelated event — the hash being cleared as the editor closes —
         # into an add form for whatever was last selected.
         if not trigger and table_name:
-            values, title = _prefill_for(table_name, prefill)
-            return show_add_form(table_name, person_id, values, title)
+            values, title, provenances = _prefill_for(table_name, prefill)
+            return show_add_form(table_name, person_id, values, title, provenances)
 
         return html.Div("Select a table or click an element to edit.")
 
@@ -170,6 +183,7 @@ def register_click_callbacks(app, config):
             return show_add_form(
                 request.get("table"), person_id,
                 request.get("values") or None, request.get("title"),
+                request.get("provenance") or None,
             )
         return html.Div("Select a table or click an element to edit.")
 
@@ -177,18 +191,22 @@ def register_click_callbacks(app, config):
     def _prefill_for(table_name, prefill):
         """
         A prefill only applies to the table it was requested for, so a stale
-        request can never leak into a different form. Returns (values, title).
+        request can never leak into a different form. Returns
+        (values, title, provenances).
         """
         if not isinstance(prefill, dict) or prefill.get("table") != table_name:
-            return None, None
-        return prefill.get("values") or None, prefill.get("title")
+            return None, None, None
+        return (prefill.get("values") or None, prefill.get("title"),
+                prefill.get("provenance") or None)
 
-    def show_add_form(table_name, person_id, initial_values=None, title=None):
+    def show_add_form(table_name, person_id, initial_values=None, title=None,
+                      provenances=None):
         if not table_name:
             return "Select a table"
         form_name = config["default_forms"][table_name]
         return login_required(generate_form_layout)(
-            form_name, forms_config=forms_config, initial_values=initial_values, title=title
+            form_name, forms_config=forms_config, initial_values=initial_values,
+            title=title, provenances=provenances,
         )
 
 
@@ -272,10 +290,15 @@ def register_submit_callbacks(app, forms_config):
             State({"type": "link-input", "table": ALL, "source_col": ALL, "target_col": ALL}, "id"),
             State({"type": "link-input", "table": ALL, "source_col": ALL, "target_col": ALL}, "value"),
             State("current-person-id", "data"),
+            # Matches nothing on a form whose values carry no provenance, which
+            # is every form that existed before provenance did.
+            State({"type": "provenance", "form": form_name, "element": ALL}, "data"),
+            State({"type": "provenance", "form": form_name, "element": ALL}, "id"),
             *state_args,
             prevent_initial_call=True,
         )
-        def handle_submit(n_clicks, link_ids, link_values, person_id, *values, _fc=fc):
+        def handle_submit(n_clicks, link_ids, link_values, person_id,
+                          provenance_data, provenance_ids, *values, _fc=fc):
             if n_clicks == 0:
                 return None, no_update, no_update
             
@@ -297,7 +320,10 @@ def register_submit_callbacks(app, forms_config):
 
             # The disabled submit button is a courtesy to the user, not a gate:
             # the client posts this callback directly and can send what it likes.
-            refusal = requirements.rejection_message(_fc, data)
+            # A value nobody here has stood behind does not answer the question,
+            # so the same check refuses it as refuses an empty one.
+            provenances = provenance.by_element(provenance_ids, provenance_data)
+            refusal = requirements.rejection_message(_fc, data, provenances=provenances)
             if refusal:
                 conn.close()
                 return html.Span(refusal, style={"color": "#dc3545"}), no_update, no_update

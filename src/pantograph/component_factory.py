@@ -4,7 +4,76 @@ import json
 from pantograph.visual_customization import dcl
 from pantograph.db import get_dropdown_options
 from pantograph.requirements import can_be_required
+from pantograph import provenance
 import dash_bootstrap_components as dbc
+
+
+# ==============================================================
+# PROVENANCE
+# ==============================================================
+
+# Amber and dashed, deliberately unlike the red left-border a required field
+# carries: "nobody has stood behind this yet" is a different claim from "this is
+# missing", and a user who cannot tell them apart cannot act on either.
+UNCONFIRMED_STYLE = {
+    'marginBottom': '15px', 'padding': '10px', 'borderRadius': '6px',
+    'border': '1px dashed #d39e00', 'backgroundColor': '#fff9e6',
+}
+# Once someone has signed for it the value is as good as typed, so the emphasis
+# goes but the origin stays on the record.
+CONFIRMED_STYLE = {'marginBottom': '15px', 'padding': '10px', 'borderRadius': '6px'}
+HIDDEN_CONTROL = {'display': 'none'}
+
+NOTE_STYLE = {'fontSize': '0.85em', 'color': '#856404'}
+
+
+def provenance_note(record):
+    """The origin line shown under a value, e.g. 'Suggested by run-4 (82% confidence)'."""
+    return provenance.describe(record)
+
+
+def wrap_provenance(component, form_name, element_id, record):
+    """
+    Put a value that came from somewhere else in a container that says so.
+
+    Only elements that actually carry a provenance are wrapped — an absent
+    provenance means "entered", so an existing form renders exactly the DOM it
+    rendered before. The store travels with the component so the submit callback
+    and the required-fields callback can both read it without core having to
+    thread provenance through every element type's rendering.
+
+    The confirm control appears only while the value is unconfirmed. There is no
+    "unconfirm": a signature that can be quietly withdrawn is not a signature,
+    and editing the value is the way to disown it.
+    """
+    record = provenance.normalise(record)
+    if record is None:
+        return component
+
+    confirmed = provenance.is_confirmed(record)
+    return html.Div(
+        [
+            component,
+            html.Div(
+                [
+                    html.Span(provenance.describe(record),
+                              id=provenance.note_id(form_name, element_id),
+                              style=NOTE_STYLE),
+                    dbc.Button(
+                        "Confirm",
+                        id=provenance.confirm_id(form_name, element_id),
+                        n_clicks=0, size="sm", color="warning", outline=True,
+                        className="ms-2 py-0",
+                        style=HIDDEN_CONTROL if confirmed else None,
+                    ),
+                ],
+                className="d-flex align-items-center mt-1",
+            ),
+            dcc.Store(id=provenance.store_id(form_name, element_id), data=record),
+        ],
+        id=provenance.container_id(form_name, element_id),
+        style=CONFIRMED_STYLE if confirmed else UNCONFIRMED_STYLE,
+    )
 
 
 # ==============================================================

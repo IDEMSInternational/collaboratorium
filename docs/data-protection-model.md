@@ -53,40 +53,73 @@ Grouping by any dimension yields a different register view, which is what
 
 So the decision is not "which hub" but **what is one row?**
 
-### The open question: grain
+### The grain: decided
 
-The grain must be the finest question the register will ever be asked. If
-"does deployment X share date-of-birth with organisation Y?" must be answerable,
-the grain is `(deployment, field, recipient)`. Coarser and it cannot be
-answered; finer and rows are created that nobody fills in.
+**`(scope, field, purpose, recipient, data subject category)`.**
 
-Worth testing against the questions actually received: a subject access request,
-a partner asking what is held on their behalf, and a regulator asking for
-Art. 30 all probe at different grains. The finest wins.
+Each dimension earned its place by a question that could not otherwise be
+answered in one hop:
 
-## Product and deployment are different things
+| dimension | the question that forced it |
+| --- | --- |
+| purpose | the same field is collected for two purposes under different lawful bases |
+| scope | two deployments of the same product treat the same field differently; and a subject access request may be scoped to one deployment or partner |
+| recipient | the same field and purpose can go to two recipients under different bases or safeguards — a domestic partner and a third-country one |
+| data subject category | the same field is collected from different categories of data subject under different terms |
 
-The same product is deployed many times — ParentApp Kenya, ParentApp Malaysia —
-and deployments share roughly 90% with the base, diverging in local variables
-and customised behaviour.
+Recipient and data subject category are modelled as **links**, not as text or a
+multi-select blob. Promoting a dimension into the grain later is mechanical if it
+was already a relationship, and a re-interpretation of every existing row if it
+was not.
 
-**Data fields are therefore defined once per product, not once per deployment.**
-The static analysis scans a codebase once and the inventory applies to every
-deployment of it. Modelling fields per deployment multiplies the work by the
-number of deployments for no gain.
+Cardinality is not the constraint it appears to be. Logical rows for a product
+with ~200 fields across ~12 deployments run to five figures, but stored rows are
+the scope defaults plus their exceptions — see below.
 
-A processing record attaches to the product by default and is inherited by every
-deployment, with per-deployment records only where reality diverges. Divergence
-comes in three kinds, and what is stored per deployment is a **status**, not a
-value:
+## Scope is a hierarchy, not two levels
 
-- **added** — a local variable the base does not have
-- **removed** — a base field this deployment does not collect
+The same product is deployed many times — ParentApp Kenya, ParentApp India — and
+deployments share roughly 90% with the base, diverging in local variables and
+customised behaviour. But a deployment is not the finest level either: within one
+deployment, separate **programs** can be entered through different joining
+triggers and collect different data. A state running hybrid delivery with
+in-person follow-ups collects things the fully-online national program does not.
+
+That is a third level of the same relationship, so scope is modelled as a **tree**
+rather than two fixed levels:
+
+    Product → Deployment → Program → …
+
+A processing record attaches at any level and is inherited by everything below
+it, overridden only where reality diverges. Two hardcoded levels would have been
+known-insufficient on arrival, and a fourth level — region, cohort — is
+plausible.
+
+Note that program membership is *not* a data subject category. The people are
+still parents; what differs is the program they entered through. Encoding
+delivery mode into the category vocabulary produces "parents (hybrid)" and
+"parents (online)", and the moment a second axis appears the categories multiply
+combinatorially. Data subject category remains its own dimension — staff,
+beneficiaries, facilitators genuinely differ — but it is not the home for this.
+
+**Data fields are defined once at the product level, not per deployment.** The
+static analysis scans a codebase once and its inventory applies to every scope
+beneath it. Modelling fields per deployment multiplies the work by the number of
+deployments for no gain.
+
+What a scope stores per field is a **status**, not a value:
+
+- **added** — a local variable the parent scope does not have
+- **removed** — a field this scope does not collect, because the feature is off
 - **overridden** — same field, different purpose, recipient or retention
 
 Removal matters as much as addition. A register claiming a deployment processes
 biometrics when that feature is switched off is wrong in the direction that
 costs credibility.
+
+The tree also gives the fingerprint comparison (#81) a natural traversal: compare
+a program against its deployment, and a deployment against its product, rather
+than against every assessed field everywhere.
 
 ## Justifications are entities, not text fields
 

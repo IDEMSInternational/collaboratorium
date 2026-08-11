@@ -105,14 +105,92 @@ An editor request or a `form-prefill` store carries it under a `provenance` key,
 so a page that wants to open a prefilled form — a scope inheriting from its
 parent, an ingested suggestions file — needs no change in core.
 
-## Limits
+## Where it is stored
 
-**Provenance is not yet persisted.** It survives from prefill through rendering,
-confirmation and the submit gate, but the record tables have a column per
-element and nowhere to put it, so what is saved is the value alone. An
-unconfirmed value on an *optional* field is therefore stored as though it had
-been entered. Giving provenance a home in the schema is the next piece of work,
-and until it lands the export cannot show provenance either.
+A table of its own, one row per value that somebody did not simply type:
+
+```
+provenance(record_table, record_id, record_version, element,
+           source, origin, confidence, confirmed_by, confirmed_at)
+```
+
+Core creates it, on every start rather than only for a fresh database —
+provenance arrived after the deployments did, and the ones with records to
+defend are exactly the ones that already have a database.
+
+The record tables have a column per element and no home for a record *about* a
+value. Three shapes were considered:
+
+| shape | why not |
+| --- | --- |
+| `<element>_provenance` per element | multiplies the schema, and a migration every time an element is added |
+| one JSON column per record | invisible to SQL, and visible to everything that does `SELECT *` |
+| a table beside the record | the join, and the usual risk of drifting from the row |
+
+The JSON column is the tempting one — it rides along on the row for free, and
+the row is the version. What rules it out is not the awkward SQL but the
+`SELECT *`: the graph builds node properties from every column, and the
+spreadsheet builds a grid column from every column, so a deployment that has
+never supplied a provenance would start seeing a column of raw JSON. Being
+invisible to a deployment that does not use it is the promise the whole
+mechanism is built on.
+
+The drift objection to a side table does not survive keying on the **version**.
+The schema is append-only, so a saved row never changes; provenance written
+against `(id, version)` in the same transaction as that row cannot come to
+describe a value that has moved on. It needs no id or version discipline of its
+own, because it borrows the record's. And the columns are columns rather than a
+blob, so the question the mechanism exists to answer stays a query:
+
+```sql
+SELECT record_table, record_id, element FROM provenance WHERE confirmed_by IS NULL
+```
+
+`origin` is the `from` key, stored JSON-encoded: core does not interpret it, and
+a scope id, an `[assessment_id, version]` pair and an analysis run id are not
+the same type. Only one encoding round-trips all three.
+
+An **absent row means "entered"**, exactly as an absent record does in memory.
+Nothing is written for a value a human typed, so the table stays empty for a
+deployment that never supplies a provenance, and every record written before any
+of this existed reads back exactly as it did.
+
+## Editing a value disowns its origin
+
+A value a human has since rewritten was entered, whatever record travelled with
+it on the page. Confirming is not retyping, and retyping is not confirming — so
+on save, a provenance whose value has changed since the version being replaced
+is dropped rather than stored. Before persistence this did not much matter,
+because a stale claim died with the page; now it would be written into the
+register as a standing assertion that a model wrote prose a person typed.
+
+Doubt keeps the provenance rather than clearing it. Dropping it asserts "a
+human typed this", which is the claim nothing here may make by accident, so only
+values that compare exactly — text against text, a number against the number in
+the column — are ever judged to have changed. A checkbox's `True` against the
+`1` in its column, or a subform's dict against the JSON string it was stored as,
+differ in their spelling alone, and those keep what they had.
+
+## What the export shows
+
+Where a value came from is appended to the value, not gathered into a footnote:
+
+    ## Newsletter signup
+
+    to keep participants informed _[Suggested by run-4 (82% confidence), not confirmed]_
+
+A reader who has to look elsewhere to learn that nobody stood behind a purpose
+will read that purpose as asserted, and the export is the artefact a regulator
+is handed. The annotation is matched on the record's version as well as its id,
+so a report rendered from an older version never borrows a newer one's claims.
+
+## Limits
 
 **A subform's fields cannot carry one.** A subform renders its inputs under its
 own form namespace, the same limit `relevant:` has.
+
+**A links element's provenance survives an edit to it.** Link values are stored
+in a link table and read back as an unordered list, which does not compare
+exactly, so editing one leaves the origin note in place rather than risking a
+false claim of authorship. It stays unconfirmed, and the edit form still shows
+it.

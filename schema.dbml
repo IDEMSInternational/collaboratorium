@@ -203,6 +203,28 @@ Table tags {
   }
 }
 
+// Where a value came from, and whether anyone here stood behind it.
+// Created by core rather than by a deployment's config, like the analytics
+// tables: the mechanism is core's, so no deployment has to declare it.
+// One row per value that somebody did not simply type — an absent row means
+// "entered". Keyed on the record's version, not just its id: the schema is
+// append-only, so a saved row never changes and its provenance can never come
+// to describe a value that has moved on.
+Table provenance {
+  record_table string
+  record_id integer
+  record_version integer
+  element string
+  source string // entered, inherited, cited, suggested; null when unreadable
+  origin string // JSON: a scope id, an [assessment_id, version] pair, a run id
+  confidence real
+  confirmed_by string
+  confirmed_at timestamp
+  indexes {
+    (record_table, record_id, record_version, element) [pk]
+  }
+}
+
 Ref: initiatives.responsible_person > people.id
 Ref: contracts.responsible_person > people.id
 Ref: contracts.organisation_person > people.id

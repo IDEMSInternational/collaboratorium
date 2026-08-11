@@ -30,7 +30,11 @@ satisfy a `required:` element, and it carries a control to confirm it. For a
 compliance record that is not a nicety — a register that cannot distinguish "a
 model inferred this purpose" from "the controller asserted this purpose" is not
 a defensible record.
+
+It is stored in a table of its own, keyed by the record row it describes — see
+"Persistence" below.
 """
+import json
 from datetime import datetime
 
 from dash import MATCH, Input, Output, State, no_update
@@ -201,6 +205,155 @@ def unconfirmed(provenances, element_ids=None):
     candidates = (provenances or {}) if element_ids is None else element_ids
     return {element_id for element_id in candidates
             if not is_confirmed((provenances or {}).get(element_id))}
+
+
+# --------------------------------------------------------------------------
+# Persistence
+# --------------------------------------------------------------------------
+#
+# Provenance is stored in a table of its own, one row per
+# (record table, record id, record version, element). The record tables have a
+# column per element and no home for a record *about* a value, and the two
+# alternatives cost more than they save. A `<element>_provenance` column per
+# element multiplies the schema and needs a migration every time an element is
+# added. A JSON column per record is invisible to SQL and visible to everything
+# that does `SELECT *` — the graph's node properties and the spreadsheet grid
+# would both start showing a column of raw JSON to deployments that have never
+# supplied a provenance, which is exactly the difference they are promised not
+# to see.
+#
+# Keying on the *version* is what makes the usual objection to a side table —
+# that it can come to disagree with the row it annotates — not apply. The schema
+# is append-only, so a saved row never changes; provenance written against
+# (id, version) in the same transaction as that row can never come to describe a
+# value that has since moved on. It needs no id or version discipline of its own
+# because it borrows the record's.
+#
+# The columns are the record's five fields rather than a blob, so the question
+# this whole mechanism exists to answer stays a query: every value in the
+# register nobody has stood behind is `WHERE confirmed_by IS NULL`.
+
+FIELDS = ("source", "origin", "confidence", "confirmed_by", "confirmed_at")
+
+
+def to_fields(raw):
+    """
+    A provenance record as the columns it is stored in, or None when there is
+    nothing to store.
+
+    None means "entered", and an absent row already says that, so nothing is
+    written for a value a human typed. That is what keeps the table empty — and
+    every existing deployment untouched — until something supplies a provenance.
+    """
+    provenance = normalise(raw)
+    if provenance is None:
+        return None
+    return (provenance["source"], _dump(provenance["from"]),
+            provenance["confidence"], provenance["confirmed_by"],
+            provenance["confirmed_at"])
+
+
+def from_fields(source, origin, confidence, confirmed_by, confirmed_at):
+    """The record those columns came from."""
+    origin = _load(origin)
+    if source is None:
+        # What could not be read when it was stored is still unreadable, and
+        # still unconfirmed. Round-tripping it into "a human typed this" is the
+        # one outcome this module refuses.
+        return record_of_unknown_source(origin)
+    return normalise({"source": source, "from": origin, "confidence": confidence,
+                      "confirmed_by": confirmed_by, "confirmed_at": confirmed_at})
+
+
+def _dump(origin):
+    """
+    `from` is stored JSON-encoded because core does not interpret it: a scope
+    id, an `[assessment_id, version]` pair and an analysis run id are not the
+    same type, and only one encoding round-trips all three.
+    """
+    if origin is None:
+        return None
+    try:
+        return json.dumps(origin)
+    except (TypeError, ValueError):
+        return json.dumps(str(origin))
+
+
+def _load(origin):
+    """A hand-edited row that is not JSON is read as the text it is."""
+    if origin is None:
+        return None
+    try:
+        return json.loads(origin)
+    except (TypeError, ValueError):
+        return origin
+
+
+_MISSING = object()
+
+
+def surviving_edits(provenances, previous_values, values):
+    """
+    The provenances still true of the values about to be saved.
+
+    A value a human has since rewritten was *entered*, whatever the record
+    travelling with it on the page still says. Confirming is not retyping, and
+    retyping is not confirming: editing a value is how you disown its origin.
+    Persistence is what makes this matter — before it, a stale claim died with
+    the page; now it would be written into the register as a standing assertion
+    that a model wrote prose a person typed.
+
+    Doubt is resolved by *keeping* the provenance. Dropping it asserts "a human
+    typed this", which is the claim nothing here may make by accident, so a
+    value whose shape cannot be compared exactly keeps what it had.
+    """
+    previous_values = previous_values or {}
+    values = values or {}
+    return {element: raw for element, raw in (provenances or {}).items()
+            if not _changed(previous_values.get(element, _MISSING),
+                            values.get(element))}
+
+
+def _changed(before, after):
+    before, after = _comparable(before), _comparable(after)
+    return before is not None and after is not None and before != after
+
+
+def _comparable(value):
+    """
+    A value as text, or None when this shape cannot be compared honestly.
+
+    A subform's dict against the JSON string it was stored as, or a checkbox's
+    True against the 1 in the column, would differ on their spelling alone — and
+    a false difference here quietly claims authorship of someone else's value.
+    Prose is where the risk actually lives, and prose compares exactly.
+    """
+    if value is _MISSING:
+        return None
+    if value is None:
+        return ""
+    if isinstance(value, bool):
+        return None
+    if isinstance(value, (str, int, float)):
+        return str(value)
+    return None
+
+
+def annotation(raw):
+    """
+    Where a value came from, as it reads in an exported report, or "" when there
+    is nothing to say.
+
+    Appended to the value rather than gathered into a footnote: a reader who has
+    to look elsewhere to learn that nobody stood behind a purpose will read that
+    purpose as asserted, and the export is the artefact a regulator is handed.
+    """
+    text = describe(raw)
+    if not text:
+        return ""
+    if not is_confirmed(raw):
+        text += ", not confirmed"
+    return f" _[{text}]_"
 
 
 # --------------------------------------------------------------------------

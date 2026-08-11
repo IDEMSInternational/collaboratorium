@@ -1,6 +1,6 @@
 from dash import html, dcc, Input, Output, State, ctx, ALL, no_update, MATCH
 from datetime import datetime
-from pantograph.db import db_connect, get_latest_entry
+from pantograph.db import db_connect, get_latest_entry, get_latest_record, get_provenance, save_provenance
 import json
 import dash_bootstrap_components as dbc
 
@@ -47,6 +47,13 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     """
     if object_id:
         record_data = get_latest_entry(form_name, forms_config, object_id)
+        if provenances is None:
+            # An edit form reopens the claim the record was saved with, so a
+            # value nobody stood behind is still unconfirmed a year later. A
+            # caller that passed its own provenances is describing values it
+            # also passed, and is not overruled by what is on disk.
+            provenances = get_provenance(forms_config[form_name]["default_table"],
+                                         object_id, record_data.get("version"))
     else:
         record_data = dict(initial_values or {})
     provenances = provenances or {}
@@ -309,6 +316,8 @@ def register_submit_callbacks(app, forms_config):
             element_ids = list(_fc["elements"].keys())
             data = dict(zip(element_ids + list(_fc["meta"].keys()), values))
 
+            provenances = provenance.by_element(provenance_ids, provenance_data)
+
             # An answer to a question that no longer applies is worse than no
             # answer -- a record claiming a legitimate-interest balancing test
             # when the basis has since become Consent would be actively
@@ -317,12 +326,14 @@ def register_submit_callbacks(app, forms_config):
             # previous answer stays in the record's history.
             for element_id in relevance.irrelevant_elements(_fc, data):
                 data[element_id] = None
+                # A claim about where an answer came from cannot outlive the
+                # answer it describes.
+                provenances.pop(element_id, None)
 
             # The disabled submit button is a courtesy to the user, not a gate:
             # the client posts this callback directly and can send what it likes.
             # A value nobody here has stood behind does not answer the question,
             # so the same check refuses it as refuses an empty one.
-            provenances = provenance.by_element(provenance_ids, provenance_data)
             refusal = requirements.rejection_message(_fc, data, provenances=provenances)
             if refusal:
                 conn.close()
@@ -333,7 +344,12 @@ def register_submit_callbacks(app, forms_config):
                 data["id"] = None
                 object_id = None
             is_new_object = object_id is None
-            
+
+            # Read before anything is written, so it is the version being
+            # replaced rather than the one about to be inserted.
+            previous_values = (None if is_new_object
+                               else get_latest_record(_fc["default_table"], object_id))
+
             out_msg = None
             if is_new_object:
                 new_id = _get_max_id_from_cursor(cur, _fc["default_table"]) + 1
@@ -374,7 +390,14 @@ def register_submit_callbacks(app, forms_config):
                     vals[i] = int(v)
             cur.execute(f'INSERT INTO "{_fc["default_table"]}" ({cols_sql}) VALUES ({placeholders})', vals)
 
-            
+            # Same cursor, so the row and where its values came from commit
+            # together. Keyed on the version just written, which is what makes
+            # the record and its provenance one immutable pair.
+            save_provenance(
+                cur, _fc["default_table"], object_id, data['version'],
+                provenance.surviving_edits(provenances, previous_values, data),
+            )
+
             extra_elements = [element for element in data.keys() if element not in cols_sql_ls]
             # Part 2: Handle the Link Table Updates
             for element in extra_elements:

@@ -1,6 +1,7 @@
 import re
 import json
-from pantograph.db import get_dropdown_options, get_relation_links
+from pantograph import provenance
+from pantograph.db import get_all_provenance, get_dropdown_options, get_relation_links
 
 def format_subform_data(val_str):
     """Attempts to parse JSON subform data and format it cleanly into Markdown."""
@@ -37,6 +38,21 @@ def format_subform_data(val_str):
     except (json.JSONDecodeError, TypeError):
         return str(val_str)
 
+def _provenance_for(node, provenance_by_row):
+    """
+    The provenance stored against the exact row this node was built from.
+
+    Matched on the version as well as the id, so a report rendered from an older
+    version never borrows the newer version's claims.
+    """
+    properties = node.get('properties', {}) or {}
+    try:
+        record_id = int(str(node['id']).split('-')[-1])
+        version = int(properties.get('version'))
+    except (TypeError, ValueError):
+        return {}
+    return provenance_by_row.get((node['type'], record_id, version), {})
+
 def generate_markdown_report(report_cfg, elements):
     """Takes the YAML configuration and filtered Graph elements to yield a Markdown report."""
     nodes_dict = {e['data']['id']: e['data'] for e in elements if 'source' not in e['data']}
@@ -47,6 +63,10 @@ def generate_markdown_report(report_cfg, elements):
     
     # Query all active relationship links securely processed through the database layer
     act_people_df = get_relation_links('activity_people_links', 'activity_id', 'person_id')
+
+    # The export is the artefact a regulator is handed, so it has to say which
+    # of its assertions anyone here actually made.
+    provenance_by_row = get_all_provenance()
 
     adj = {}
     for e in edges:
@@ -84,11 +104,18 @@ def generate_markdown_report(report_cfg, elements):
             names = [people_map[pid] for pid in p_ids if pid in people_map]
             format_dict['linked_people'] = ", ".join(names) if names else "None"
 
+        row_provenance = _provenance_for(node, provenance_by_row)
+
         def safe_replace(match):
             key = match.group(1)
             val = format_dict.get(key, "")
-            return str(val) if val is not None else ""
-        
+            text = str(val) if val is not None else ""
+            if not text:
+                # A bare origin note against an empty value says less than it
+                # implies, so there is nothing to annotate.
+                return text
+            return text + provenance.annotation(row_provenance.get(key))
+
         md = re.sub(r'\{([A-Za-z0-9_]+)\}', safe_replace, template)
             
         children_cfg = level_cfg.get("children", [])

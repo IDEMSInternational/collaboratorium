@@ -1,0 +1,505 @@
+# Form definitions for the register's dimensions and supporting entities.
+# The fact table's form lives in forms_records.yaml. Element types and
+# appearance follow ODK conventions.
+#
+# Split across two files because config files are merged on their top-level
+# keys, and one file holding both the dimension forms and a forty-element fact
+# form is the discomfort that motivated the directory form in the first place.
+# Note that YAML anchors do not cross files, so the status element is defined
+# once per file.
+
+forms:
+
+  scopes_form:
+    label: Scopes
+    default_table: scopes
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      level:
+        type: select_one
+        label: Level
+        list_name: level_list
+        level_list:
+          product: Product
+          deployment: Deployment
+          program: Program
+          cohort: Cohort
+        required: true
+      # A product is the root, so its parent is blank; everything else must sit
+      # under something, or it is invisible to inheritance.
+      parent_scope:
+        type: select_one
+        appearance: dropdown
+        label: Parent Scope
+        parameters:
+          source_table: scopes
+          value_column: id
+          label_column: name
+        relevant: "${level} != 'product'"
+        required: "${level} != 'product'"
+      jurisdiction:
+        type: string
+        label: Jurisdiction
+      description:
+        type: string
+        label: Description
+        appearance: multiline
+      status: &status_form_config
+        type: select_one
+        label: Status
+        status_list:
+          - active
+          - deleted
+        list_name: status_list
+        default: active
+    meta: &record_meta
+      id:
+        strategy: uuid
+        editable: false
+      version:
+        strategy: increment
+      timestamp:
+        strategy: now
+      created_by:
+        strategy: current_user
+
+  data_fields_form:
+    label: Data Fields
+    default_table: data_fields
+    elements:
+      name:
+        type: string
+        label: Column Name
+        required: true
+      # The dropdown offers every scope; only a product-level one is correct.
+      # There is no way to filter a select_one's source table in config.
+      product:
+        type: select_one
+        appearance: dropdown
+        label: Product
+        required: true
+        parameters:
+          source_table: scopes
+          value_column: id
+          label_column: name
+      question_text:
+        type: string
+        label: Question As Asked
+        appearance: multiline
+      data_type:
+        type: select_one
+        label: Data Type
+        list_name: data_type_list
+        data_type_list:
+          text: Text
+          number: Number
+          date: Date
+          boolean: Boolean
+          media: Photo / audio / video
+          location: Location
+      category:
+        type: select_one
+        label: Category Of Personal Data
+        list_name: category_list
+        category_list:
+          identifier: Identifier
+          contact: Contact details
+          demographic: Demographic
+          behavioural: Behavioural / usage
+          content: User-generated content
+          financial: Financial
+          special: Special category
+        required: true
+      # Asked here as well as on the record because Art. 9 is a property of the
+      # field, and the record's own gate cannot read it across the link.
+      special_category:
+        type: select_one
+        label: Special Category Data
+        list_name: yes_no_list
+        yes_no_list: &yes_no_list
+          'yes': 'Yes'
+          'no': 'No'
+      special_category_type:
+        type: select_one
+        label: Which Special Category
+        list_name: article_9_list
+        article_9_list: &article_9_list
+          racial_ethnic: Racial or ethnic origin
+          political: Political opinions
+          religious: Religious or philosophical beliefs
+          trade_union: Trade union membership
+          genetic: Genetic data
+          biometric: Biometric data
+          health: Health
+          sex_life: Sex life
+          sexual_orientation: Sexual orientation
+        relevant: "${special_category} = 'yes'"
+        required: "${special_category} = 'yes'"
+      origin:
+        type: select_one
+        label: Where It Comes From
+        list_name: origin_list
+        origin_list:
+          subject: Given by the data subject
+          observed: Observed by the system
+          derived: Derived or inferred
+          third_party: Received from a third party
+      description:
+        type: string
+        label: Notes
+        appearance: multiline
+      status: *status_form_config
+    meta: *record_meta
+
+  purposes_form:
+    label: Purposes
+    default_table: purposes
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      description:
+        type: string
+        label: Description
+        appearance: multiline
+        required: true
+      status: *status_form_config
+    meta: *record_meta
+
+  data_subject_categories_form:
+    label: Data Subject Categories
+    default_table: data_subject_categories
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      description:
+        type: string
+        label: Description
+        appearance: multiline
+      # Children shift the balance of a legitimate-interest test, so whether a
+      # category includes them is asked once here rather than argued per record.
+      includes_children:
+        type: select_one
+        label: Includes Children
+        list_name: yes_no_list
+        yes_no_list: *yes_no_list
+      vulnerability_note:
+        type: string
+        label: Vulnerability Note
+        appearance: multiline
+        relevant: "${includes_children} = 'yes'"
+        required: "${includes_children} = 'yes'"
+      status: *status_form_config
+    meta: *record_meta
+
+  organisations_form:
+    label: Organisations
+    default_table: organisations
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      country:
+        type: string
+        label: Country
+        required: true
+      # Standing, not country, decides whether a transfer needs a safeguard, and
+      # an adequacy decision can be revoked without the country changing.
+      transfer_standing:
+        type: select_one
+        label: Transfer Standing
+        list_name: standing_list
+        standing_list:
+          uk_eea: UK or EEA
+          adequacy: Covered by an adequacy decision
+          third_country: Third country
+        required: true
+      description:
+        type: string
+        label: Description
+        appearance: multiline
+      contact_person:
+        type: select_one
+        appearance: dropdown
+        label: Contact Person
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+      people_links:
+        type: select_multiple
+        appearance: dropdown
+        label: Linked People
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+        store:
+          link_table: organisation_people_links
+          source_field: organisation_id
+          target_field: person_id
+          orientation: forward
+      status: *status_form_config
+    meta: *record_meta
+
+  people_form:
+    label: People
+    default_table: people
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      role:
+        type: string
+        label: Role
+      email:
+        type: email
+        label: Email
+      organisations_links:
+        type: select_multiple
+        appearance: dropdown
+        label: Linked Organisations
+        parameters:
+          source_table: organisations
+          value_column: id
+          label_column: name
+        store:
+          link_table: organisation_people_links
+          source_field: person_id
+          target_field: organisation_id
+          orientation: forward
+      status: *status_form_config
+    meta: *record_meta
+
+  agreements_form:
+    label: Agreements
+    default_table: agreements
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      counterparty:
+        type: select_one
+        appearance: dropdown
+        label: Counterparty
+        required: true
+        parameters:
+          source_table: organisations
+          value_column: id
+          label_column: name
+      agreement_type:
+        type: select_one
+        label: Type
+        list_name: agreement_type_list
+        agreement_type_list:
+          controller_processor: Controller to processor (Art. 28)
+          joint_controller: Joint controller (Art. 26)
+          controller_controller: Controller to controller
+          transfer: Transfer instrument (SCCs / IDTA)
+        required: true
+      reference_url:
+        type: url
+        label: Where The Signed Copy Lives
+      signed_date:
+        type: date
+        label: Signed
+      end_date:
+        type: date
+        label: Ends
+      responsible_person:
+        type: select_one
+        appearance: dropdown
+        label: Responsible Person
+        required: true
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+      description:
+        type: string
+        label: Description
+        appearance: multiline
+      status: *status_form_config
+    meta: *record_meta
+
+  justifications_form:
+    label: Justifications
+    default_table: justifications
+    elements:
+      name:
+        type: string
+        label: Short Title
+        required: true
+      # One vocabulary rather than one table per kind: the deduplication the
+      # register needs is the same mechanism for a balancing test, a security
+      # description and a transfer safeguard.
+      kind:
+        type: select_one
+        label: Kind
+        list_name: kind_list
+        kind_list:
+          lia_purpose: LIA — purpose test
+          lia_necessity: LIA — necessity test
+          lia_balancing: LIA — balancing test
+          consent_mechanism: Consent mechanism
+          security_measures: Security measures
+          retention_justification: Retention justification
+          transfer_safeguard: Transfer safeguard
+        required: true
+      text:
+        type: text
+        label: Text
+        appearance: multiline
+        required: true
+      author:
+        type: select_one
+        appearance: dropdown
+        label: Author
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+      approved_date:
+        type: date
+        label: Approved
+      status: *status_form_config
+    meta: *record_meta
+
+  assessments_form:
+    label: Assessments
+    default_table: assessments
+    elements:
+      name:
+        type: string
+        label: Name
+        required: true
+      lawful_basis:
+        type: select_one
+        label: Basis Assessed
+        list_name: basis_list
+        basis_list: &basis_list
+          consent: Consent
+          contract: Contract
+          legal_obligation: Legal obligation
+          vital_interests: Vital interests
+          public_task: Public task
+          legitimate_interest: Legitimate interest
+        required: true
+      # The three written parts of a legitimate-interest test are independently
+      # reusable; this form is what binds one of each into the combination that
+      # was actually reviewed. The dropdowns list every justification, of every
+      # kind, because a source table cannot be filtered in config.
+      purpose_justification:
+        type: select_one
+        appearance: dropdown
+        label: Purpose Test
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+        required: "${lawful_basis} = 'legitimate_interest'"
+      # Pinned by hand. links: maps one column to one column, so the citation
+      # cannot be declared as a composite (id, version) foreign key, and nothing
+      # in the form engine offers the version of the row you just picked.
+      purpose_justification_version:
+        type: integer
+        label: Purpose Test Version
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+      necessity_justification:
+        type: select_one
+        appearance: dropdown
+        label: Necessity Test
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+        required: "${lawful_basis} = 'legitimate_interest'"
+      necessity_justification_version:
+        type: integer
+        label: Necessity Test Version
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+      balancing_justification:
+        type: select_one
+        appearance: dropdown
+        label: Balancing Test
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+        required: "${lawful_basis} = 'legitimate_interest'"
+      balancing_justification_version:
+        type: integer
+        label: Balancing Test Version
+        relevant: "${lawful_basis} = 'legitimate_interest'"
+      reviewer:
+        type: select_one
+        appearance: dropdown
+        label: Reviewer
+        required: true
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+      review_date:
+        type: date
+        label: Reviewed
+        required: true
+      # "Accept the divergence and record why" is a first-class outcome, not a
+      # failure: it is the reasoning a regulator asks for and the thing that
+      # otherwise never gets written down.
+      outcome:
+        type: select_one
+        label: Outcome
+        list_name: outcome_list
+        outcome_list:
+          approved: Approved
+          approved_with_conditions: Approved with conditions
+          divergence_accepted: Divergence from a prior assessment accepted
+          rejected: Rejected
+        required: true
+      conditions:
+        type: text
+        label: Conditions Or Accepted Divergence
+        appearance: multiline
+        relevant: "${outcome} = 'approved_with_conditions' or ${outcome} = 'divergence_accepted'"
+        required: "${outcome} = 'approved_with_conditions' or ${outcome} = 'divergence_accepted'"
+      status: *status_form_config
+    meta: *record_meta
+
+  organisation_people_links_form:
+    label: Organisation People Links
+    default_table: organisation_people_links
+    elements:
+      organisation_id:
+        type: select_one
+        appearance: dropdown
+        label: Organisation
+        parameters:
+          source_table: organisations
+          value_column: id
+          label_column: name
+      person_id:
+        type: select_one
+        appearance: dropdown
+        label: Person
+        parameters:
+          source_table: people
+          value_column: id
+          label_column: name
+      type:
+        type: string
+        label: Type
+      status: *status_form_config
+    meta: *record_meta

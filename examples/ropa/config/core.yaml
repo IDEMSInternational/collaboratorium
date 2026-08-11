@@ -1,0 +1,15 @@
+# Deployment identity and which pages it mounts.
+#
+# The register is a separate deployment on the same framework, not a plugin
+# inside Collaboratorium: separate server, schema and database. It therefore
+# defines its own organisations, agreements and people, which resemble
+# Collaboratorium's tables but are not shared with them.
+
+title: Records of Processing
+editor_layout: 'modal'
+# Only Explore is mounted. The dashboard plugin declares requires_tables over
+# Collaboratorium's activities and initiatives, so naming it here would fail at
+# startup — which is the check working, not a gap.
+plugins:
+- id: explore
+  landing: true

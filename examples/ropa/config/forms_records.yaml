@@ -1,0 +1,402 @@
+# The fact table's form: one row of the register, at the decided grain.
+#
+# Every element below `disposition` repeats `${disposition} != 'removed'` in its
+# condition. That is not style — there is no group with a shared `relevant:`,
+# and `relevant:` on a subform is rejected because a subform's state has no path
+# back to the parent form. Until one of those exists, a condition covering a
+# block of questions has to be written on every question in the block, and an
+# edit to it has to be made in every copy.
+
+forms:
+
+  processing_records_form:
+    label: Processing Records
+    default_table: processing_records
+    elements:
+      # A five-dimensional fact has no natural name, and both the graph label
+      # and every dropdown that cites this row read one column. So the name is
+      # typed by hand and will drift from the dimensions it describes; there is
+      # no derived or templated column in the dialect.
+      name:
+        type: string
+        label: Record Name
+        required: true
+
+      # --- The grain -----------------------------------------------------
+      scope:
+        type: select_one
+        appearance: dropdown
+        label: Scope
+        required: true
+        parameters:
+          source_table: scopes
+          value_column: id
+          label_column: name
+      # Offered from every product's inventory; nothing constrains this to a
+      # field belonging to the product above the chosen scope.
+      data_field:
+        type: select_one
+        appearance: dropdown
+        label: Data Field
+        required: true
+        parameters:
+          source_table: data_fields
+          value_column: id
+          label_column: name
+      purpose:
+        type: select_one
+        appearance: dropdown
+        label: Purpose
+        required: true
+        parameters:
+          source_table: purposes
+          value_column: id
+          label_column: name
+      data_subject_category:
+        type: select_one
+        appearance: dropdown
+        label: Category Of Data Subject
+        required: true
+        parameters:
+          source_table: data_subject_categories
+          value_column: id
+          label_column: name
+
+      # --- What this row asserts about that grain -------------------------
+      # Absence of a row means the scope inherits from its parent, so a scope
+      # that switched a feature off has to say so explicitly. A removal carries
+      # its reason and nothing else: every Art. 30 question below is cleared to
+      # NULL, which is what the relevance rules do on submit.
+      disposition:
+        type: select_one
+        label: This Scope
+        list_name: disposition_list
+        disposition_list:
+          declared: Processes this, as stated here
+          overridden: Processes this differently from its parent scope
+          removed: Does not process this
+        default: declared
+        required: true
+      removal_reason:
+        type: string
+        label: Why Not Processed Here
+        appearance: multiline
+        relevant: "${disposition} = 'removed'"
+        required: "${disposition} = 'removed'"
+
+      # --- Recipient ------------------------------------------------------
+      # The role sits on the record, not on the organisation: the same body is
+      # a processor on one flow and a separate controller on another, and a role
+      # stored once per organisation would have to be wrong for one of them.
+      recipient_role:
+        type: select_one
+        label: Recipient Role
+        list_name: recipient_role_list
+        recipient_role_list:
+          internal: Internal — not disclosed outside the controller
+          processor: Processor
+          joint_controller: Joint controller
+          separate_controller: Separate controller
+          public_authority: Public authority
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed'"
+      # `${recipient_role} and ...` guards the unanswered case: an empty answer
+      # is not equal to 'internal', so without it this appears before the role
+      # has been picked.
+      recipient:
+        type: select_one
+        appearance: dropdown
+        label: Recipient
+        parameters:
+          source_table: organisations
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed' and ${recipient_role} and ${recipient_role} != 'internal'"
+        required: "${disposition} != 'removed' and ${recipient_role} and ${recipient_role} != 'internal'"
+      # Art. 28 requires a contract with a processor. The other external roles
+      # usually have one, so it is offered but not demanded.
+      agreement:
+        type: select_one
+        appearance: dropdown
+        label: Under Agreement
+        parameters:
+          source_table: agreements
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed' and ${recipient_role} and ${recipient_role} != 'internal'"
+        required: "${disposition} != 'removed' and ${recipient_role} = 'processor'"
+
+      # --- Lawful basis and its conditional follow-ups --------------------
+      lawful_basis:
+        type: select_one
+        label: Lawful Basis
+        list_name: basis_list
+        basis_list:
+          consent: Consent
+          contract: Contract
+          legal_obligation: Legal obligation
+          vital_interests: Vital interests
+          public_task: Public task
+          legitimate_interest: Legitimate interest
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed'"
+      # Consent: how it was obtained, and how it can be taken back. Art. 7(3)
+      # makes withdrawal as easy as giving it, so the method is not optional.
+      consent_mechanism:
+        type: select_one
+        appearance: dropdown
+        label: Consent Mechanism
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'consent'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'consent'"
+      consent_withdrawal_method:
+        type: string
+        label: How Consent Is Withdrawn
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'consent'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'consent'"
+      contract_reference:
+        type: string
+        label: Which Contract, And Why This Is Necessary For It
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'contract'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'contract'"
+      legal_obligation_reference:
+        type: string
+        label: The Obligation, And Where It Is Written
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'legal_obligation'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'legal_obligation'"
+      vital_interests_note:
+        type: string
+        label: Whose Vital Interests, And In What Circumstances
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'vital_interests'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'vital_interests'"
+      public_task_reference:
+        type: string
+        label: The Task, And The Law That Confers It
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'public_task'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'public_task'"
+      # Legitimate interest cites an assessment, never three loose textareas: a
+      # register that merely could deduplicate will not. The create path is the
+      # editor's own "Add other..." over the assessments table.
+      assessment:
+        type: select_one
+        appearance: dropdown
+        label: Legitimate Interests Assessment
+        parameters:
+          source_table: assessments
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'legitimate_interest'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'legitimate_interest'"
+      objection_method:
+        type: string
+        label: How A Data Subject Objects
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${lawful_basis} = 'legitimate_interest'"
+        required: "${disposition} != 'removed' and ${lawful_basis} = 'legitimate_interest'"
+
+      # --- Article 9 -------------------------------------------------------
+      # Asked again here even though data_fields already records it, because a
+      # condition can only read elements of its own form: it cannot follow the
+      # data_field link to find out whether that field is special category.
+      special_category_data:
+        type: select_one
+        label: Special Category Data
+        list_name: yes_no_list
+        yes_no_list: &yes_no_list
+          'yes': 'Yes'
+          'no': 'No'
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed'"
+      article_9_condition:
+        type: select_one
+        label: Article 9 Condition
+        list_name: article_9_condition_list
+        article_9_condition_list:
+          explicit_consent: Explicit consent — 9(2)(a)
+          employment: Employment and social security — 9(2)(b)
+          vital_interests: Vital interests — 9(2)(c)
+          public_by_subject: Made public by the data subject — 9(2)(e)
+          legal_claims: Legal claims — 9(2)(f)
+          substantial_public_interest: Substantial public interest — 9(2)(g)
+          health_social_care: Health or social care — 9(2)(h)
+          public_health: Public health — 9(2)(i)
+          research: Archiving, research or statistics — 9(2)(j)
+        relevant: "${disposition} != 'removed' and ${special_category_data} = 'yes'"
+        required: "${disposition} != 'removed' and ${special_category_data} = 'yes'"
+      article_9_note:
+        type: string
+        label: Article 9 Note
+        appearance: multiline
+        relevant: "${disposition} != 'removed' and ${special_category_data} = 'yes'"
+
+      # --- Retention -------------------------------------------------------
+      # "Three years" is meaningless without "from what", so the trigger is its
+      # own answer rather than prose inside the period.
+      retention_trigger:
+        type: select_one
+        label: Retention Clock Starts At
+        list_name: retention_trigger_list
+        retention_trigger_list:
+          collection: Collection
+          last_contact: Last contact with the data subject
+          program_end: End of the program
+          agreement_end: End of the agreement
+          consent_withdrawn: Withdrawal of consent
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed'"
+      retention_indefinite:
+        type: select_one
+        label: Held Indefinitely
+        list_name: yes_no_list
+        yes_no_list: *yes_no_list
+        default: 'no'
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed'"
+      # Number and unit rather than free text, so that "what do we hold for more
+      # than five years" is a query rather than a reading exercise.
+      retention_period_value:
+        type: integer
+        label: Retention Period
+        relevant: "${disposition} != 'removed' and ${retention_indefinite} = 'no'"
+        required: "${disposition} != 'removed' and ${retention_indefinite} = 'no'"
+      retention_period_unit:
+        type: select_one
+        label: Retention Period Unit
+        list_name: retention_unit_list
+        retention_unit_list:
+          days: Days
+          months: Months
+          years: Years
+        default: years
+        relevant: "${disposition} != 'removed' and ${retention_indefinite} = 'no'"
+        required: "${disposition} != 'removed' and ${retention_indefinite} = 'no'"
+      # Offered whenever the row is live, demanded only when there is no end
+      # date — indefinite retention is the case that has to be argued.
+      retention_justification:
+        type: select_one
+        appearance: dropdown
+        label: Retention Justification
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed'"
+        required: "${disposition} != 'removed' and ${retention_indefinite} = 'yes'"
+
+      # --- Third-country transfer ------------------------------------------
+      # The organisation already records its transfer standing, and this asks
+      # the same question again for the same reason Art. 9 is asked again: a
+      # condition cannot read a column of a linked row.
+      transfer_outside_uk_eea:
+        type: select_one
+        label: Transferred Outside The UK / EEA
+        list_name: yes_no_list
+        yes_no_list: *yes_no_list
+        relevant: "${disposition} != 'removed' and ${recipient_role} and ${recipient_role} != 'internal'"
+        required: "${disposition} != 'removed' and ${recipient_role} and ${recipient_role} != 'internal'"
+      transfer_country:
+        type: string
+        label: Destination Country
+        relevant: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes'"
+        required: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes'"
+      transfer_mechanism:
+        type: select_one
+        label: Transfer Mechanism
+        list_name: transfer_mechanism_list
+        transfer_mechanism_list:
+          adequacy: Adequacy decision
+          sccs: Standard contractual clauses
+          idta: UK IDTA or Addendum
+          bcrs: Binding corporate rules
+          derogation: Art. 49 derogation
+        relevant: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes'"
+        required: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes'"
+      # An adequacy decision is the safeguard; everything else needs one written
+      # down. The `${transfer_mechanism} and` guard again keeps this hidden
+      # while the mechanism is unanswered.
+      transfer_safeguard:
+        type: select_one
+        appearance: dropdown
+        label: Transfer Safeguard
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        relevant: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes' and ${transfer_mechanism} and ${transfer_mechanism} != 'adequacy'"
+        required: "${disposition} != 'removed' and ${transfer_outside_uk_eea} = 'yes' and ${transfer_mechanism} and ${transfer_mechanism} != 'adequacy'"
+
+      notes:
+        type: string
+        label: Notes
+        appearance: multiline
+
+      status: &status_form_config
+        type: select_one
+        label: Status
+        status_list:
+          - active
+          - deleted
+        list_name: status_list
+        default: active
+
+      # Art. 30(1)(g) asks for measures, plural, so this is the one citation
+      # that is many-to-many. It carries no `relevant:`: an element with a
+      # `store:` writes to a link table rather than a column, and clearing an
+      # irrelevant answer to NULL has no meaning there.
+      security_measures:
+        type: select_multiple
+        appearance: dropdown
+        label: Security Measures
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+        store:
+          link_table: record_security_measure_links
+          source_field: record_id
+          target_field: justification_id
+          orientation: forward
+    meta: &record_meta
+      id:
+        strategy: uuid
+        editable: false
+      version:
+        strategy: increment
+      timestamp:
+        strategy: now
+      created_by:
+        strategy: current_user
+
+  record_security_measure_links_form:
+    label: Record Security Measure Links
+    default_table: record_security_measure_links
+    elements:
+      record_id:
+        type: select_one
+        appearance: dropdown
+        label: Processing Record
+        parameters:
+          source_table: processing_records
+          value_column: id
+          label_column: name
+      justification_id:
+        type: select_one
+        appearance: dropdown
+        label: Security Measure
+        parameters:
+          source_table: justifications
+          value_column: id
+          label_column: name
+      type:
+        type: string
+        label: Type
+      status: *status_form_config
+    meta: *record_meta

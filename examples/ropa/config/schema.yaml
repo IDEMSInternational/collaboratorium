@@ -1,0 +1,374 @@
+# The data model: tables, how they link, and which form edits each one.
+#
+# A star schema. `processing_records` is the fact, at the decided grain
+# (scope, field, purpose, recipient, data subject category); everything else is
+# a dimension it points at. Grouping the fact by any dimension yields a
+# different register view, which is what Explore's views: already do.
+
+tables:
+
+  # --- The grain's five dimensions -------------------------------------
+
+  # Scope is a tree — Product -> Deployment -> Program -> ... — not two fixed
+  # levels, because within one deployment separate programs are entered through
+  # different joining triggers and collect different data. A fourth level
+  # (region, cohort) is plausible, so the depth is not fixed anywhere.
+  #
+  # The tree is a single parent column rather than a link table: a node has at
+  # most one parent, and a link table would permit the shape to say otherwise.
+  scopes:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      # Denormalised: level is derivable from depth, but naming it lets a form
+      # condition on it and lets a report say "all deployments" without walking
+      # the tree in the query.
+      level: string
+      parent_scope: integer
+      jurisdiction: string
+      status: string
+      created_by: integer
+
+  # Fields are defined once, at the product level. The static analysis scans a
+  # codebase once and its inventory applies to every scope beneath it; defining
+  # them per deployment multiplies the work by the number of deployments for no
+  # gain. `product` is therefore a scope, but only ever a product-level one —
+  # a constraint the config dialect cannot state (see docs/ropa-schema.md).
+  data_fields:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      # The wording actually put to the person. Two deployments can share a
+      # column name while asking a differently-worded question, and so collect
+      # subtly different data; the unit of reuse is the field in its collection
+      # context, not the column.
+      question_text: string
+      product: integer
+      data_type: string
+      category: string
+      special_category: string
+      special_category_type: string
+      origin: string
+      description: string
+      status: string
+      created_by: integer
+
+  purposes:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      status: string
+      created_by: integer
+
+  # Program membership is deliberately not a data subject category. The people
+  # are still parents; encoding delivery mode here would produce "parents
+  # (hybrid)" and multiply combinatorially the moment a second axis appears.
+  data_subject_categories:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      includes_children: string
+      vulnerability_note: string
+      status: string
+      created_by: integer
+
+  # The recipient dimension. An organisation has no fixed role: the same body is
+  # a processor on one flow and a separate controller on another, so the role
+  # lives on the processing record, not here. What is genuinely a property of
+  # the organisation is where it sits for transfer purposes.
+  organisations:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      country: string
+      transfer_standing: string
+      contact_person: integer
+      status: string
+      created_by: integer
+
+  # --- Supporting entities ---------------------------------------------
+
+  people:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      role: string
+      email: string
+      status: string
+      created_by: integer
+
+  # One counterparty per agreement. A multi-party joint-controller arrangement
+  # is entered as one agreement per counterparty rather than a link table,
+  # because the processing record cites exactly one agreement and a link table
+  # would make "which of them governs this flow" ambiguous.
+  agreements:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      description: string
+      counterparty: integer
+      agreement_type: string
+      reference_url: string
+      signed_date: timestamp
+      end_date: timestamp
+      responsible_person: integer
+      status: string
+      created_by: integer
+
+  # Written justifications are entities, not text fields on the record.
+  # Retyping a balancing test across deployments produces near-duplicates that
+  # diverge, which is materially worse than one shared text: a regulator can
+  # line them up and ask why they differ.
+  #
+  # One table with a `kind`, not four tables, because the same reuse applies to
+  # security measures, retention justification and transfer safeguards. The cost
+  # is that a dropdown cannot be filtered to one kind — see docs/ropa-schema.md.
+  justifications:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      kind: string
+      text: string
+      author: integer
+      approved_date: timestamp
+      status: string
+      created_by: integer
+
+  # An assessment binds one of each written part into the combination that was
+  # actually reviewed, with its reviewer and date. Records cite the assessment,
+  # never the parts — otherwise the register produces assessments nobody signed
+  # off as a test.
+  #
+  # The *_version columns pin the citation: editing a shared justification must
+  # not silently change what a past assessment claims. They are plain integers
+  # because links: maps one column to one column, so (id, version) cannot be
+  # declared as a foreign key.
+  assessments:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      lawful_basis: string
+      purpose_justification: integer
+      purpose_justification_version: integer
+      necessity_justification: integer
+      necessity_justification_version: integer
+      balancing_justification: integer
+      balancing_justification_version: integer
+      reviewer: integer
+      review_date: timestamp
+      outcome: string
+      conditions: string
+      status: string
+      created_by: integer
+
+  # --- The fact ---------------------------------------------------------
+
+  # One row is one (scope, field, purpose, recipient, data subject category).
+  # Stored rows are the scope defaults plus their exceptions, not the cross
+  # product: a record attaches at any level of the scope tree and is inherited
+  # by everything below it.
+  #
+  # Which is why `disposition` exists. Absence of a row means "inherited", so a
+  # scope that switched a feature off needs a row that says so — a register
+  # claiming a deployment processes biometrics when the feature is off is wrong
+  # in the direction that costs credibility.
+  processing_records:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      name: string
+      scope: integer
+      data_field: integer
+      purpose: integer
+      data_subject_category: integer
+      disposition: string
+      removal_reason: string
+      recipient_role: string
+      recipient: integer
+      agreement: integer
+      lawful_basis: string
+      consent_mechanism: integer
+      consent_withdrawal_method: string
+      contract_reference: string
+      legal_obligation_reference: string
+      vital_interests_note: string
+      public_task_reference: string
+      assessment: integer
+      objection_method: string
+      special_category_data: string
+      article_9_condition: string
+      article_9_note: string
+      # Typed as trigger + number + unit rather than free text, because the
+      # question the register has to answer is "what do we hold for more than
+      # five years", and free text cannot be compared. The trigger is separate
+      # because "three years" is meaningless without "from what".
+      retention_trigger: string
+      retention_period_value: integer
+      retention_period_unit: string
+      retention_indefinite: string
+      retention_justification: integer
+      transfer_outside_uk_eea: string
+      transfer_country: string
+      transfer_mechanism: string
+      transfer_safeguard: integer
+      notes: string
+      status: string
+      created_by: integer
+
+  # --- Link tables ------------------------------------------------------
+
+  organisation_people_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      organisation_id: integer
+      person_id: integer
+      type: string
+      created_by: integer
+
+  # Art. 30(1)(g) expects a general description of security measures, plural, so
+  # this one is many-to-many where the other justification citations are single.
+  # It is its own table rather than a shared record<->justification table with a
+  # `type` discriminator, because `store:` cannot write a constant into a link
+  # row: two elements pointing at one link table would be indistinguishable.
+  record_security_measure_links:
+    fields:
+      id: integer
+      version: integer
+      timestamp: timestamp
+      status: string
+      record_id: integer
+      justification_id: integer
+      type: string
+      created_by: integer
+
+links:
+  scopes:
+    mappings:
+    - link_col: parent_scope
+      target_table: scopes
+      target_col: id
+  data_fields:
+    mappings:
+    - link_col: product
+      target_table: scopes
+      target_col: id
+  organisations:
+    mappings:
+    - link_col: contact_person
+      target_table: people
+      target_col: id
+  agreements:
+    mappings:
+    - link_col: counterparty
+      target_table: organisations
+      target_col: id
+    - link_col: responsible_person
+      target_table: people
+      target_col: id
+  justifications:
+    mappings:
+    - link_col: author
+      target_table: people
+      target_col: id
+  assessments:
+    mappings:
+    - link_col: purpose_justification
+      target_table: justifications
+      target_col: id
+    - link_col: necessity_justification
+      target_table: justifications
+      target_col: id
+    - link_col: balancing_justification
+      target_table: justifications
+      target_col: id
+    - link_col: reviewer
+      target_table: people
+      target_col: id
+  processing_records:
+    mappings:
+    - link_col: scope
+      target_table: scopes
+      target_col: id
+    - link_col: data_field
+      target_table: data_fields
+      target_col: id
+    - link_col: purpose
+      target_table: purposes
+      target_col: id
+    - link_col: data_subject_category
+      target_table: data_subject_categories
+      target_col: id
+    - link_col: recipient
+      target_table: organisations
+      target_col: id
+    - link_col: agreement
+      target_table: agreements
+      target_col: id
+    - link_col: assessment
+      target_table: assessments
+      target_col: id
+    - link_col: consent_mechanism
+      target_table: justifications
+      target_col: id
+    - link_col: retention_justification
+      target_table: justifications
+      target_col: id
+    - link_col: transfer_safeguard
+      target_table: justifications
+      target_col: id
+  organisation_people_links:
+    mappings:
+    - link_col: organisation_id
+      target_table: organisations
+      target_col: id
+    - link_col: person_id
+      target_table: people
+      target_col: id
+  record_security_measure_links:
+    mappings:
+    - link_col: record_id
+      target_table: processing_records
+      target_col: id
+    - link_col: justification_id
+      target_table: justifications
+      target_col: id
+
+default_forms:
+  scopes: scopes_form
+  data_fields: data_fields_form
+  purposes: purposes_form
+  data_subject_categories: data_subject_categories_form
+  organisations: organisations_form
+  people: people_form
+  agreements: agreements_form
+  justifications: justifications_form
+  assessments: assessments_form
+  processing_records: processing_records_form
+  organisation_people_links: organisation_people_links_form
+  record_security_measure_links: record_security_measure_links_form

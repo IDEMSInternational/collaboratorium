@@ -171,6 +171,63 @@ def test_static_required_still_compiles_without_an_expression():
 
 
 # --------------------------------------------------------------------------
+# Required across a link
+# --------------------------------------------------------------------------
+
+# `required:` takes the same language as `relevant:`, and a field whose
+# relevance comes from the linked row almost always takes its obligation from
+# there too.
+LINKED_FORM = {
+    "label": "Processing Record",
+    "elements": {
+        "data_field": {"type": "select_one", "label": "Data Field", "parameters": {
+            "source_table": "data_fields", "value_column": "id", "label_column": "name"}},
+        "article_9_condition": {
+            "type": "string", "label": "Article 9 Condition",
+            "relevant": "${data_field.special_category} = 'yes'",
+            "required": "${data_field.special_category} = 'yes'",
+        },
+    },
+    "meta": {},
+}
+
+TABLES = {"data_fields": {"fields": {"id": "integer", "special_category": "string"}}}
+ROWS = {7: {"id": 7, "special_category": "yes"}, 8: {"id": 8, "special_category": "no"}}
+
+
+def _linked_missing(**answers):
+    from pantograph.relevance import link_resolver
+    resolve = link_resolver(LINKED_FORM, lambda table, oid: ROWS.get(oid, {}))
+    return outstanding(LINKED_FORM, answers, "records_form", resolve)
+
+
+def test_a_field_is_demanded_because_of_what_the_linked_row_says():
+    assert _linked_missing(data_field=7) == ["article_9_condition"]
+    assert _linked_missing(data_field=8) == []
+    assert _linked_missing(data_field=7, article_9_condition="9(2)(a)") == []
+
+
+def test_an_unset_link_demands_nothing_it_cannot_justify():
+    assert _linked_missing() == []
+
+
+def test_the_submit_button_watches_the_link_element():
+    assert watched_elements("records_form", LINKED_FORM) == [
+        "article_9_condition", "data_field",
+    ]
+
+
+def test_a_required_expression_with_a_misspelt_linked_column_fails_at_startup():
+    bad = {**LINKED_FORM, "elements": {
+        **LINKED_FORM["elements"],
+        "article_9_condition": {"type": "string",
+                                "required": "${data_field.special_categry} = 'yes'"},
+    }}
+    with pytest.raises(FormConfigError, match=r"records_form.*required.*special_categry"):
+        validate_forms({"forms": {"records_form": bad}, "tables": TABLES})
+
+
+# --------------------------------------------------------------------------
 # Wiring
 # --------------------------------------------------------------------------
 

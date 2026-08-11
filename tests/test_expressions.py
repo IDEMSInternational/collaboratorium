@@ -13,6 +13,7 @@ from pantograph.expressions import (
     is_truthy,
     parse,
     referenced_elements,
+    referenced_links,
 )
 
 
@@ -141,6 +142,92 @@ def test_a_single_choice_multiselect_compares_as_that_choice():
 
 
 # --------------------------------------------------------------------------
+# Reading across a link
+# --------------------------------------------------------------------------
+
+SPECIAL_CATEGORY = "${data_field.special_category} = 'yes'"
+
+
+def _rows(**tables):
+    """A resolver over rows held in the test, standing in for the database."""
+    calls = []
+
+    def resolve(link_name, column, link_value):
+        calls.append((link_name, column, link_value))
+        return (tables.get(link_name) or {}).get(link_value, {}).get(column)
+
+    resolve.calls = calls
+    return resolve
+
+
+def test_a_condition_reads_a_column_of_the_linked_row():
+    """
+    The motivating case: the record stops asking whether this is special
+    category data, because the data_fields row it points at already says.
+    """
+    resolve = _rows(data_field={7: {"special_category": "yes"},
+                                8: {"special_category": "no"}})
+    assert evaluate(parse(SPECIAL_CATEGORY), {"data_field": 7}, resolve) is True
+    assert evaluate(parse(SPECIAL_CATEGORY), {"data_field": 8}, resolve) is False
+
+
+def test_the_resolver_is_given_the_links_current_value():
+    resolve = _rows(data_field={7: {"special_category": "yes"}})
+    evaluate(parse(SPECIAL_CATEGORY), {"data_field": 7}, resolve)
+    assert resolve.calls == [("data_field", "special_category", 7)]
+
+
+def test_a_reference_through_an_unset_link_reads_as_unanswered():
+    """A question about a row nobody has picked yet is not a yes."""
+    resolve = _rows(data_field={7: {"special_category": "yes"}})
+    assert evaluate(parse(SPECIAL_CATEGORY), {}, resolve) is False
+    assert evaluate(parse("${data_field.special_category}"), {}, resolve) is False
+
+
+def test_a_column_the_row_does_not_answer_reads_as_empty():
+    resolve = _rows(data_field={7: {}})
+    assert evaluate(parse("${data_field.special_category}"), {"data_field": 7}, resolve) is False
+
+
+def test_without_a_resolver_a_cross_link_reference_is_empty_rather_than_an_error():
+    """
+    Callers that never linked anything must not have to supply a resolver, and a
+    condition they cannot answer has to read as unanswered like any other.
+    """
+    assert evaluate(parse(SPECIAL_CATEGORY), {"data_field": 7}) is False
+
+
+def test_a_cross_link_reference_composes_with_the_rest_of_the_language():
+    resolve = _rows(recipient={2: {"transfer_standing": "third_country"}})
+    node = parse("${disposition} != 'removed' and ${recipient.transfer_standing} = 'third_country'")
+    assert evaluate(node, {"disposition": "declared", "recipient": 2}, resolve) is True
+    assert evaluate(node, {"disposition": "removed", "recipient": 2}, resolve) is False
+    assert referenced_elements(node) == {"disposition", "recipient"}
+
+
+def test_the_watched_element_is_the_link_itself():
+    """The linked row can only change when the link is re-pointed."""
+    node = parse("${data_field.special_category} = 'yes'")
+    assert referenced_elements(node) == {"data_field"}
+    assert referenced_links(node) == {("data_field", "special_category")}
+
+
+def test_referenced_links_finds_every_pair_and_ignores_plain_references():
+    node = parse("${a} and ${b.c} or selected(${d.e}, 'x')")
+    assert referenced_links(node) == {("b", "c"), ("d", "e")}
+    assert referenced_links(parse("${a} = '1'")) == set()
+
+
+def test_a_reference_cannot_chain_two_links_deep():
+    """
+    Two hops would let one form's condition walk the whole schema, and each hop
+    is a row fetch on every keystroke.
+    """
+    with pytest.raises(ExpressionError, match="more than one"):
+        parse("${data_field.product.name}")
+
+
+# --------------------------------------------------------------------------
 # Parsing and validation
 # --------------------------------------------------------------------------
 
@@ -162,6 +249,9 @@ def test_referenced_elements_finds_every_name():
     "${a} == '1'",       # '=' is the operator, following ODK
     "${a} & ${b}",
     "@",
+    "${a}.b",            # the dot is part of a reference, not an operator
+    "${a.}",
+    "${.b}",
 ])
 def test_malformed_expressions_are_rejected(source):
     with pytest.raises(ExpressionError):

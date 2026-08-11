@@ -123,7 +123,7 @@ def validate_forms(config):
     }
 
 
-def unsatisfied(form_config, values, form_name="<form>", provenances=None, resolve=None):
+def unsatisfied(form_config, values, form_name="<form>", *, provenances=None, resolve=None):
     """
     (unanswered, unconfirmed): the two ways a required question can fail to be
     settled, kept apart because the cure for each is different.
@@ -156,13 +156,13 @@ def unsatisfied(form_config, values, form_name="<form>", provenances=None, resol
     return unanswered, unconfirmed
 
 
-def outstanding(form_config, values, form_name="<form>", provenances=None, resolve=None):
+def outstanding(form_config, values, form_name="<form>", *, provenances=None, resolve=None):
     """Element ids that do not settle their `required:`, whichever way they fail."""
-    unanswered, unconfirmed = unsatisfied(form_config, values, form_name, provenances, resolve)
+    unanswered, unconfirmed = unsatisfied(form_config, values, form_name, provenances=provenances, resolve=resolve)
     return unanswered + unconfirmed
 
 
-def rejection_message(form_config, values, form_name="<form>", provenances=None, resolve=None):
+def rejection_message(form_config, values, form_name="<form>", *, provenances=None, resolve=None):
     """
     The refusal to show when a submit arrives with questions unanswered, or None
     if it may proceed.
@@ -172,7 +172,7 @@ def rejection_message(form_config, values, form_name="<form>", provenances=None,
     check that actually decides, and it is a function so it can be tested — the
     submit callback itself is a closure built per form at registration time.
     """
-    unanswered, unconfirmed = unsatisfied(form_config, values, form_name, provenances, resolve)
+    unanswered, unconfirmed = unsatisfied(form_config, values, form_name, provenances=provenances, resolve=resolve)
     clauses = []
     if unanswered:
         clauses.append("still needed: " + _names(form_config, unanswered))
@@ -272,6 +272,6 @@ def register_required_callbacks(app, forms_config):
         def validate_required_fields(*current, _fc=form_config, _watched=watched, _name=form_name):
             answers = dict(zip(_watched, current[:-2]))
             provenances = prov.by_element(current[-1], current[-2])
-            unanswered, unconfirmed = unsatisfied(_fc, answers, _name, provenances)
+            unanswered, unconfirmed = unsatisfied(_fc, answers, _name, provenances=provenances)
             return (bool(unanswered or unconfirmed),
                     submit_label(_fc, unanswered, unconfirmed))

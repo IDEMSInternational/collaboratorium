@@ -226,26 +226,26 @@ def answers():
 
 def test_an_unconfirmed_value_does_not_answer_the_question():
     unanswered, pending = unsatisfied(
-        FORM, answers(), "ropa_form", {"collection_purpose": SUGGESTION})
+        FORM, answers(), "ropa_form", provenances={"collection_purpose": SUGGESTION})
     assert unanswered == []
     assert pending == ["collection_purpose"]
 
 
 def test_confirming_the_value_settles_it():
     confirmed = {"collection_purpose": confirm(SUGGESTION, person_id=1)}
-    assert unsatisfied(FORM, answers(), "ropa_form", confirmed) == ([], [])
+    assert unsatisfied(FORM, answers(), "ropa_form", provenances=confirmed) == ([], [])
 
 
 def test_an_unconfirmed_value_on_an_optional_field_blocks_nothing():
     assert outstanding(FORM, {**answers(), "notes": "n"}, "f",
-                       {"notes": SUGGESTION}) == []
+                       provenances={"notes": SUGGESTION}) == []
 
 
 def test_an_empty_field_is_unanswered_rather_than_unconfirmed():
     """Both are outstanding, but the cure differs and so must the wording."""
     unanswered, pending = unsatisfied(
         FORM, {"name": "x", "collection_purpose": ""}, "f",
-        {"collection_purpose": SUGGESTION})
+        provenances={"collection_purpose": SUGGESTION})
     assert unanswered == ["collection_purpose"] and pending == []
 
 

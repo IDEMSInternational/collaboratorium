@@ -19,9 +19,11 @@ from pantograph.config import load_config
 
 # --- Fixture for an isolated DB connection per test ---
 @pytest.fixture(autouse=True)
-def clean_db(monkeypatch):
+def clean_db(monkeypatch, tmp_path):
     """Ensures every test runs against a fresh schema, avoiding WinError 32 collisions."""
-    test_db_path = "test_unit_database.db"
+    # tmp_path is unique per test and per run, so two suites running at once
+    # cannot read each other's rows.
+    test_db_path = str(tmp_path / "test_unit_database.db")
     
     # Point pantograph at our isolated test file instead of the live database.
     # monkeypatch reverts it after the test; db paths are read at call time.

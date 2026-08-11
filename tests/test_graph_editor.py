@@ -21,7 +21,7 @@ CY = "document.getElementById('cyto')._cyreg.cy"
 
 def _open_graph(page: Page):
     """Land on Explore's graph tab with a rendered, non-empty graph."""
-    page.goto("http://localhost:8055")
+    page.goto("/")
     page.locator("#nav-explore").click()
     page.locator(".nav-link", has_text="Network Graph").click()
     # The default target entity is the signed-in person, so the degree view

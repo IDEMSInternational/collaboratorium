@@ -30,6 +30,7 @@ operator-supplied and so nominally trusted, but a form dialect that reaches
 | | |
 | --- | --- |
 | element reference | `${element_name}` |
+| linked-row reference | `${link_element.column}` |
 | comparison | `=` `!=` `>` `>=` `<` `<=` |
 | multi-select membership | `selected(${tags}, 'health')` |
 | logic | `and` `or` `not`, with parentheses |
@@ -66,6 +67,66 @@ add form.
 **An unknown element reads as empty, not as an error.** A partially filled form
 would otherwise be unusable. References are checked at startup instead.
 
+## Reading across a link
+
+`${data_field.special_category}` reads a column of the row a link element points
+at, so a form can stop asking a question the linked row has already answered:
+
+```yaml
+data_field:
+  type: select_one
+  label: Data Field
+  parameters:
+    source_table: data_fields
+    value_column: id
+    label_column: name
+
+article_9_condition:
+  type: select_one
+  label: Article 9 Condition
+  list_name: article_9_condition_list
+  relevant: "${data_field.special_category} = 'yes'"
+  required: "${data_field.special_category} = 'yes'"
+```
+
+This is a correctness feature, not a convenience. Without it a processing record
+re-asks whether the data is special category when `data_fields` already records
+it, and whether the recipient is outside the UK/EEA when `organisations` already
+implies it — so the register holds the same fact twice, with nothing to stop the
+copies disagreeing.
+
+The part before the dot is an element of *this* form, and it must be a link:
+something with `parameters.source_table`. A `select_one` over an inline list is a
+vocabulary rather than a reference to a row, and `${status.name}` is rejected.
+
+### Semantics worth knowing
+
+**A reference through an unset link reads as empty.** A question about a row
+nobody has picked is not a yes, so it behaves exactly like an unanswered element
+and the condition is false.
+
+**The current version of the linked row is what is read**, and a row whose
+current version is `deleted` reads as empty rather than as the values it last
+held. This is `get_latest_record`, the same answer the rest of the app gives.
+
+**A reference crosses at most one link.** `${data_field.product.name}` is a
+parse error. Two hops would let one form's condition walk the whole schema, and
+each hop is a row fetch on every keystroke.
+
+**The condition re-fires when the link changes**, because the link element is
+what the callback watches — the linked row can only change identity when the
+link is re-pointed. An *edit to the linked row itself*, made in another tab
+while this form is open, is not noticed until the form is reloaded. The check
+that decides is the one that runs on submit, and that one re-reads the row.
+
+**The link's `value_column` must be `id`.** The row is fetched by id; a link
+keyed on anything else is refused at startup rather than resolved against the
+wrong row.
+
+**The lookup is not something an expression can invent.** The evaluator has no
+database of its own: it calls a resolver built from this form's own
+`parameters:` and can read nothing the config did not already point at.
+
 ## Validation
 
 Every expression is parsed when the app starts, and each name it references is
@@ -78,6 +139,20 @@ pantograph.relevance.FormConfigError: contracts_form.organisation_person:
 
 pantograph.relevance.FormConfigError: contracts_form.organisation_person:
   Unexpected '=' at position 17 in '${organisation} === '
+```
+
+A cross-link reference is checked against the *linked table's* columns, so a
+misspelt column is caught at startup too rather than becoming a condition that
+is quietly always false:
+
+```
+pantograph.relevance.FormConfigError: processing_records_form.article_9_condition:
+  'relevant' reads ${data_field.special_categry}, but 'special_categry' is not a
+  column of 'data_fields'.
+
+pantograph.relevance.FormConfigError: processing_records_form.article_9_condition:
+  'relevant' reads ${status.name}, but 'status' is not a link — only an element
+  with parameters.source_table points at a row.
 ```
 
 Writing `lawful_basis` where you meant `${lawful_basis}` is the likeliest
@@ -141,6 +216,12 @@ and a save that arrives with questions unanswered is refused with
 ignored. A subform renders its inputs under its own form namespace, so the
 enclosing form's callback cannot see their state. Supporting it means giving
 subform state a path back to the parent, which is its own piece of work.
+
+A **`select_one` still cannot filter its source table** — offering only
+product-level scopes, or only justifications of a matching `kind`. It wants the
+same expression language pointed the other way, at the candidate rows rather
+than at one linked row, and it wants the options rebuilt by a callback rather
+than at layout time. That is its own piece of work.
 
 Only elements that carry a `relevant:` are wrapped in a container, so a form
 with no conditions renders exactly as it did before, and a form with conditions

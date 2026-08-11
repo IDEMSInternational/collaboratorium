@@ -17,6 +17,7 @@ from pantograph.relevance import (
     VISIBLE,
     compile_form,
     irrelevant_elements,
+    link_resolver,
     register_relevance_callbacks,
     styles_for,
     validate_forms,
@@ -178,6 +179,197 @@ def test_the_shipped_config_validates():
 def test_a_form_with_no_conditions_compiles_to_nothing():
     plain = {"elements": {"a": {"type": "string"}}, "meta": {}}
     assert compile_form("plain", plain) == {}
+
+
+# --------------------------------------------------------------------------
+# Reading across a link
+# --------------------------------------------------------------------------
+
+# The register's real shape: the record points at a data field, and the field
+# already records whether it is special category. Asking again is how the two
+# copies of one fact come to disagree.
+LINKED_FORM = {
+    "label": "Processing Record",
+    "default_table": "processing_records",
+    "elements": {
+        "data_field": {
+            "type": "select_one", "label": "Data Field",
+            "parameters": {"source_table": "data_fields",
+                           "value_column": "id", "label_column": "name"},
+        },
+        "article_9_condition": {
+            "type": "select_one", "label": "Article 9 Condition",
+            "list_name": "a9", "a9": {"explicit_consent": "Explicit consent"},
+            "relevant": "${data_field.special_category} = 'yes'",
+        },
+    },
+    "meta": {"id": {}, "status": {}},
+}
+
+SCHEMA = {
+    "data_fields": {"fields": {"id": "integer", "version": "integer",
+                               "name": "string", "special_category": "string"}},
+    "processing_records": {"fields": {"id": "integer", "data_field": "integer"}},
+}
+
+DATA_FIELDS = {
+    7: {"id": 7, "name": "face_scan", "special_category": "yes"},
+    8: {"id": 8, "name": "first_name", "special_category": "no"},
+}
+
+
+def _fake_fetch(rows=None, log=None):
+    rows = DATA_FIELDS if rows is None else rows
+
+    def fetch(table, object_id):
+        if log is not None:
+            log.append((table, object_id))
+        assert table == "data_fields"
+        return rows.get(object_id, {})
+
+    return fetch
+
+
+def _linked_hidden(fetch=None, **answers):
+    return irrelevant_elements(LINKED_FORM, answers,
+                               link_resolver(LINKED_FORM, fetch or _fake_fetch()))
+
+
+def test_a_condition_follows_the_link_instead_of_asking_again():
+    assert "article_9_condition" not in _linked_hidden(data_field=7)
+    assert "article_9_condition" in _linked_hidden(data_field=8)
+
+
+def test_an_unset_link_hides_the_question_it_would_have_revealed():
+    assert "article_9_condition" in _linked_hidden()
+    assert "article_9_condition" in _linked_hidden(data_field=None)
+    assert "article_9_condition" in _linked_hidden(data_field="")
+
+
+def test_an_unset_link_is_not_looked_up_at_all():
+    """An empty dropdown is not a row id, and asking the database for it is a
+    query per keystroke on a form nobody has started filling in."""
+    log = []
+    _linked_hidden(fetch=_fake_fetch(log=log), data_field="  ")
+    assert log == []
+
+
+def test_the_toggle_callbacks_body_follows_the_link():
+    """`styles_for` is the callback's whole body; the resolver has to reach it."""
+    compiled = compile_form("linked", LINKED_FORM)
+    styles = styles_for(compiled, ["data_field"], ["article_9_condition"], [7],
+                        link_resolver(LINKED_FORM, _fake_fetch()))
+    assert styles == [VISIBLE]
+    styles = styles_for(compiled, ["data_field"], ["article_9_condition"], [8],
+                        link_resolver(LINKED_FORM, _fake_fetch()))
+    assert styles == [HIDDEN]
+
+
+def test_a_link_pointing_at_a_row_that_is_gone_reads_as_unanswered():
+    """
+    `get_latest_record` returns nothing for a row whose current version is
+    deleted, so a reference into it is empty rather than the value it last had.
+    """
+    assert "article_9_condition" in _linked_hidden(fetch=_fake_fetch({}), data_field=7)
+
+
+def test_the_row_is_fetched_once_however_many_columns_are_read():
+    """
+    Six conditions over one linked row must not be six queries. The cache is per
+    resolver, and a resolver is built per evaluation.
+    """
+    log = []
+    form = {**LINKED_FORM, "elements": {
+        **LINKED_FORM["elements"],
+        "article_9_note": {"type": "string",
+                           "relevant": "${data_field.special_category} = 'yes'"},
+        "origin_note": {"type": "string", "relevant": "${data_field.name}"},
+    }}
+    hidden = irrelevant_elements(form, {"data_field": 7},
+                                 link_resolver(form, _fake_fetch(log=log)))
+    assert hidden == set()
+    assert log == [("data_fields", 7)]
+
+
+def test_a_resolver_built_fresh_per_evaluation_cannot_serve_a_stale_row():
+    rows = dict(DATA_FIELDS)
+    assert "article_9_condition" not in _linked_hidden(fetch=_fake_fetch(rows), data_field=7)
+    rows[7] = {**rows[7], "special_category": "no"}
+    assert "article_9_condition" in _linked_hidden(fetch=_fake_fetch(rows), data_field=7)
+
+
+def test_the_callback_watches_the_link_element():
+    """A linked row can only change when the link is re-pointed."""
+    app = Dash(__name__, suppress_callback_exceptions=True)
+    register_relevance_callbacks(app, {"linked": LINKED_FORM})
+    watched = set()
+    for cb in app.callback_map.values():
+        for i in cb["inputs"]:
+            cid = json.loads(i["id"]) if isinstance(i["id"], str) else i["id"]
+            if cid.get("type") == "input":
+                watched.add(cid["element"])
+    assert watched == {"data_field"}
+
+
+# --------------------------------------------------------------------------
+# Startup validation of cross-link references
+# --------------------------------------------------------------------------
+
+def _validate(elements, tables=None):
+    return validate_forms({
+        "forms": {"records_form": {**LINKED_FORM, "elements": elements}},
+        "tables": SCHEMA if tables is None else tables,
+    })
+
+
+def test_a_valid_cross_link_reference_passes_startup_validation():
+    assert _validate(LINKED_FORM["elements"])["records_form"]
+
+
+def test_a_misspelt_column_of_the_linked_table_fails_at_startup():
+    """The whole point of validating: a typo stops the deployment rather than
+    surfacing as a condition that is quietly always false."""
+    elements = {**LINKED_FORM["elements"], "article_9_condition": {
+        "type": "string", "relevant": "${data_field.special_categry} = 'yes'"}}
+    with pytest.raises(FormConfigError, match="special_categry"):
+        _validate(elements)
+    with pytest.raises(FormConfigError, match=r"records_form\.article_9_condition"):
+        _validate(elements)
+
+
+def test_a_reference_through_an_element_that_is_not_a_link_fails_at_startup():
+    elements = {**LINKED_FORM["elements"], "article_9_condition": {
+        "type": "string", "relevant": "${status.name} = 'x'"}}
+    with pytest.raises(FormConfigError, match="not a link"):
+        _validate(elements)
+
+
+def test_a_link_selecting_on_something_other_than_id_is_refused():
+    """A linked row is fetched by id; reading the wrong row silently is worse."""
+    elements = {
+        "data_field": {"type": "select_one", "parameters": {
+            "source_table": "data_fields", "value_column": "name", "label_column": "name"}},
+        "article_9_condition": {"type": "string",
+                                "relevant": "${data_field.special_category} = 'yes'"},
+    }
+    with pytest.raises(FormConfigError, match="'id'"):
+        _validate(elements)
+
+
+def test_a_link_to_a_table_the_config_does_not_define_fails_at_startup():
+    elements = {**LINKED_FORM["elements"], "article_9_condition": {
+        "type": "string", "relevant": "${data_field.special_category} = 'yes'"}}
+    with pytest.raises(FormConfigError, match="not a table"):
+        _validate(elements, tables={"processing_records": {"fields": {"id": "integer"}}})
+
+
+def test_columns_go_unchecked_when_there_is_no_schema_to_check_them_against():
+    """
+    The submit path compiles a form on its own, with no config around it. The
+    startup check is where a typo is caught; this one must not start failing on
+    a form it cannot judge.
+    """
+    assert compile_form("<submit>", LINKED_FORM)["article_9_condition"]
 
 
 # --------------------------------------------------------------------------

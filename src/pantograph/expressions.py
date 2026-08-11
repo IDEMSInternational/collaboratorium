@@ -12,7 +12,8 @@ lets a less-trusted user edit config — and the grammar we actually need is tin
     not_expr   := 'not' not_expr | comparison
     comparison := primary ( ('=' | '!=' | '>' | '>=' | '<' | '<=') primary )?
     primary    := '(' expr ')' | 'selected' '(' expr ',' expr ')'
-                | '${' NAME '}' | STRING | NUMBER | 'true' | 'false' | 'null'
+                | '${' NAME [ '.' NAME ] '}' | STRING | NUMBER
+                | 'true' | 'false' | 'null'
 
 Written as a tokeniser plus recursive-descent parser producing an AST, which is
 then evaluated against a mapping of element name to current value. Parsing is
@@ -22,6 +23,13 @@ should fail before anyone opens the form.
 
 `=` is used for equality rather than `==`, following ODK, whose conventions this
 config dialect already borrows.
+
+`${data_field.special_category}` reads a column of the row a link element points
+at. This module stays ignorant of databases: a `LinkRef` evaluates by calling a
+resolver handed to `evaluate`, so the thing that knows how to fetch a row is the
+caller's business and an expression remains a pure function of its inputs. The
+dot lives *inside* the braces so that `${a}.__class__` is still the syntax error
+it has always been — attribute access is a reference form, not an operator.
 """
 import re
 
@@ -38,7 +46,10 @@ class ExpressionError(Exception):
 # whenever a rule is added above them, which is a silent breakage.
 _TOKEN_SPEC = [
     ("WS",      r"\s+"),
-    ("REF",     r"\$\{\s*(?P<ref_name>[A-Za-z_][A-Za-z0-9_]*)\s*\}"),
+    # The dotted form is tokenised with any number of segments so that a chain
+    # two links deep is a *rejected reference* rather than an unexpected
+    # character, which lets the parser say why it is refused.
+    ("REF",     r"\$\{\s*(?P<ref_name>[A-Za-z_][A-Za-z0-9_]*(?:\.[A-Za-z_][A-Za-z0-9_]*)*)\s*\}"),
     ("NUMBER",  r"-?\d+\.\d+|-?\d+"),
     ("STRING",  r"'(?P<sq>[^']*)'|\"(?P<dq>[^\"]*)\""),
     ("OP",      r"!=|>=|<=|=|>|<"),
@@ -112,6 +123,18 @@ class Node:
 class Ref(Node):
     def __init__(self, name):
         self.name = name
+
+
+class LinkRef(Node):
+    """
+    `${data_field.special_category}` — a column of the row `data_field` points at.
+
+    `link` is an element of the *same* form; `column` is a column of the table
+    that element draws its options from. Only one hop: see the parser.
+    """
+
+    def __init__(self, link, column):
+        self.link, self.column = link, column
 
 
 class Literal(Node):
@@ -219,7 +242,18 @@ class _Parser:
             return Selected(haystack, needle)
         if token.kind == "REF":
             self._advance()
-            return Ref(token.value)
+            parts = token.value.split(".")
+            if len(parts) == 1:
+                return Ref(token.value)
+            if len(parts) == 2:
+                return LinkRef(parts[0], parts[1])
+            # Two hops would let one form's condition walk the whole schema, and
+            # each hop is a row fetch on every keystroke. One is the case the
+            # register actually has; refuse the rest rather than half-support it.
+            raise ExpressionError(
+                f"${{{token.value}}} at position {token.pos} in {self.source!r} "
+                f"follows more than one link. A reference may cross at most one."
+            )
         if token.kind == "STRING":
             self._advance()
             return Literal(token.value)
@@ -245,15 +279,44 @@ def parse(source):
     return _Parser(tokenise(source), source).parse()
 
 
-def referenced_elements(node):
-    """Every element name an expression reads, for validation and callback wiring."""
-    if isinstance(node, Ref):
-        return {node.name}
-    found = set()
+def _children(node):
     for attr in ("left", "right", "operand", "haystack", "needle"):
         child = getattr(node, attr, None)
         if isinstance(child, Node):
-            found |= referenced_elements(child)
+            yield child
+
+
+def referenced_elements(node):
+    """
+    Every element name an expression reads, for validation and callback wiring.
+
+    A cross-link reference contributes the *link* element, which is exactly what
+    the callback has to watch: the linked row can only change when the link
+    itself is re-pointed.
+    """
+    if isinstance(node, Ref):
+        return {node.name}
+    if isinstance(node, LinkRef):
+        return {node.link}
+    found = set()
+    for child in _children(node):
+        found |= referenced_elements(child)
+    return found
+
+
+def referenced_links(node):
+    """
+    Every `(link_element, column)` pair an expression reads across a link.
+
+    Separate from `referenced_elements` because the two are checked against
+    different things: element names against this form, columns against the
+    linked table.
+    """
+    if isinstance(node, LinkRef):
+        return {(node.link, node.column)}
+    found = set()
+    for child in _children(node):
+        found |= referenced_links(child)
     return found
 
 
@@ -341,27 +404,43 @@ def _compare(op, left, right):
     raise ExpressionError(f"Unknown operator {op!r}")
 
 
-def _value(node, context):
+def _value(node, context, resolve):
     """Evaluate a node to a raw value (not yet coerced to a boolean)."""
     if isinstance(node, Literal):
         return node.value
     if isinstance(node, Ref):
         return context.get(node.name)
+    if isinstance(node, LinkRef):
+        # No resolver means nothing can follow the link, so the reference reads
+        # as unanswered — the same reading an unset link gets. Erroring instead
+        # would make every caller that does not care about links pass one.
+        if resolve is None:
+            return None
+        return resolve(node.link, node.column, context.get(node.link))
     if isinstance(node, Compare):
-        return _compare(node.op, _value(node.left, context), _value(node.right, context))
+        return _compare(node.op,
+                        _value(node.left, context, resolve),
+                        _value(node.right, context, resolve))
     if isinstance(node, BoolOp):
-        left = is_truthy(_value(node.left, context))
+        left = is_truthy(_value(node.left, context, resolve))
         if node.op == "and":
-            return left and is_truthy(_value(node.right, context))
-        return left or is_truthy(_value(node.right, context))
+            return left and is_truthy(_value(node.right, context, resolve))
+        return left or is_truthy(_value(node.right, context, resolve))
     if isinstance(node, Not):
-        return not is_truthy(_value(node.operand, context))
+        return not is_truthy(_value(node.operand, context, resolve))
     if isinstance(node, Selected):
-        needle = _value(node.needle, context)
-        return str(needle) in _as_choices(_value(node.haystack, context))
+        needle = _value(node.needle, context, resolve)
+        return str(needle) in _as_choices(_value(node.haystack, context, resolve))
     raise ExpressionError(f"Cannot evaluate node {node!r}")  # pragma: no cover
 
 
-def evaluate(node, context):
-    """Evaluate a parsed expression against {element_name: value} to a bool."""
-    return is_truthy(_value(node, context))
+def evaluate(node, context, resolve=None):
+    """
+    Evaluate a parsed expression against {element_name: value} to a bool.
+
+    `resolve(link_element, column, link_value) -> value` reads a column of a
+    linked row, and is the only way this module reaches anything outside
+    `context`. Injecting it keeps the parser and evaluator free of the database
+    and keeps the language incapable of any lookup its caller did not supply.
+    """
+    return is_truthy(_value(node, context, resolve))

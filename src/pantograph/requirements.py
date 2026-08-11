@@ -16,6 +16,10 @@ takes the same expression language as `relevant:`:
       relevant: "${lawful_basis} = 'legitimate_interest'"
       required: "${lawful_basis} = 'legitimate_interest'"
 
+That includes a condition reading across a link — `${data_field.special_category}`
+— because the two keywords take one language and a field whose relevance comes
+from the linked row almost always takes its obligation from there too.
+
 **A field is never required while it is not relevant.** Otherwise a form could
 demand an answer to a question it is not showing — unfillable, with no cue as to
 why. Relevance always wins, so `required: true` on a conditional element means
@@ -31,7 +35,13 @@ fields are 1st, 11th and 13th.
 from dash import Input, Output
 
 from pantograph.expressions import ExpressionError, evaluate, is_truthy, parse, referenced_elements
-from pantograph.relevance import FormConfigError, compile_form, value_key
+from pantograph.relevance import (
+    FormConfigError,
+    check_link_references,
+    compile_form,
+    link_resolver,
+    value_key,
+)
 
 # ODK spells booleans this way in form definitions; anything else is an expression.
 _TRUE = (True, "yes", "true")
@@ -56,7 +66,7 @@ def can_be_required(raw):
     return raw not in _FALSE
 
 
-def compile_required(form_name, form_config):
+def compile_required(form_name, form_config, schema=None):
     """
     {element_id: True | ast} for every element that can be required.
 
@@ -92,18 +102,19 @@ def compile_required(form_name, form_config):
                 f"{'is not an element' if len(unknown) == 1 else 'are not elements'} "
                 f"of that form."
             )
+        check_link_references(form_name, element_id, "required", form_config, node, schema)
     return compiled
 
 
 def validate_forms(config):
     """Startup check, alongside the one relevance does for `relevant:`."""
     return {
-        form_name: compile_required(form_name, form_config)
+        form_name: compile_required(form_name, form_config, config.get("tables"))
         for form_name, form_config in (config.get("forms") or {}).items()
     }
 
 
-def outstanding(form_config, values, form_name="<form>"):
+def outstanding(form_config, values, form_name="<form>", resolve=None):
     """
     Element ids that must be answered and are not, given the current answers.
 
@@ -114,13 +125,19 @@ def outstanding(form_config, values, form_name="<form>"):
     if not required:
         return []
 
+    # One resolver for the whole pass, so a rule that appears in both an
+    # element's `relevant:` and its `required:` — which is the common shape —
+    # fetches the linked row once.
+    if resolve is None:
+        resolve = link_resolver(form_config)
+
     relevant = compile_form(form_name, form_config)
     missing = []
     for element_id, condition in required.items():
         relevance_condition = relevant.get(element_id)
-        if relevance_condition is not None and not evaluate(relevance_condition, values):
+        if relevance_condition is not None and not evaluate(relevance_condition, values, resolve):
             continue
-        if condition is not True and not evaluate(condition, values):
+        if condition is not True and not evaluate(condition, values, resolve):
             continue
         if not is_truthy(values.get(element_id)):
             missing.append(element_id)

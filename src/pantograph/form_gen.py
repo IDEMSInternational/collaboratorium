@@ -7,7 +7,7 @@ import dash_bootstrap_components as dbc
 from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
 from pantograph.component_factory import component_for_element, register_subform_blocks
-from pantograph import relevance
+from pantograph import relevance, requirements
 
 
 # ==============================================================
@@ -94,6 +94,7 @@ def register_form_callbacks(app, config):
     register_submit_callbacks(app, config.get("forms", {}))
     register_subform_blocks(app, config.get("forms", {}))
     relevance.register_relevance_callbacks(app, config.get("forms", {}))
+    requirements.register_required_callbacks(app, config.get("forms", {}))
 
 def register_click_callbacks(app, config):
     forms_config = config.get("forms", {})
@@ -252,29 +253,6 @@ def register_submit_callbacks(app, forms_config):
             "table": "data",
         }
         
-        # handle required fields
-        req_inputs = []
-        for e_id, e_val in fc["elements"].items():
-            # Check for ODK-style required syntax
-            if e_val.get("required", False) in (True, "yes", "true"):
-                v_key = value_key_map.get(e_val['type'], "value")
-                req_inputs.append(Input({"type": "input", "form": form_name, "element": e_id}, v_key))
-                
-        if req_inputs:
-            @app.callback(
-                Output({"type": "submit", "form": form_name}, "disabled"),
-                Output({"type": "submit", "form": form_name}, "children"),
-                *req_inputs
-            )
-            def validate_required_fields(*req_values):
-                # If any required field is empty, disable the button and explain why
-                for val in req_values:
-                    if val in (None, "", [], {}, "{}", "[]"):
-                        return True, "Fill Required Fields to Submit"
-                
-                # If everything is valid, enable the button and restore the text
-                return False, "Submit"
-
         input_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["elements"].keys()]
         meta_ids = [{"type": "input", "form": form_name, "element": e_id} for e_id in fc["meta"].keys()]
         state_args = []
@@ -316,6 +294,13 @@ def register_submit_callbacks(app, forms_config):
             # previous answer stays in the record's history.
             for element_id in relevance.irrelevant_elements(_fc, data):
                 data[element_id] = None
+
+            # The disabled submit button is a courtesy to the user, not a gate:
+            # the client posts this callback directly and can send what it likes.
+            refusal = requirements.rejection_message(_fc, data)
+            if refusal:
+                conn.close()
+                return html.Span(refusal, style={"color": "#dc3545"}), no_update, no_update
 
             object_id = data.get('id')
             if object_id == "":

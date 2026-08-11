@@ -19,6 +19,7 @@ from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
 from pantograph.form_gen import register_form_callbacks
 from pantograph.plugins import load_plugins
 from pantograph.relevance import validate_forms
+from pantograph.requirements import validate_forms as validate_required
 from pantograph.settings import get_settings
 from pantograph.tools.analysis_report import init_analytics_app
 
@@ -107,6 +108,7 @@ def create_app(settings=None):
     # names an element its form does not define, should stop the deployment
     # rather than surface later as a field that silently never appears.
     validate_forms(config)
+    validate_required(config)
 
     init_db(config)
     analytics_init_db()

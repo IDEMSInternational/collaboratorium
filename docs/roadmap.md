@@ -3,7 +3,9 @@
 Where we are after #54, and what stands between here and a working Records of
 Processing Activities deployment with LLM-assisted prefill.
 
-Design rationale lives in [architecture-plugins.md](architecture-plugins.md);
+Design rationale lives in [architecture-plugins.md](architecture-plugins.md),
+and the register's entity model in
+[data-protection-model.md](data-protection-model.md);
 this document is the work breakdown. Every item below is filed as an issue
 (#56–#72); this page is the map, the issues are where the work is tracked.
 

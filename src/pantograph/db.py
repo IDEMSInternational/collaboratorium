@@ -5,7 +5,10 @@ import json
 import pandas as pd
 import networkx as nx  # Import networkx for degree filtering
 
+from pantograph import provenance
 from pantograph.settings import get_settings
+
+PROVENANCE_TABLE = "provenance"
 
 
 def _db_path():
@@ -41,44 +44,161 @@ def init_db(config):
     Create the database schema dynamically from the config file.
     """
     existed = os.path.exists(_db_path())
-    
-    if existed:
-        print("Database already exists. Skipping initialization.")
-        return
 
     conn = db_connect()
     cur = conn.cursor()
 
-    print("Initializing database schema from config YAML...")
-    # Dynamically create tables from config
-    for table_name, table in config["tables"].items():
-        col_defs = []
-        has_id = False
-        has_version = False
-        
-        for col_name, col_type in table['fields'].items():
-            # Use quotes to handle all table/column names
-            col_defs.append(f'"{col_name}" {_dbml_to_sqlite_type(col_type)}')
-            if col_name == 'id':
-                has_id = True
-            if col_name == 'version':
-                has_version = True
-        
-        # Add composite primary key for versioned tables
-        # Assumes tables with 'id' and 'version' are versioned
-        if has_id and has_version:
-            col_defs.append("PRIMARY KEY (id, version)")
-        
-        sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({", ".join(col_defs)})'
-        try:
-            cur.execute(sql)
-        except Exception as e:
-            print(f"Failed to create table {table_name}: {e}\nSQL: {sql}")
+    if existed:
+        print("Database already exists. Skipping initialization.")
+    else:
+        print("Initializing database schema from config YAML...")
+        # Dynamically create tables from config
+        for table_name, table in config["tables"].items():
+            col_defs = []
+            has_id = False
+            has_version = False
+
+            for col_name, col_type in table['fields'].items():
+                # Use quotes to handle all table/column names
+                col_defs.append(f'"{col_name}" {_dbml_to_sqlite_type(col_type)}')
+                if col_name == 'id':
+                    has_id = True
+                if col_name == 'version':
+                    has_version = True
+
+            # Add composite primary key for versioned tables
+            # Assumes tables with 'id' and 'version' are versioned
+            if has_id and has_version:
+                col_defs.append("PRIMARY KEY (id, version)")
+
+            sql = f'CREATE TABLE IF NOT EXISTS "{table_name}" ({", ".join(col_defs)})'
+            try:
+                cur.execute(sql)
+            except Exception as e:
+                print(f"Failed to create table {table_name}: {e}\nSQL: {sql}")
+
+    # Created on every start rather than only on a fresh database: provenance
+    # arrived after the deployments did, and a register that cannot store where
+    # its values came from goes on silently recording them as typed by hand. It
+    # adds nothing to a deployment that never supplies one — a table nobody
+    # writes to holds no rows and appears in no query, since it is core's rather
+    # than one of config["tables"].
+    _create_provenance_table(cur)
 
     conn.commit()
-    print("Database schema initialized.")
-    
+    if not existed:
+        print("Database schema initialized.")
+
     conn.close()
+
+
+def _create_provenance_table(cur):
+    """
+    Where a value came from, keyed by the record row it describes.
+
+    `confirmed_by` is a person id, but the column is TEXT because a signature
+    may also be a name from an ingest that predates the person having a row
+    here, and SQLite would keep either regardless.
+    """
+    cur.execute(f'''
+        CREATE TABLE IF NOT EXISTS "{PROVENANCE_TABLE}" (
+            record_table TEXT NOT NULL,
+            record_id INTEGER NOT NULL,
+            record_version INTEGER NOT NULL,
+            element TEXT NOT NULL,
+            source TEXT,
+            origin TEXT,
+            confidence REAL,
+            confirmed_by TEXT,
+            confirmed_at TEXT,
+            PRIMARY KEY (record_table, record_id, record_version, element)
+        )
+    ''')
+
+
+def save_provenance(cur, table_name, record_id, version, provenances):
+    """
+    Write where a record's values came from, on the cursor that wrote the record.
+
+    Taking a cursor rather than opening its own connection is the whole
+    integrity story: the provenance commits with the row or not at all. A row
+    that committed without it would read back as typed by hand, which is the one
+    wrong answer this can give.
+    """
+    for element, raw in (provenances or {}).items():
+        fields = provenance.to_fields(raw)
+        if fields is None:
+            continue  # entered here, which is what the absence of a row says
+        # OR REPLACE only to stay idempotent: (id, version) is already the
+        # record table's primary key, so a genuine collision fails on the row.
+        cur.execute(
+            f'INSERT OR REPLACE INTO "{PROVENANCE_TABLE}" '
+            f'(record_table, record_id, record_version, element, '
+            f'{", ".join(provenance.FIELDS)}) '
+            f'VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)',
+            (table_name, record_id, version, element, *fields),
+        )
+
+
+def get_provenance(table_name, record_id, version):
+    """
+    {element: provenance} for one record row, or {} when it has none — which is
+    every row written before any of this existed.
+    """
+    conn = db_connect()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f'SELECT element, {", ".join(provenance.FIELDS)} '
+            f'FROM "{PROVENANCE_TABLE}" '
+            f'WHERE record_table = ? AND record_id = ? AND record_version = ?',
+            (table_name, record_id, version),
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        print(f"[WARN] Error fetching provenance for {table_name} {record_id}: {e}")
+        return {}
+    finally:
+        conn.close()
+    return _by_element(rows)
+
+
+def get_all_provenance():
+    """
+    {(table, id, version): {element: provenance}} for every record that has any.
+
+    One query rather than one per record: the export walks the whole graph, and
+    the table holds a row only for a value somebody did not type, so reading all
+    of it costs a deployment with no provenance nothing at all.
+    """
+    conn = db_connect()
+    cur = conn.cursor()
+    try:
+        cur.execute(
+            f'SELECT record_table, record_id, record_version, element, '
+            f'{", ".join(provenance.FIELDS)} FROM "{PROVENANCE_TABLE}"'
+        )
+        rows = cur.fetchall()
+    except Exception as e:
+        # An export must still export against a database this has never run on.
+        print(f"[WARN] Error fetching provenance: {e}")
+        return {}
+    finally:
+        conn.close()
+
+    by_record = {}
+    for record_table, record_id, version, *rest in rows:
+        by_record.setdefault((record_table, record_id, version), []).append(rest)
+    return {key: _by_element(rows) for key, rows in by_record.items()}
+
+
+def _by_element(rows):
+    parsed = {}
+    for element, *fields in rows:
+        record = provenance.from_fields(*fields)
+        if record is not None:
+            parsed[element] = record
+    return parsed
 
 # ----------------------------------------------------------------------
 # RECORD RETRIEVAL

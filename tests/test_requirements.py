@@ -198,7 +198,7 @@ ROWS = {7: {"id": 7, "special_category": "yes"}, 8: {"id": 8, "special_category"
 def _linked_missing(**answers):
     from pantograph.relevance import link_resolver
     resolve = link_resolver(LINKED_FORM, lambda table, oid: ROWS.get(oid, {}))
-    return outstanding(LINKED_FORM, answers, "records_form", resolve)
+    return outstanding(LINKED_FORM, answers, "records_form", resolve=resolve)
 
 
 def test_a_field_is_demanded_because_of_what_the_linked_row_says():

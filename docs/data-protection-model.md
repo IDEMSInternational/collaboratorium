@@ -175,10 +175,39 @@ an existing deployment is the same event: the fingerprint moved and the
 assessment may no longer hold. Treating "new deployment" and "new version of an
 existing one" identically gives drift detection for free.
 
-This reframes the analysis pipeline (#71). Its highest-value output is not an
-inventory but a **diff** — "six fields changed fingerprint since the last
-release, three materially". Inventory is a one-off; diff keeps the register
-true.
+### The register derives the fingerprint; the scanner does not
+
+The scanner emits **raw attributes** — column name, type, question text, source
+location — and the register computes the fingerprint from them. The division
+matters for two reasons.
+
+**A definition change should not mean re-scanning every codebase.** The
+composition above will be wrong at least once. If the scanner computes the
+fingerprint, correcting it is a campaign across every repository; if the register
+derives it from stored attributes, it is a re-derivation over data already held.
+The scanner also stays dumber and more stable, which matters most for the
+component that will be iterated on constantly early on.
+
+**The pipeline then needs no read access to the compliance database.** It emits
+facts one way, which is the better posture for a component holding model API
+keys and source-code access, and it removes the round-tripping problem entirely.
+
+The reviewer-facing output is still a diff — "six fields changed since the last
+release, three materially" is what keeps the register true, and a fresh list of
+everything is not. But that diff is computed here, from what the scan reports
+against what the register already holds.
+
+### A fingerprint definition change is a mass re-review event
+
+Widen the definition and every field's fingerprint moves at once, so every
+inherited assessment lands in the "changed" branch — thousands of records
+demanding review because someone added a field to a tuple.
+
+So the definition is **versioned**, and the version that produced each stored
+fingerprint is recorded, letting the register distinguish *"these diverged
+because the definition changed"* from *"these diverged because the data did"*.
+Without that, the first definition change reads as a compliance emergency.
+Keeping the definition small and stable is the other half of the answer.
 
 ## One mechanism, three appearances
 

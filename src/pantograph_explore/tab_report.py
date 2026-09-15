@@ -22,7 +22,13 @@ def register_report_callbacks(app, config):
                 
             report_id = list(reports_cfg.keys())[0]
             report_cfg = reports_cfg[report_id]
+            # What is copied goes into other documents, so its links carry the
+            # deployment's address. What is shown stays relative: the editor
+            # opens from a hash change on this page, which an absolute link
+            # only gives when it names exactly the origin the user is on
+            # (not so behind another hostname, or on 127.0.0.1 in development).
             full_md = generate_markdown_report(report_cfg, elements)
+            shown_md = generate_markdown_report(report_cfg, elements, base_url="")
 
             return html.Div([
                 dbc.Row([
@@ -38,7 +44,7 @@ def register_report_callbacks(app, config):
                     )
                 ], className="mb-3 align-items-center"),
                 html.Div(
-                    dcc.Markdown(full_md, dangerously_allow_html=True), 
+                    dcc.Markdown(shown_md, dangerously_allow_html=True), 
                     style={'backgroundColor': 'white', 'padding': '30px', 'borderRadius': '8px', 'border': '1px solid var(--border-color)', 'minHeight': '400px'}
                 )
             ], className="p-3")

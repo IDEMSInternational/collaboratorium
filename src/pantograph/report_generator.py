@@ -1,6 +1,7 @@
 import re
 import json
 from pantograph import provenance
+from pantograph.settings import public_url
 from pantograph.db import get_all_provenance, get_dropdown_options, get_relation_links
 
 def format_subform_data(val_str):
@@ -53,8 +54,22 @@ def _provenance_for(node, provenance_by_row):
         return {}
     return provenance_by_row.get((node['type'], record_id, version), {})
 
-def generate_markdown_report(report_cfg, elements):
-    """Takes the YAML configuration and filtered Graph elements to yield a Markdown report."""
+# Placeholders the deployment fills in, not the record. They win over a column
+# of the same name, so a template means the same thing whatever the schema.
+BASE_URL = 'base_url'
+
+def generate_markdown_report(report_cfg, elements, base_url=None):
+    """
+    Takes the YAML configuration and filtered Graph elements to yield a Markdown report.
+
+    ``{base_url}`` in a template is the deployment's public address, so a link
+    such as ``[🔗]({base_url}#edit/initiatives/{id})`` still leads back to the
+    record once the markdown is pasted somewhere else. ``base_url`` defaults to
+    :func:`pantograph.settings.public_url`; pass ``""`` for links relative to
+    the page the report is shown on.
+    """
+    if base_url is None:
+        base_url = public_url()
     nodes_dict = {e['data']['id']: e['data'] for e in elements if 'source' not in e['data']}
     edges = [e['data'] for e in elements if 'source' in e['data']]
     
@@ -104,10 +119,15 @@ def generate_markdown_report(report_cfg, elements):
             names = [people_map[pid] for pid in p_ids if pid in people_map]
             format_dict['linked_people'] = ", ".join(names) if names else "None"
 
+        format_dict[BASE_URL] = base_url
+
         row_provenance = _provenance_for(node, provenance_by_row)
 
         def safe_replace(match):
             key = match.group(1)
+            if key == BASE_URL:
+                # Part of a link target, where a provenance note would break it.
+                return base_url
             val = format_dict.get(key, "")
             text = str(val) if val is not None else ""
             if not text:

@@ -58,6 +58,9 @@ python -m pantograph
 Paths default to the working directory and can be overridden with
 `PANTOGRAPH_CONFIG`, `PANTOGRAPH_DB`, `PANTOGRAPH_ANALYTICS_DB` and
 `PANTOGRAPH_ASSETS`. `HOST`, `PORT` and `DEBUG` control the server.
+`PUBLIC_URL` is the address people reach the deployment at; report templates
+use it as `{base_url}` so copied links lead back to the record. It defaults to
+the host of `OAUTH_REDIRECT_URI`.
 
 Run the tests with:
 

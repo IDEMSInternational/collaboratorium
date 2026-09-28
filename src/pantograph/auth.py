@@ -105,6 +105,18 @@ def login():
         <p>An environment for collaborative innovation. Please sign in with your IDEMS account to access the network.</p>
         <a href="/auth/google" class="btn-login">Login with Google</a>
       </div>
+      <script>
+        /* The fragment of the link that sent us here never reaches the server,
+           and the round trip out to Google loses it. Stash it for
+           assets/deep_link.js to restore once we are back and logged in. */
+        (function () {
+          try {
+            if (window.location.hash) {
+              sessionStorage.setItem("pantograph-pending-hash", window.location.hash);
+            }
+          } catch (e) {}
+        })();
+      </script>
     </body>
     </html>
     """

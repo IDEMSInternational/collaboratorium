@@ -121,6 +121,10 @@ def _entity_link(kind, entity_id, name, className="dash-entity-link", slot=None)
     share an id. Pass a value that is stable across renders (so React reuses the
     DOM rather than remounting) yet unique within one render; it defaults to
     kind+id, which is enough only when the entity appears once.
+
+    No ``href``: ``href="#"`` makes the browser jump to the top of the page on
+    every click, and closing the card then scrolls back to the link. The class
+    supplies the pointer cursor.
     """
     return html.A(
         name or f"{kind[:-1].title()} {entity_id}",
@@ -132,7 +136,6 @@ def _entity_link(kind, entity_id, name, className="dash-entity-link", slot=None)
         },
         className=className,
         n_clicks=0,
-        href="#",
     )
 
 

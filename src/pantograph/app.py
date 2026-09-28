@@ -16,7 +16,7 @@ from pantograph.auth import server, register_auth_callbacks
 from pantograph.config import load_config
 from pantograph.db import init_db
 from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
-from pantograph.form_gen import register_form_callbacks
+from pantograph.form_gen import parse_edit_hash, register_form_callbacks, triggered_props
 from pantograph.plugins import load_plugins
 from pantograph.relevance import validate_forms
 from pantograph.requirements import validate_forms as validate_required
@@ -227,22 +227,27 @@ def _register_navigation(app, plugins, landing_id):
 def _register_editor_visibility(app):
     @app.callback(
         Output("editor-popup", "is_open", allow_duplicate=True),
+        # Not `editor-popup.is_open`: this callback only ever opens the editor,
+        # and listening to its own output only ever meant answering "still
+        # open" — a write that `clear_hash_on_modal_close` then read as a close.
         [Input("table-selector", "value"),
          Input(EDITOR_REQUEST_STORE, "data"),
-         Input("url", "hash"),
-         Input("editor-popup", "is_open")],
+         Input("url", "hash")],
         prevent_initial_call=True,
     )
-    def handle_editor_visibility(table_val, request, url_hash, is_open_state):
-        trigger = ctx.triggered_id
-        if trigger == "editor-popup":
-            return is_open_state
-        if trigger in ["table-selector", EDITOR_REQUEST_STORE, "url"]:
-            if trigger == "table-selector" and not table_val:
-                return is_open_state
-            if trigger == EDITOR_REQUEST_STORE and not request:
-                return is_open_state
-            if trigger == "url" and (not url_hash or "edit" not in url_hash):
-                return is_open_state
+    def handle_editor_visibility(table_val, request, url_hash):
+        # The whole trigger set, not `ctx.triggered_id`: a cold load reports
+        # the stores and the URL together, so the hash is rarely the one named.
+        triggers = triggered_props()
+        # Anything that fails to justify opening the editor leaves it alone.
+        # Reporting the editor's current state back instead would be a write
+        # like any other, and a write of `False` is what
+        # `clear_hash_on_modal_close` reads as the editor having closed — which
+        # wiped the very hash this callback had just been handed.
+        if "url.hash" in triggers and parse_edit_hash(url_hash):
             return True
-        return is_open_state
+        if f"{EDITOR_REQUEST_STORE}.data" in triggers and request:
+            return True
+        if "table-selector.value" in triggers and table_val:
+            return True
+        return no_update

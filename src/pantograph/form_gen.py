@@ -11,6 +11,35 @@ from pantograph import provenance, relevance, requirements
 
 
 # ==============================================================
+# URL HASH ROUTING
+# ==============================================================
+
+
+def triggered_props():
+    """
+    Every prop that changed in this callback invocation, not just the first.
+
+    `ctx.triggered_id` names one trigger, and on a cold load there is never
+    only one: the stores and the Location component all report their values in
+    the same batch, so an empty `editor-request` routinely arrives ahead of the
+    URL hash and wins. A visitor following an `#edit/...` deep link would then
+    land on the dashboard with nothing open. Every callback that can be woken
+    by the hash decides on the whole set instead.
+    """
+    return {t.get("prop_id", "") for t in (ctx.triggered or [])}
+
+
+def parse_edit_hash(url_hash):
+    """`#edit/<table>/<id>` -> `(table, id)`, or None for anything else."""
+    if not url_hash:
+        return None
+    parts = url_hash.strip("#").split("/")
+    if len(parts) == 3 and parts[0] == "edit" and parts[1] and parts[2]:
+        return parts[1], parts[2]
+    return None
+
+
+# ==============================================================
 # DATABASE HELPERS
 # ==============================================================
 
@@ -138,30 +167,30 @@ def register_click_callbacks(app, config):
         open the editor writes to the `editor-request` store; see
         `EDITOR_REQUEST` in pantograph.editor for the shape.
         """
-        trigger = ctx.triggered[0].get('prop_id', '') if ctx.triggered else None
+        triggers = triggered_props()
 
-        if trigger == "form-refresh.data":
+        if triggers == {"form-refresh.data"}:
             return html.Div("Select a table or click an element to edit.")
 
-        # 1. Hash Routing (from Report links and AG Grid Edit column)
-        if trigger == 'url.hash' and url_hash:
-            # url_hash comes in as "#edit/table/id"
-            parts = url_hash.strip('#').split('/')
-            if len(parts) == 3 and parts[0] == 'edit':
-                tbl, obj_id = parts[1], parts[2]
+        # 1. Hash Routing (from Report links and AG Grid Edit column). This
+        # comes first so that a deep link wins over whatever else happens to
+        # have arrived in the same batch — on a cold load, everything does.
+        if "url.hash" in triggers:
+            route = parse_edit_hash(url_hash)
+            if route:
                 try:
-                    return show_edit_form(tbl, obj_id, person_id)
+                    return show_edit_form(route[0], route[1], person_id)
                 except Exception:
                     pass
 
         # If the table selector is the trigger, show the add form (explicit user choice)
-        if trigger and trigger.startswith("table-selector"):
+        if any(t.startswith("table-selector") for t in triggers):
             if table_name:
                 values, title, provenances = _prefill_for(table_name, prefill)
                 return show_add_form(table_name, person_id, values, title, provenances)
             return "Select a table"
 
-        if trigger and trigger.startswith("editor-request") and request:
+        if request and any(t.startswith("editor-request") for t in triggers):
             return _form_for_request(request, person_id)
 
         # No explicit trigger (initial or programmatic call): fall back to the
@@ -169,7 +198,7 @@ def register_click_callbacks(app, config):
         # trigger at all, because a leftover table-selector value must not turn
         # an unrelated event — the hash being cleared as the editor closes —
         # into an add form for whatever was last selected.
-        if not trigger and table_name:
+        if not triggers and table_name:
             values, title, provenances = _prefill_for(table_name, prefill)
             return show_add_form(table_name, person_id, values, title, provenances)
 
@@ -240,18 +269,19 @@ def register_click_callbacks(app, config):
         prevent_initial_call=True
     )
     def control_editor_flow(add_clicks, request, url_hash, cancel_clicks):
+        triggers = triggered_props()
         trigger = ctx.triggered_id
         # Safely unpack pattern dict callback context assignments
         if isinstance(trigger, dict) and trigger.get("type") == "cancel":
             if any(clicks > 0 for clicks in cancel_clicks if clicks is not None):
                 return False, no_update, no_update
-        if trigger == "btn-add-element":
+        if "btn-add-element.n_clicks" in triggers:
             return True, {"display": "block"}, None
-        if trigger in ["editor-request", "url"]:
-            if trigger == "url" and (not url_hash or "edit" not in url_hash):
-                return no_update, no_update, no_update
-            if trigger == "editor-request" and not request:
-                return no_update, no_update, no_update
+        # A deep link and a request both open the editor onto a specific
+        # record, so the table dropdown has nothing left to choose.
+        if "url.hash" in triggers and parse_edit_hash(url_hash):
+            return True, {"display": "none"}, no_update
+        if "editor-request.data" in triggers and request:
             return True, {"display": "none"}, no_update
         return no_update, no_update, no_update
 

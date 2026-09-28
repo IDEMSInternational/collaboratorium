@@ -22,6 +22,8 @@ def _db():
     from pantograph.settings import get_settings
     return str(get_settings().database_path)
 
+CANCEL = '[id*=\'"type":"cancel"\']'
+
 NEW_EMPTY = "Seeded New Empty Initiative"
 OLD_EMPTY = "Seeded Quiet Initiative"
 ORPHAN_INITIATIVE = "Seeded Ownerless Initiative"
@@ -437,7 +439,10 @@ def test_prefill_does_not_leak_into_a_later_add(page: Page):
     editor = page.locator("#editor-popup")
     expect(editor.locator('[id*="initiatives_links"]').first).to_contain_text(NEW_EMPTY)
 
-    page.keyboard.press("Escape")
+    # The form's own Cancel, not Escape: dbc.Modal binds its key handler once
+    # the modal has finished mounting, so a keypress sent the moment the editor
+    # appears can land on nothing and leave it open.
+    page.locator(CANCEL).click()
     expect(editor).to_be_hidden()
 
     page.locator("#btn-add-activity").click()

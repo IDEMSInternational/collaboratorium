@@ -77,10 +77,10 @@ def test_adding_a_child_initiative_arrives_with_its_parent_set(page: Page):
     expect(editor.locator('[id*="parents"]').first).to_contain_text(SEEDED_INITIATIVE)
 
 
-def test_the_edit_link_still_opens_the_record(page: Page):
+def test_the_edit_action_still_opens_the_record(page: Page):
     """It moved out of the template into the actions; it must still work."""
     _open_report(page)
-    _action(page, "🔗").click()
+    _action(page, "✏️").click()
 
     expect(page.locator("#editor-popup")).to_be_visible()
     expect(page.locator("#form-heading")).to_contain_text("Edit")

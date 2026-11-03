@@ -285,7 +285,7 @@ reports:
           {description}
 
         actions:
-          - label: "🔗"
+          - label: "✏️"
             mode: edit
           - label: "+ activity"
             mode: add
@@ -307,7 +307,7 @@ reports:
               {description}
 
             actions:
-              - label: "🔗"
+              - label: "✏️"
                 mode: edit
               - label: "+ sub-activity"
                 mode: add

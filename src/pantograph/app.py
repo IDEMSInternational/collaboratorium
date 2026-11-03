@@ -16,7 +16,8 @@ from pantograph.auth import server, register_auth_callbacks
 from pantograph.config import load_config
 from pantograph.db import init_db
 from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
-from pantograph.form_gen import register_form_callbacks
+from pantograph.editor import parse_hash
+from pantograph.form_gen import register_form_callbacks, triggered_props
 from pantograph.plugins import load_plugins
 from pantograph.relevance import validate_forms
 from pantograph.requirements import validate_forms as validate_required
@@ -229,20 +230,27 @@ def _register_editor_visibility(app):
         Output("editor-popup", "is_open", allow_duplicate=True),
         [Input("table-selector", "value"),
          Input(EDITOR_REQUEST_STORE, "data"),
-         Input("url", "hash"),
-         Input("editor-popup", "is_open")],
+         Input("url", "hash")],
         prevent_initial_call=True,
     )
-    def handle_editor_visibility(table_val, request, url_hash, is_open_state):
-        trigger = ctx.triggered_id
-        if trigger == "editor-popup":
-            return is_open_state
-        if trigger in ["table-selector", EDITOR_REQUEST_STORE, "url"]:
-            if trigger == "table-selector" and not table_val:
-                return is_open_state
-            if trigger == EDITOR_REQUEST_STORE and not request:
-                return is_open_state
-            if trigger == "url" and (not url_hash or "edit" not in url_hash):
-                return is_open_state
+    def handle_editor_visibility(table_val, request, url_hash):
+        """
+        Open the editor for anything that names a record to show.
+
+        Only ever opens it. Closing is the modal's own business, and this
+        used to take `is_open` as an Input and echo it back, which made every
+        unrelated event a *write* of the current state - and a write of False
+        is read by clear_hash_on_modal_close as the editor having closed. On a
+        cold load that cleared the very route this callback was being handed,
+        so a link followed from a report opened nothing.
+        """
+        triggers = triggered_props()
+        if "table-selector.value" in triggers and table_val:
             return True
-        return is_open_state
+        if f"{EDITOR_REQUEST_STORE}.data" in triggers and request:
+            return True
+        # Asked of the router, not matched as a substring: an add route opens
+        # the editor too, and a fragment that merely contains "edit" does not.
+        if "url.hash" in triggers and parse_hash(url_hash):
+            return True
+        return no_update

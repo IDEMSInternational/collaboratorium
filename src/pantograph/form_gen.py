@@ -11,6 +11,20 @@ from pantograph import provenance, relevance, requirements
 from pantograph.editor import parse_hash
 
 
+def triggered_props():
+    """
+    Every prop that changed in this callback invocation, not just the first.
+
+    `ctx.triggered_id` and `ctx.triggered[0]` name one trigger, and on a
+    cold load there is never only one: the stores and the Location component
+    all report their values in the same batch, so an empty `editor-request`
+    routinely arrives ahead of the URL hash and wins. Someone following a
+    link out of a report would then land on the dashboard with nothing open.
+    Every callback that can be woken by the hash decides on the whole set.
+    """
+    return {t.get("prop_id", "") for t in (ctx.triggered or [])}
+
+
 # ==============================================================
 # DATABASE HELPERS
 # ==============================================================
@@ -139,13 +153,16 @@ def register_click_callbacks(app, config):
         open the editor writes to the `editor-request` store; see
         `EDITOR_REQUEST` in pantograph.editor for the shape.
         """
-        trigger = ctx.triggered[0].get('prop_id', '') if ctx.triggered else None
+        triggers = triggered_props()
+        # One name for the common case of a single trigger; `triggers` for the
+        # decisions that have to hold when the batch carries several.
+        trigger = next(iter(triggers), None) if len(triggers) == 1 else None
 
-        if trigger == "form-refresh.data":
+        if triggers == {"form-refresh.data"}:
             return html.Div("Select a table or click an element to edit.")
 
         # 1. Hash Routing (from Report links and AG Grid Edit column)
-        if trigger == 'url.hash' and url_hash:
+        if 'url.hash' in triggers and url_hash:
             # A link is all a markdown report or a grid cell can offer, so the
             # routes it writes are parsed into the same requests a page would
             # publish to the store. See pantograph.editor.parse_hash.
@@ -315,21 +332,20 @@ def register_click_callbacks(app, config):
         prevent_initial_call=True
     )
     def control_editor_flow(add_clicks, request, url_hash, cancel_clicks):
+        triggers = triggered_props()
         trigger = ctx.triggered_id
         # Safely unpack pattern dict callback context assignments
         if isinstance(trigger, dict) and trigger.get("type") == "cancel":
             if any(clicks > 0 for clicks in cancel_clicks if clicks is not None):
                 return False, no_update, no_update
-        if trigger == "btn-add-element":
+        if "btn-add-element.n_clicks" in triggers:
             return True, {"display": "block"}, None
-        if trigger in ["editor-request", "url"]:
-            # Asked of the router rather than matched as a substring: an add
-            # route has to open the editor too, and the hash being cleared as
-            # the editor closes must not reopen it.
-            if trigger == "url" and parse_hash(url_hash) is None:
-                return no_update, no_update, no_update
-            if trigger == "editor-request" and not request:
-                return no_update, no_update, no_update
+        # Asked of the router rather than matched as a substring: an add
+        # route has to open the editor too, and the hash being cleared as
+        # the editor closes must not reopen it.
+        if "url.hash" in triggers and parse_hash(url_hash):
+            return True, {"display": "none"}, no_update
+        if "editor-request.data" in triggers and request:
             return True, {"display": "none"}, no_update
         return no_update, no_update, no_update
 

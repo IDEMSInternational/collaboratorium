@@ -99,6 +99,18 @@ def login():
       </style>
     </head>
     <body>
+      <script>
+        /* The fragment of the link that sent someone here never reaches the
+           server, so it cannot ride `next=` out to Google and back. Stash it
+           for assets/deep_link.js to put back once they are signed in. */
+        (function () {
+          try {
+            if (window.location.hash) {
+              sessionStorage.setItem("pantograph-pending-hash", window.location.hash);
+            }
+          } catch (e) {}
+        })();
+      </script>
       <div class="login-card">
         <img src="https://www.idems.international/wp-content/uploads/2024/10/IDEMS_logo-300x65.png" alt="IDEMS Logo" class="login-logo">
         <h1>Collaboratorium</h1>

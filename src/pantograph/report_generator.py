@@ -53,18 +53,19 @@ def _provenance_for(node, provenance_by_row):
         return {}
     return provenance_by_row.get((node['type'], record_id, version), {})
 
-ACTION_SEPARATOR = " "
-
-
 def _action_link(action, node_type, record_id):
     """
-    One action, as the markdown link a report can actually hold.
+    One action, as the anchor a report can actually hold.
+
+    An anchor rather than a markdown link because these are affordances rather
+    than prose, and they carry the classes that make them read as the small
+    buttons the dashboard offers for the same jobs. The Report tab renders with
+    dangerously_allow_html, which is what the templates already rely on.
 
     The route is built here rather than written into a template so that turning
     the actions off can remove them whole. A template that spelled its own links
-    out in prose could only be cleaned up by hunting link syntax back out of it,
-    and a description or an attachment list may legitimately contain links of
-    its own.
+    out could only be cleaned up by hunting link syntax back out of it, and a
+    description or an attachment list may legitimately contain links of its own.
 
     See pantograph.editor.parse_hash for what each route means.
     """
@@ -74,20 +75,35 @@ def _action_link(action, node_type, record_id):
     mode = action.get("mode", "edit")
 
     if mode == "edit":
-        return f"[{label}](#edit/{node_type}/{record_id})"
+        return _anchor(label, f"#edit/{node_type}/{record_id}", mode)
     if mode == "add":
         table = action.get("table")
         if not table:
             return None
         element = action.get("element")
-        if not element:
-            return f"[{label}](#add/{table})"
-        return f"[{label}](#add/{table}/{element}/{record_id})"
+        route = (
+            f"#add/{table}/{element}/{record_id}" if element else f"#add/{table}"
+        )
+        return _anchor(label, route, mode)
     return None
 
 
+def _anchor(label, route, mode):
+    # Adding is the action worth reaching for, so it is accented and editing is
+    # not — the same distinction the dashboard draws between its own two.
+    accent = " report-action-go" if mode == "add" else ""
+    return f'<a class="report-action{accent}" href="{route}">{label}</a>'
+
+
 def _render_actions(level_cfg, node_type, record_id, include_actions):
-    """The `{actions}` substitution: every action for this level, or nothing."""
+    """
+    The `{actions}` substitution: every action for this level as one row, or
+    nothing at all.
+
+    One element rather than loose links, so a template can give the actions a
+    line of their own under the heading and have the whole line appear and
+    disappear together.
+    """
     if not include_actions:
         return ""
     links = [
@@ -96,7 +112,9 @@ def _render_actions(level_cfg, node_type, record_id, include_actions):
             for action in level_cfg.get("actions", []) or []
         ) if link
     ]
-    return ACTION_SEPARATOR.join(links)
+    if not links:
+        return ""
+    return f'<div class="report-actions">{"".join(links)}</div>'
 
 
 def report_context():

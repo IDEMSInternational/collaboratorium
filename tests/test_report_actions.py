@@ -52,12 +52,12 @@ def _initiative(record_id=1, name="Water Access"):
 
 def test_an_edit_action_addresses_the_record_it_is_rendered_against():
     link = _action_link({"label": "edit", "mode": "edit"}, "initiatives", 4)
-    assert link == "[edit](#edit/initiatives/4)"
+    assert link == '<a class="report-action" href="#edit/initiatives/4">edit</a>'
 
 
 def test_edit_is_the_default_mode():
     """The commonest action, and the one that predates the others."""
-    assert _action_link({"label": "e"}, "activities", 2) == "[e](#edit/activities/2)"
+    assert 'href="#edit/activities/2"' in _action_link({"label": "e"}, "activities", 2)
 
 
 def test_an_add_action_links_the_new_record_to_this_one():
@@ -70,13 +70,25 @@ def test_an_add_action_links_the_new_record_to_this_one():
          "element": "initiatives_links"},
         "initiatives", 4,
     )
-    assert link == "[+ activity](#add/activities/initiatives_links/4)"
+    assert 'href="#add/activities/initiatives_links/4"' in link
+    assert ">+ activity</a>" in link
 
 
 def test_an_add_action_with_no_element_opens_an_unlinked_form():
     link = _action_link({"label": "+", "mode": "add", "table": "activities"},
                         "initiatives", 4)
-    assert link == "[+](#add/activities)"
+    assert 'href="#add/activities"' in link
+
+
+def test_adding_is_accented_and_editing_is_not():
+    """
+    The same distinction the dashboard draws between its own two: recording
+    work is the thing worth reaching for.
+    """
+    add = _action_link({"label": "+", "mode": "add", "table": "activities"}, "initiatives", 1)
+    edit = _action_link({"label": "e", "mode": "edit"}, "initiatives", 1)
+    assert "report-action-go" in add
+    assert "report-action-go" not in edit
 
 
 @pytest.mark.parametrize("action", [
@@ -92,14 +104,19 @@ def test_an_action_that_cannot_be_built_is_dropped_not_guessed_at(action):
 # The {actions} substitution
 # --------------------------------------------------------------------------
 
-def test_actions_render_in_configured_order_space_separated():
+def test_actions_render_in_configured_order_as_one_row():
+    """
+    One element, not loose links: a template can give the row a line of its own
+    and have the whole line come and go with the switch.
+    """
     level = {"actions": [
         {"label": "a", "mode": "edit"},
         {"label": "b", "mode": "add", "table": "activities"},
     ]}
-    assert _render_actions(level, "initiatives", 1, True) == (
-        "[a](#edit/initiatives/1) [b](#add/activities)"
-    )
+    rendered = _render_actions(level, "initiatives", 1, True)
+    assert rendered.startswith('<div class="report-actions">')
+    assert rendered.endswith("</div>")
+    assert rendered.index(">a</a>") < rendered.index(">b</a>")
 
 
 def test_actions_render_as_nothing_when_they_are_switched_off():
@@ -134,8 +151,9 @@ def test_a_report_renders_its_actions_into_the_placeholder():
     md = generate_markdown_report(
         REPORT_CFG, _nodes(_initiative()), include_actions=True, context=EMPTY_CONTEXT,
     )
-    assert "[edit](#edit/initiatives/1)" in md
-    assert "[+ activity](#add/activities/initiatives_links/1)" in md
+    assert 'href="#edit/initiatives/1"' in md
+    assert 'href="#add/activities/initiatives_links/1"' in md
+    assert '<div class="report-actions">' in md
 
 
 def test_the_two_renders_differ_by_the_actions_and_nothing_else():
@@ -154,7 +172,7 @@ def test_the_two_renders_differ_by_the_actions_and_nothing_else():
     assert "#edit/" in shown and "#add/" in shown
     assert "#edit/" not in clean and "#add/" not in clean
     assert "Water Access" in clean
-    actions = "[edit](#edit/initiatives/1) [+ activity](#add/activities/initiatives_links/1)"
+    actions = _render_actions(REPORT_CFG["hierarchy"][0], "initiatives", 1, True)
     assert shown.replace(actions, "").strip() == clean.strip()
 
 
@@ -184,7 +202,7 @@ def test_an_actions_placeholder_does_not_consult_the_row_for_a_column():
         REPORT_CFG, _nodes(node), include_actions=True, context=EMPTY_CONTEXT,
     )
     assert "a column, not the affordances" not in md
-    assert "[edit](#edit/initiatives/1)" in md
+    assert 'href="#edit/initiatives/1"' in md
 
 
 # --------------------------------------------------------------------------

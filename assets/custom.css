@@ -486,3 +486,38 @@ summary:hover {
     padding: 3px 10px 3px 3px;
 }
 .dash-person-n { font-size: 0.8rem; color: var(--idems-text); }
+
+/* --- Report actions ---------------------------------------------------- */
+/* The edit and add affordances a report offers under each heading. Sized and
+   coloured as .dash-mini is, because they do the same jobs the dashboard's own
+   small buttons do; they are anchors rather than buttons only because markdown
+   is all a report can hold. The row is one element so that switching the
+   actions off takes the whole line with it rather than leaving a gap. */
+.report-actions {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    margin: 2px 0 16px;
+}
+.report-action {
+    border: 1px solid var(--border-color);
+    border-radius: 5px;
+    font-size: 0.72rem;
+    font-weight: 600;
+    color: var(--idems-text-muted);
+    text-decoration: none;
+    padding: 3px 9px;
+    line-height: 1.5;
+}
+.report-action:hover {
+    background: #f8f9fa;
+    color: var(--idems-text);
+    border-color: var(--idems-text-muted);
+    text-decoration: none;
+}
+.report-action-go { border-color: var(--idems-orange); color: var(--idems-orange-hover); }
+.report-action-go:hover {
+    background: var(--idems-orange);
+    color: #ffffff;
+    border-color: var(--idems-orange);
+}

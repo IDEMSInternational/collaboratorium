@@ -263,6 +263,10 @@ views:
 # belongs in a final reporting document. The routes an action produces are
 # documented in pantograph.editor.parse_hash.
 #
+# They render as one row, so a line of their own below the heading appears and
+# disappears whole. Put the placeholder back on the heading line and they sit
+# inline instead; nothing in the code minds either way.
+#
 # An add action's `element` names a links element on the form of the record
 # being created: `initiatives_links` on an activity, `parents` on an initiative.
 # Forms config already says which link table and direction that means.
@@ -272,7 +276,10 @@ reports:
     hierarchy:
       - type: "initiatives"
         template: |+
-          ## {name} {actions}
+          ## {name}
+
+          {actions}
+
           **Responsible Person:** {responsible_person}
 
           {description}
@@ -291,7 +298,10 @@ reports:
         children:
           - type: "activities"
             template: |+
-              ### {name} {actions}
+              ### {name}
+
+              {actions}
+
               **Start:** {start_date} | **End:** {end_date} | **Linked People:** {linked_people}
 
               {description}

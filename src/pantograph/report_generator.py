@@ -1,6 +1,7 @@
 import re
 import json
 from pantograph import provenance
+from pantograph.settings import public_url
 from pantograph.db import get_all_provenance, get_dropdown_options, get_relation_links
 
 def format_subform_data(val_str):
@@ -142,7 +143,12 @@ def report_context():
     }
 
 
-def generate_markdown_report(report_cfg, elements, include_actions=True, context=None):
+# Placeholders the deployment answers, not the record.
+BASE_URL = "base_url"
+
+
+def generate_markdown_report(report_cfg, elements, include_actions=True,
+                             context=None, base_url=None):
     """
     Takes the YAML configuration and filtered Graph elements to yield a Markdown
     report.
@@ -155,7 +161,19 @@ def generate_markdown_report(report_cfg, elements, include_actions=True, context
 
     `context` is a `report_context()`, passed in when a caller renders both
     variants and would otherwise fetch the same rows twice.
+
+    `{base_url}` in a template is the deployment's public address, for a
+    report whose links should still lead back to the records once the
+    markdown is somewhere else: a template can write
+    ``[source]({base_url}#edit/initiatives/{id})``. The shipped report does
+    not, because its `{actions}` are affordances of this app and the copy is
+    meant to be the document alone - but a deployment that would rather hand
+    out a report people can click back from can say so in its own templates.
+    Defaults to :func:`pantograph.settings.public_url`; "" keeps a link
+    relative, which is what it is without an address configured.
     """
+    if base_url is None:
+        base_url = public_url()
     nodes_dict = {e['data']['id']: e['data'] for e in elements if 'source' not in e['data']}
     edges = [e['data'] for e in elements if 'source' in e['data']]
 
@@ -200,16 +218,21 @@ def generate_markdown_report(report_cfg, elements, include_actions=True, context
             names = [people_map[pid] for pid in p_ids if pid in people_map]
             format_dict['linked_people'] = ", ".join(names) if names else "None"
 
-        # Set after the properties, so this never renders a column that
-        # happens to be called `actions` in its place.
+        # Set after the properties, so neither of these ever renders a column
+        # that happens to be called the same thing in its place.
         format_dict['actions'] = _render_actions(
             level_cfg, node['type'], format_dict['id'], include_actions
         )
+        format_dict[BASE_URL] = base_url
 
         row_provenance = _provenance_for(node, provenance_by_row)
 
         def safe_replace(match):
             key = match.group(1)
+            if key == BASE_URL:
+                # Answered without the provenance pass below, which would put
+                # a note inside the link target this is half of.
+                return base_url
             val = format_dict.get(key, "")
             text = str(val) if val is not None else ""
             if not text:

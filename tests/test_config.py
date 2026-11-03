@@ -5,11 +5,19 @@ import yaml
 from pantograph.config import Config, ConfigError, load_config
 
 LINKS = {"links": {"a_links": {"mappings": []}}}
+# A pencil (the shipped report actions' label), an em dash and an accent:
+# bytes cp1252 either cannot decode or decodes to something else.
+NOTE = "✏️ — café"
 
 
-def _write(tmp_path, name, data):
+def _write(tmp_path, name, data, as_written=False):
+    """
+    `as_written` keeps non-ASCII as itself, the way a person editing config
+    leaves it. safe_dump escapes it to a \\uXXXX sequence by default, which is
+    plain ASCII and so says nothing about how the file is decoded.
+    """
     path = tmp_path / name
-    path.write_text(yaml.safe_dump(data), encoding="utf-8")
+    path.write_text(yaml.safe_dump(data, allow_unicode=as_written), encoding="utf-8")
     return path
 
 
@@ -130,3 +138,20 @@ def test_a_file_that_is_not_a_mapping_says_which_one(tmp_path):
     _write(tmp_path, "core.yaml", {"title": "T", **LINKS})
     with pytest.raises(ConfigError, match="bad.yaml must contain a mapping"):
         load_config(tmp_path)
+
+
+def test_config_is_read_as_utf8_whatever_the_platform_default_is(tmp_path):
+    """
+    Config holds text people typed, including emoji: the shipped report actions
+    are labelled with a pencil. Read with the platform default codec that is a
+    UnicodeDecodeError on Windows, where cp1252 has no mapping for several of
+    the bytes, while passing on a Linux CI runner -- so the deployment that
+    fails to start is always someone else's.
+    """
+    _write(tmp_path, "core.yaml", {"title": "T", "note": NOTE, **LINKS}, as_written=True)
+    assert load_config(tmp_path)["note"] == NOTE
+
+
+def test_a_single_config_file_is_read_the_same_way(tmp_path):
+    path = _write(tmp_path, "everything.yaml", {"title": NOTE, **LINKS}, as_written=True)
+    assert load_config(path)["title"] == NOTE

@@ -87,7 +87,7 @@ def load_config(filepath):
         )
 
     if not path.is_dir():
-        with open(path, "r") as f:
+        with open(path, "r", encoding="utf-8") as f:
             return Config(yaml.safe_load(f))
 
     sources = sorted(
@@ -99,7 +99,11 @@ def load_config(filepath):
 
     merged, origins = {}, {}
     for source in sources:
-        with open(source, "r") as f:
+        # Always UTF-8, never the platform default: config is written by
+        # people and holds emoji (a report action's label, say), and cp1252 on
+        # Windows cannot decode those at all. A deployment that loaded on Linux
+        # would fail to start here, with a UnicodeDecodeError about a byte.
+        with open(source, "r", encoding="utf-8") as f:
             _merge_into(merged, origins, yaml.safe_load(f), source.name)
 
     return Config(merged)

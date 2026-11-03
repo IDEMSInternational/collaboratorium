@@ -12,6 +12,7 @@ Everything here is read through :func:`get_settings` at the moment it is needed,
 never captured at import time, so :func:`configure` takes effect wherever it is
 called from.
 """
+import logging
 import os
 from dataclasses import dataclass, replace
 from pathlib import Path
@@ -33,8 +34,10 @@ class Settings:
     database_path: Path
     analytics_path: Path
     assets_path: Path
-    # None means "work it out from the environment when asked"; see public_url().
-    public_url: Optional[str] = None
+    # Deliberately an override, not the address itself: the environment is read
+    # at call time, so this is the one field that cannot be resolved up front.
+    # None hands the question back to the environment. See public_url().
+    public_url_override: Optional[str] = None
 
     @classmethod
     def from_env(cls):
@@ -53,6 +56,28 @@ def get_settings():
     return _settings
 
 
+def _origin(url, setting):
+    """
+    The ``scheme://host`` of ``url``, or "" if it does not name one.
+
+    A link in a copied report is only absolute with a scheme: browsers read
+    "example.org#edit/initiatives/7" as a path relative to whatever document
+    it ended up in, which is the failure this setting exists to prevent. It is
+    an easy value to write that way, since ``DOMAIN`` in the same .env is
+    deliberately scheme-less, so a half-written address is refused and said
+    out loud rather than quietly producing dead links.
+    """
+    parts = urlsplit(url)
+    if parts.scheme and parts.netloc:
+        return f"{parts.scheme}://{parts.netloc}"
+    if url:
+        logging.getLogger(__name__).warning(
+            "%s=%r has no scheme, so it cannot make a link that works outside "
+            "the app; ignoring it. Write it as https://%s", setting, url, url,
+        )
+    return ""
+
+
 def public_url():
     """
     The address people reach this deployment at, without a trailing slash, or
@@ -66,34 +91,52 @@ def public_url():
     ``.env`` file is only loaded when :mod:`pantograph.auth` is imported, which
     is after this module has already built its settings. In order:
 
-    1. ``configure(public_url=...)``, where ``""`` asks for relative links
+    1. ``configure(public_url_override=...)``, where ``""`` asks for relative
+       links and ``None`` hands the question back to the environment
     2. ``PUBLIC_URL``
     3. the scheme and host of ``OAUTH_REDIRECT_URI``, which sign-in already
-       requires to be the address browsers use
+       requires to be the address browsers use. Note it carries no port, so a
+       deployment served on one needs ``PUBLIC_URL``.
+
+    Anything but a bare path is kept, so ``PUBLIC_URL`` can name a deployment
+    hosted under a sub-path.
     """
-    if _settings.public_url is not None:
-        return _settings.public_url.rstrip("/")
+    override = get_settings().public_url_override
+    if override is not None:
+        return override.rstrip("/")
     configured = os.environ.get("PUBLIC_URL", "").strip()
-    if not configured:
-        parts = urlsplit(os.environ.get("OAUTH_REDIRECT_URI", "").strip())
-        if parts.scheme and parts.netloc:
-            configured = f"{parts.scheme}://{parts.netloc}"
-    return configured.rstrip("/")
+    if configured:
+        parts = urlsplit(configured)
+        if not (parts.scheme and parts.netloc):
+            return _origin(configured, "PUBLIC_URL")
+        return configured.rstrip("/")
+    return _origin(
+        os.environ.get("OAUTH_REDIRECT_URI", "").strip(), "OAUTH_REDIRECT_URI"
+    ).rstrip("/")
 
 
-_PATH_FIELDS = {"config_path", "database_path", "analytics_path", "assets_path"}
+# Which fields configure() coerces, taken from the annotations rather than
+# listed again, so a path added to Settings cannot be forgotten here.
+_PATH_FIELDS = {
+    name for name, f in Settings.__dataclass_fields__.items()
+    if f.type in (Path, "Path")
+}
 
 
 def configure(**overrides):
     """
     Replace one or more settings. Paths are coerced to Path so callers can pass
     plain strings, which is what a test or a CLI flag will naturally have.
+
+    A path given as None is ignored, since there is no such thing as "no
+    database"; any other field takes None as the value it means.
     """
     global _settings
     unknown = set(overrides) - {f for f in Settings.__dataclass_fields__}
     if unknown:
         raise TypeError(f"Unknown setting(s): {', '.join(sorted(unknown))}")
     coerced = {k: Path(v) if k in _PATH_FIELDS else v
-               for k, v in overrides.items() if v is not None}
+               for k, v in overrides.items()
+               if not (v is None and k in _PATH_FIELDS)}
     _settings = replace(_settings, **coerced)
     return _settings

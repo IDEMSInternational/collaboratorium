@@ -54,8 +54,8 @@ def _provenance_for(node, provenance_by_row):
         return {}
     return provenance_by_row.get((node['type'], record_id, version), {})
 
-# Placeholders the deployment fills in, not the record. They win over a column
-# of the same name, so a template means the same thing whatever the schema.
+# A placeholder the deployment fills in, not the record: it beats a column of
+# the same name, so a template means the same thing whatever the schema.
 BASE_URL = 'base_url'
 
 def generate_markdown_report(report_cfg, elements, base_url=None):
@@ -119,14 +119,14 @@ def generate_markdown_report(report_cfg, elements, base_url=None):
             names = [people_map[pid] for pid in p_ids if pid in people_map]
             format_dict['linked_people'] = ", ".join(names) if names else "None"
 
-        format_dict[BASE_URL] = base_url
-
         row_provenance = _provenance_for(node, provenance_by_row)
 
         def safe_replace(match):
             key = match.group(1)
             if key == BASE_URL:
-                # Part of a link target, where a provenance note would break it.
+                # Answered here and not from format_dict, so a record with a
+                # column of this name cannot decide where a link points, and
+                # so no provenance note lands inside a link target.
                 return base_url
             val = format_dict.get(key, "")
             text = str(val) if val is not None else ""

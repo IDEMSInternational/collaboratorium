@@ -4,8 +4,9 @@ Links in a report lead back to the record, wherever the report ends up.
 Report markdown is copied into other documents so people can go back and revise
 what it was built from. A relative `#edit/...` link goes nowhere once pasted, so
 templates write `{base_url}#edit/...` and the deployment says what `base_url` is.
-Inside the app the shown report keeps relative links, because the editor opens
-from a hash change on the current page.
+The report shown in the app carries the same links: an absolute link to the
+origin the reader is already on is still only a change of fragment, so it opens
+the editor in place.
 """
 import pytest
 from dash import dcc
@@ -28,13 +29,13 @@ def nodes(**properties):
 @pytest.fixture
 def public_url():
     """Set the configured public URL for one test, restoring whatever was there."""
-    before = settings.get_settings()
+    before = settings.get_settings().public_url_override
 
     def set_to(value):
-        settings.configure(public_url=value)
+        settings.configure(public_url_override=value)
 
     yield set_to
-    settings._settings = before
+    settings.configure(public_url_override=before)
 
 
 @pytest.fixture
@@ -73,6 +74,58 @@ def test_configure_overrides_the_environment(no_url_env, public_url):
     no_url_env.setenv("PUBLIC_URL", "https://reports.example.org")
     public_url("http://127.0.0.1:8050")
     assert settings.public_url() == "http://127.0.0.1:8050"
+
+def test_the_override_can_be_handed_back_to_the_environment(no_url_env, public_url):
+    """None is a value here, not a missing argument, so a caller that set an
+    address can stop deciding - which is what the fixture above does."""
+    no_url_env.setenv("PUBLIC_URL", "https://reports.example.org")
+    public_url("http://127.0.0.1:8050")
+    settings.configure(public_url_override=None)
+    assert settings.public_url() == "https://reports.example.org"
+
+
+def test_a_path_setting_still_ignores_none():
+    """The same cannot be said of a database: there is no "no database"."""
+    before = settings.get_settings().database_path
+    settings.configure(database_path=None)
+    assert settings.get_settings().database_path == before
+
+
+def test_an_address_without_a_scheme_is_refused(no_url_env, caplog):
+    """
+    "example.org#edit/initiatives/7" is a path relative to whatever document
+    the report was pasted into, so it fails exactly where this feature is meant
+    to work. DOMAIN in the same .env is deliberately scheme-less, which makes
+    this an easy way to write it, so it is refused out loud.
+    """
+    no_url_env.setenv("PUBLIC_URL", "collaboratorium.example.org")
+    assert settings.public_url() == ""
+    assert "has no scheme" in caplog.text
+
+
+def test_a_scheme_less_oauth_uri_is_refused_too(no_url_env):
+    no_url_env.setenv("OAUTH_REDIRECT_URI", "localhost:8050/auth/callback")
+    assert settings.public_url() == ""
+
+
+def test_the_oauth_fallback_keeps_the_port(no_url_env):
+    """A development server on 8050 is reached on 8050, not on port 80."""
+    no_url_env.setenv("OAUTH_REDIRECT_URI", "http://localhost:8050/auth/callback")
+    assert settings.public_url() == "http://localhost:8050"
+
+
+def test_a_deployment_under_a_sub_path_keeps_it(no_url_env):
+    no_url_env.setenv("PUBLIC_URL", "https://example.org/collaboratorium/")
+    assert settings.public_url() == "https://example.org/collaboratorium"
+
+
+def test_the_stored_field_does_not_pose_as_the_address():
+    """
+    What is stored is an override, and None there means "ask the environment".
+    Naming it so is the point: a reader reaching for the deployment's address
+    through get_settings() finds no field quietly holding None instead.
+    """
+    assert not hasattr(settings.get_settings(), "public_url")
 
 
 def test_configure_still_rejects_unknown_settings():
@@ -128,9 +181,12 @@ def test_every_level_of_the_hierarchy_can_use_it(public_url):
 
 
 def test_the_shipped_report_links_are_absolute(app_config):
-    for level in _levels(app_config["reports"]["annual_report"]["hierarchy"]):
-        if "#edit/" in level["template"]:
-            assert "({base_url}#edit/" in level["template"]
+    linked = [l for l in _levels(app_config["reports"]["annual_report"]["hierarchy"])
+              if "#edit/" in l["template"]]
+    # Counted, because "every link is absolute" is also true of no links.
+    assert len(linked) == 2
+    for level in linked:
+        assert "({base_url}#edit/" in level["template"]
 
 
 def _levels(hierarchy):
@@ -160,7 +216,12 @@ def _find(component, kind):
             yield from _find(child, kind)
 
 
-def test_the_copied_markdown_is_absolute_and_the_shown_one_relative(public_url):
+def test_what_is_shown_and_what_is_copied_are_one_report(public_url):
+    """
+    Rendered once, so the two cannot disagree. Two renders meant two
+    independent reads of the database, and a write landing between them left
+    the page and the clipboard describing different data.
+    """
     public_url("https://pantograph.example.org")
     app = _CapturingApp()
     register_report_callbacks(app, {"reports": {"r": LINKED_CFG}})
@@ -169,12 +230,16 @@ def test_the_copied_markdown_is_absolute_and_the_shown_one_relative(public_url):
     copied = next(_find(rendered, dcc.Clipboard)).content
     shown = next(_find(rendered, dcc.Markdown)).children
     assert "(https://pantograph.example.org#edit/initiatives/7)" in copied
-    assert "(#edit/initiatives/7)" in shown
+    assert shown == copied
 
 
 def test_clicking_a_report_link_opens_the_editor_in_place(page: Page, live_server, public_url):
-    """With the address set to this very server, the link still opens the
-    editor on the page rather than loading the app again."""
+    """
+    With the address set to this very server the link is absolute, and still
+    opens the editor on the page rather than loading the app again: same
+    origin, so following it only changes the fragment. That is what lets the
+    shown report carry the same links as the copied one.
+    """
     public_url(live_server)
     page.goto("/")
     page.locator("#nav-explore").click()
@@ -182,6 +247,8 @@ def test_clicking_a_report_link_opens_the_editor_in_place(page: Page, live_serve
 
     link = page.locator("#report-container a[href*='#edit/']").first
     expect(link).to_be_visible(timeout=20000)
+    # Absolute, or this proves nothing about base_url.
+    assert link.get_attribute("href").startswith(live_server)
     page.evaluate("() => { window.__notReloaded = true; }")
     link.click()
 

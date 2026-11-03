@@ -256,7 +256,8 @@ views:
 # Generates hierarchical markdown documents from the filtered graph pipeline.
 # {base_url} is the deployment's public address (PUBLIC_URL), so links survive
 # the markdown being copied elsewhere. It always means that, whatever the record
-# has in a column of the same name.
+# has in a column of the same name, and is empty on a deployment that has not
+# been told its address, leaving the link relative as it was before.
 reports:
   annual_report:
     name: "Annual Activity Report"

@@ -263,6 +263,12 @@ views:
 # belongs in a final reporting document. The routes an action produces are
 # documented in pantograph.editor.parse_hash.
 #
+# `{base_url}` is the other placeholder a template can use: the deployment's
+# public address (PUBLIC_URL), for a report meant to stay clickable after it
+# is copied elsewhere - `[source]({base_url}#edit/initiatives/{id})`. This
+# report does not, because its copy is meant to be the document alone; a
+# deployment that wants the older behaviour back can write it in.
+#
 # They render as one row, so a line of their own below the heading appears and
 # disappears whole. Put the placeholder back on the heading line and they sit
 # inline instead; nothing in the code minds either way.

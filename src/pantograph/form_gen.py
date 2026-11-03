@@ -8,6 +8,7 @@ from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
 from pantograph.component_factory import component_for_element, register_subform_blocks, wrap_provenance
 from pantograph import provenance, relevance, requirements
+from pantograph.editor import parse_hash
 
 
 # ==============================================================
@@ -145,12 +146,13 @@ def register_click_callbacks(app, config):
 
         # 1. Hash Routing (from Report links and AG Grid Edit column)
         if trigger == 'url.hash' and url_hash:
-            # url_hash comes in as "#edit/table/id"
-            parts = url_hash.strip('#').split('/')
-            if len(parts) == 3 and parts[0] == 'edit':
-                tbl, obj_id = parts[1], parts[2]
+            # A link is all a markdown report or a grid cell can offer, so the
+            # routes it writes are parsed into the same requests a page would
+            # publish to the store. See pantograph.editor.parse_hash.
+            routed = parse_hash(url_hash)
+            if routed:
                 try:
-                    return show_edit_form(tbl, obj_id, person_id)
+                    return _form_for_request(routed, person_id)
                 except Exception:
                     pass
 
@@ -187,13 +189,86 @@ def register_click_callbacks(app, config):
         if mode == "edit":
             return show_edit_form(request.get("table"), request.get("id"), person_id)
         if mode == "add":
+            table = request.get("table")
+            values = _shaped_values(table, request.get("values") or None)
             return show_add_form(
-                request.get("table"), person_id,
-                request.get("values") or None, request.get("title"),
+                table, person_id, values,
+                request.get("title") or _title_for_values(table, values),
                 request.get("provenance") or None,
             )
         return html.Div("Select a table or click an element to edit.")
 
+
+    # ----------------------------------------------------------
+    # Making a routed add form say what it is
+    # ----------------------------------------------------------
+    # A route carries ids and element names, because that is all a URL can
+    # carry without going stale. Everything else a useful form needs is already
+    # in forms config, so it is read here rather than restated in the link.
+
+    def _element_def(table_name, element):
+        form_name = config.get("default_forms", {}).get(table_name)
+        if not form_name:
+            return None
+        return forms_config.get(form_name, {}).get("elements", {}).get(element)
+
+    def _shaped_values(table_name, values):
+        """
+        Narrow a routed list to a scalar where the element it names holds one.
+
+        Routes always arrive as lists, since a links element loads one. Pointing
+        a route at a single-valued element is a config mistake rather than a
+        shape to support, but it should open a form with the value set, not one
+        with a list where a number goes.
+        """
+        if not isinstance(values, dict):
+            return values
+        shaped = {}
+        for element, value in values.items():
+            element_def = _element_def(table_name, element) or {}
+            multiple = element_def.get("type") == "select_multiple"
+            if not multiple and isinstance(value, list) and len(value) == 1:
+                shaped[element] = value[0]
+            else:
+                shaped[element] = value
+        return shaped
+
+    def _title_for_values(table_name, values):
+        """
+        "Add Activities to Water Access" — the heading, read off the record the
+        new one will be linked to.
+
+        Only for a form prefilled with exactly one link, which is what a route
+        produces; a caller filling several elements knows better than this does
+        what the form is for, and passes its own title. Returns None when the
+        record or its label cannot be found, so the generic "Add <label>"
+        heading stands rather than a half-built one.
+
+        The label is the form's own, plural as the app's other headings are
+        ("Add Activities"), rather than a guess at a singular.
+        """
+        if not isinstance(values, dict) or len(values) != 1:
+            return None
+        (element, value), = values.items()
+        object_id = value[0] if isinstance(value, list) and len(value) == 1 else value
+        if not isinstance(object_id, int):
+            return None
+
+        parameters = (_element_def(table_name, element) or {}).get("parameters") or {}
+        source_table, label_column = parameters.get("source_table"), parameters.get("label_column")
+        if not source_table or not label_column:
+            return None
+        try:
+            record = get_latest_record(source_table, object_id)
+        except Exception:
+            return None
+        name = (record or {}).get(label_column)
+        if not name:
+            return None
+
+        form_name = config.get("default_forms", {}).get(table_name)
+        label = forms_config.get(form_name, {}).get("label", table_name)
+        return f"Add {label} to {name}"
 
     def _prefill_for(table_name, prefill):
         """
@@ -248,7 +323,10 @@ def register_click_callbacks(app, config):
         if trigger == "btn-add-element":
             return True, {"display": "block"}, None
         if trigger in ["editor-request", "url"]:
-            if trigger == "url" and (not url_hash or "edit" not in url_hash):
+            # Asked of the router rather than matched as a substring: an add
+            # route has to open the editor too, and the hash being cleared as
+            # the editor closes must not reopen it.
+            if trigger == "url" and parse_hash(url_hash) is None:
                 return no_update, no_update, no_update
             if trigger == "editor-request" and not request:
                 return no_update, no_update, no_update
@@ -262,10 +340,12 @@ def register_click_callbacks(app, config):
         prevent_initial_call=True
     )
     def clear_hash_on_modal_close(is_open, current_hash):
-        # Only clear the hash if the modal is actively closing AND the hash currently holds an edit route
-        if not is_open and current_hash and 'edit' in current_hash:
+        # Only clear the hash if the modal is actively closing AND the hash
+        # currently holds a route this editor opened — an add route as much as
+        # an edit one, or the next click on the same link would be a no-op.
+        if not is_open and parse_hash(current_hash) is not None:
             return ""
-        
+
         return no_update
 
 def register_submit_callbacks(app, forms_config):

@@ -118,7 +118,33 @@ def generate_main_layout(config):
                     dbc.Tabs(id="spreadsheet-tabs", className="mt-3"),       # Navigation Only
                     html.Div(id="spreadsheet-grid-container", className="mt-3") # Grid Content Only
                 ], id='spreadsheet-container', style={'display': 'none'}),
-                html.Div(id='report-container', style={'display': 'none'})
+                html.Div([
+                    # Static, so the switch keeps its state: tab_report
+                    # replaces the report body and the clipboard's content, not
+                    # this toolbar, and reads the switch as one of its inputs.
+                    # A switch re-created by the callback that reads it would
+                    # retrigger that callback on every render.
+                    dbc.Row([
+                        dbc.Col(html.H5(id='report-title', className="text-primary m-0"), width=7),
+                        dbc.Col([
+                            dbc.Switch(
+                                id='report-show-actions',
+                                label="Edit links",
+                                value=True,
+                                persistence=True,
+                                persistence_type="local",
+                                className="m-0 me-3",
+                            ),
+                            dcc.Clipboard(
+                                id='report-clipboard',
+                                className="btn btn-outline-secondary btn-sm",
+                                style={"fontSize": "16px"},
+                                title="Copy Markdown",
+                            ),
+                        ], width=5, className="d-flex justify-content-end align-items-center"),
+                    ], className="mb-3 align-items-center"),
+                    html.Div(id='report-container'),
+                ], id='report-pane', style={'display': 'none'}, className="p-3")
             ])
         ])
     ])
@@ -179,7 +205,7 @@ def register_layout_callbacks(app, config):
         return [new_is_open, active_view_id, new_layout, yaml_string] + styles + [sorted(all_options, key=lambda x: x['label'])] + button_classes
 
     @app.callback(
-        Output('graph-container', 'style'), Output('spreadsheet-container', 'style'), Output('report-container', 'style'),
+        Output('graph-container', 'style'), Output('spreadsheet-container', 'style'), Output('report-pane', 'style'),
         Input('output-tabs', 'active_tab')
     )
     def switch_tabs(active_tab):

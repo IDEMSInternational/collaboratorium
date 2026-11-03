@@ -254,12 +254,62 @@ views:
 
 # --- Reports Definitions ---
 # Generates hierarchical markdown documents from the filtered graph pipeline
+#
+# `{actions}` in a template is where this app's own affordances go: the edit
+# link, and the add links that let someone record missing work from the report
+# they noticed it was missing in. They are configured rather than written into
+# the template so that the Report page can also render the document without
+# them — that is the version its copy button hands over, and the version that
+# belongs in a final reporting document. The routes an action produces are
+# documented in pantograph.editor.parse_hash.
+#
+# They render as one row, so a line of their own below the heading appears and
+# disappears whole. Put the placeholder back on the heading line and they sit
+# inline instead; nothing in the code minds either way.
+#
+# An add action's `element` names a links element on the form of the record
+# being created: `initiatives_links` on an activity, `parents` on an initiative.
+# Forms config already says which link table and direction that means.
 reports:
   annual_report:
     name: "Annual Activity Report"
     hierarchy:
       - type: "initiatives"
-        template: "## {name} [🔗](#edit/initiatives/{id})\n**Responsible Person:** {responsible_person}\n\n{description}\n\n"
+        template: |+
+          ## {name}
+
+          {actions}
+
+          **Responsible Person:** {responsible_person}
+
+          {description}
+
+        actions:
+          - label: "✏️"
+            mode: edit
+          - label: "+ activity"
+            mode: add
+            table: activities
+            element: initiatives_links
+          - label: "+ sub-initiative"
+            mode: add
+            table: initiatives
+            element: parents
         children:
           - type: "activities"
-            template: "### {name} [🔗](#edit/activities/{id})\n**Start:** {start_date} | **End:** {end_date} | **Linked People:** {linked_people}\n\n{description}\n\n"
+            template: |+
+              ### {name}
+
+              {actions}
+
+              **Start:** {start_date} | **End:** {end_date} | **Linked People:** {linked_people}
+
+              {description}
+
+            actions:
+              - label: "✏️"
+                mode: edit
+              - label: "+ sub-activity"
+                mode: add
+                table: activities
+                element: parents

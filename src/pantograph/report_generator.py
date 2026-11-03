@@ -53,20 +53,116 @@ def _provenance_for(node, provenance_by_row):
         return {}
     return provenance_by_row.get((node['type'], record_id, version), {})
 
-def generate_markdown_report(report_cfg, elements):
-    """Takes the YAML configuration and filtered Graph elements to yield a Markdown report."""
+def _action_link(action, node_type, record_id):
+    """
+    One action, as the anchor a report can actually hold.
+
+    An anchor rather than a markdown link because these are affordances rather
+    than prose, and they carry the classes that make them read as the small
+    buttons the dashboard offers for the same jobs. The Report tab renders with
+    dangerously_allow_html, which is what the templates already rely on.
+
+    The route is built here rather than written into a template so that turning
+    the actions off can remove them whole. A template that spelled its own links
+    out could only be cleaned up by hunting link syntax back out of it, and a
+    description or an attachment list may legitimately contain links of its own.
+
+    See pantograph.editor.parse_hash for what each route means.
+    """
+    label = action.get("label")
+    if not label:
+        return None
+    mode = action.get("mode", "edit")
+
+    if mode == "edit":
+        return _anchor(label, f"#edit/{node_type}/{record_id}", mode)
+    if mode == "add":
+        table = action.get("table")
+        if not table:
+            return None
+        element = action.get("element")
+        route = (
+            f"#add/{table}/{element}/{record_id}" if element else f"#add/{table}"
+        )
+        return _anchor(label, route, mode)
+    return None
+
+
+def _anchor(label, route, mode):
+    # Adding is the action worth reaching for, so it is accented and editing is
+    # not — the same distinction the dashboard draws between its own two.
+    accent = " report-action-go" if mode == "add" else ""
+    return f'<a class="report-action{accent}" href="{route}">{label}</a>'
+
+
+def _render_actions(level_cfg, node_type, record_id, include_actions):
+    """
+    The `{actions}` substitution: every action for this level as one row, or
+    nothing at all.
+
+    One element rather than loose links, so a template can give the actions a
+    line of their own under the heading and have the whole line appear and
+    disappear together.
+    """
+    if not include_actions:
+        return ""
+    links = [
+        link for link in (
+            _action_link(action, node_type, record_id)
+            for action in level_cfg.get("actions", []) or []
+        ) if link
+    ]
+    if not links:
+        return ""
+    return f'<div class="report-actions">{"".join(links)}</div>'
+
+
+def report_context():
+    """
+    The lookups a report needs, fetched once.
+
+    Hoisted out of the walk because a page renders the same report twice — once
+    with its edit and add links for reading, once without them to copy into a
+    final document — and neither the names nor the provenance differ between
+    those two. Rendering them from one context also means the copy cannot
+    quietly disagree with what is on screen.
+    """
+    people_opts = get_dropdown_options('people', 'id', 'name')
+    return {
+        "people_map": (
+            {row['value']: row['label'] for row in people_opts} if people_opts else {}
+        ),
+        # Query all active relationship links securely processed through the database layer
+        "act_people_df": get_relation_links(
+            'activity_people_links', 'activity_id', 'person_id'
+        ),
+        # The export is the artefact a regulator is handed, so it has to say
+        # which of its assertions anyone here actually made.
+        "provenance_by_row": get_all_provenance(),
+    }
+
+
+def generate_markdown_report(report_cfg, elements, include_actions=True, context=None):
+    """
+    Takes the YAML configuration and filtered Graph elements to yield a Markdown
+    report.
+
+    `include_actions` renders each hierarchy level's configured `actions` into
+    its `{actions}` placeholder. Off, the placeholder renders empty and the
+    output is the document itself — nothing in it addresses this app. That is
+    the version worth copying somewhere else, so it is the version the copy
+    button carries.
+
+    `context` is a `report_context()`, passed in when a caller renders both
+    variants and would otherwise fetch the same rows twice.
+    """
     nodes_dict = {e['data']['id']: e['data'] for e in elements if 'source' not in e['data']}
     edges = [e['data'] for e in elements if 'source' in e['data']]
-    
-    people_opts = get_dropdown_options('people', 'id', 'name')
-    people_map = {row['value']: row['label'] for row in people_opts} if people_opts else {}
-    
-    # Query all active relationship links securely processed through the database layer
-    act_people_df = get_relation_links('activity_people_links', 'activity_id', 'person_id')
 
-    # The export is the artefact a regulator is handed, so it has to say which
-    # of its assertions anyone here actually made.
-    provenance_by_row = get_all_provenance()
+    context = context or report_context()
+    people_map = context["people_map"]
+    act_people_df = context["act_people_df"]
+    provenance_by_row = context["provenance_by_row"]
 
     adj = {}
     for e in edges:
@@ -103,6 +199,12 @@ def generate_markdown_report(report_cfg, elements):
             p_ids = act_people_df[act_people_df['activity_id'] == act_id]['person_id'].tolist()
             names = [people_map[pid] for pid in p_ids if pid in people_map]
             format_dict['linked_people'] = ", ".join(names) if names else "None"
+
+        # Set after the properties, so this never renders a column that
+        # happens to be called `actions` in its place.
+        format_dict['actions'] = _render_actions(
+            level_cfg, node['type'], format_dict['id'], include_actions
+        )
 
         row_provenance = _provenance_for(node, provenance_by_row)
 

@@ -13,7 +13,13 @@ import pathlib
 
 import pytest
 
-from pantograph.editor import STORE_ID, add_request, edit_request, message_request
+from pantograph.editor import (
+    STORE_ID,
+    add_request,
+    edit_request,
+    message_request,
+    parse_hash,
+)
 from pantograph_explore.editor_bridge import (
     _node_is_newer,
     _request_for_edge,
@@ -148,6 +154,74 @@ def test_a_node_and_edge_tapped_at_the_same_instant_resolve_to_the_node():
 def test_an_untimed_tap_loses_to_a_timed_one():
     assert _node_is_newer({}, {"timeStamp": 100}) is False
     assert _node_is_newer({"timeStamp": 100}, {}) is True
+
+
+# --------------------------------------------------------------------------
+# The same requests, spelled as a URL
+# --------------------------------------------------------------------------
+# A markdown report and a grid cell can hold a link and nothing else, so these
+# routes are the only affordance either has.
+
+def test_an_edit_route_opens_that_record():
+    assert parse_hash("#edit/initiatives/4") == {
+        "mode": "edit", "table": "initiatives", "id": 4, "token": "#edit/initiatives/4",
+    }
+
+
+def test_an_add_route_opens_a_blank_form_for_the_table():
+    request = parse_hash("#add/activities")
+    assert (request["mode"], request["table"], request["values"]) == (
+        "add", "activities", {},
+    )
+
+
+def test_an_add_route_with_an_element_prefills_the_link():
+    """
+    "Add an activity to initiative 4": the element is on the new activity's own
+    form, so the route never names a link table or a direction, which forms
+    config already answers and a URL could contradict.
+    """
+    request = parse_hash("#add/activities/initiatives_links/4")
+    assert (request["mode"], request["table"]) == ("add", "activities")
+    assert request["values"] == {"initiatives_links": [4]}
+
+
+def test_a_routed_link_is_a_list_as_a_links_element_loads_one():
+    """The shape the dashboard's own prefills already use."""
+    assert parse_hash("#add/initiatives/parents/2")["values"]["parents"] == [2]
+
+
+@pytest.mark.parametrize("url_hash", [
+    "",                                 # the hash cleared as the editor closes
+    None,
+    "#",
+    "#edit",                            # no table, no id
+    "#edit/initiatives",                # no id
+    "#edit/initiatives/abc",            # id is not one
+    "#edit/initiatives/4/extra",
+    "#add",
+    "#add/activities/initiatives_links",        # an element but nothing to link
+    "#add/activities/initiatives_links/abc",
+    "#somewhere-else",
+])
+def test_anything_else_is_not_a_route(url_hash):
+    """
+    None is also how the editor's own callbacks tell a route from the hash being
+    cleared, which is why they ask this rather than matching on "edit".
+    """
+    assert parse_hash(url_hash) is None
+
+
+def test_a_route_is_its_own_token():
+    """
+    Enough to identify the request in devtools, and distinct between the two
+    routes a report offers for the same record.
+    """
+    assert parse_hash("#edit/initiatives/4")["token"] == "#edit/initiatives/4"
+    assert (
+        parse_hash("#add/activities/initiatives_links/4")["token"]
+        != parse_hash("#edit/initiatives/4")["token"]
+    )
 
 
 # --------------------------------------------------------------------------

@@ -9,12 +9,22 @@
  */
 (function () {
     var KEY = "pantograph-pending-hash";
+    // Only an edit route is worth restoring, and the stash is whatever was in
+    // the address bar of whoever sent the visitor to the login page. It is put
+    // back by assigning location.hash, so the worst it could do is name a
+    // record the visitor did not ask for — but a stash that outlived its login
+    // (abandoned sign-in, then a plain visit later in the same tab) would do
+    // that to an unrelated visit, so anything but a route is dropped.
+    var ROUTE = /^#edit\/[A-Za-z0-9_]+\/\d+$/;
     try {
         var pending = sessionStorage.getItem(KEY);
         if (!pending) {
             return;
         }
         sessionStorage.removeItem(KEY);
+        if (!ROUTE.test(pending)) {
+            return;
+        }
         // A fragment already in the URL is the one the visitor asked for now.
         if (!window.location.hash) {
             window.location.hash = pending;

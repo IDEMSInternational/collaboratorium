@@ -292,8 +292,11 @@ def register_click_callbacks(app, config):
         prevent_initial_call=True
     )
     def clear_hash_on_modal_close(is_open, current_hash):
-        # Only clear the hash if the modal is actively closing AND the hash currently holds an edit route
-        if not is_open and current_hash and 'edit' in current_hash:
+        # Only clear the hash if the modal is actively closing AND the hash
+        # currently holds an edit route. Parsed rather than searched for
+        # "edit": a fragment that merely contains the word, "#credited" say,
+        # belongs to whatever put it there.
+        if not is_open and parse_edit_hash(current_hash):
             return ""
         
         return no_update

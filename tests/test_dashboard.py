@@ -340,6 +340,36 @@ def test_clicking_an_initiative_opens_its_detail_card(page: Page):
     expect(page.locator("#explore-container")).to_be_hidden()
 
 
+def test_opening_and_closing_a_card_keeps_the_scroll_position(page: Page):
+    """
+    The card is an overlay, so the page behind it should not move. An entity
+    link with href="#" jumped to the top on click, and focus restoration then
+    scrolled back on close.
+    """
+    page.set_viewport_size({"width": 1200, "height": 350})
+    _dashboard(page)
+    # The seed data is short; pad above the app so the page genuinely scrolls.
+    page.evaluate("""() => {
+        const pad = document.createElement('div');
+        pad.style.height = '1500px';
+        document.body.insertBefore(pad, document.body.firstChild);
+    }""")
+    link = page.locator("#dashboard-body a.dash-entity-link").filter(
+        has_text=re.compile(r"^Activity 1$")
+    ).first
+    link.scroll_into_view_if_needed()
+    before = page.evaluate("window.scrollY")
+    assert before > 1000
+
+    link.click()
+    expect(page.locator("#dashboard-detail-modal")).to_be_visible()
+    assert page.evaluate("window.scrollY") == before
+
+    page.locator("#dash-card-close").click()
+    expect(page.locator("#dashboard-detail-modal")).to_be_hidden()
+    assert page.evaluate("window.scrollY") == before
+
+
 def test_activities_are_inspectable(page: Page):
     _dashboard(page)
     card = _open_card(page, "Activity 1")

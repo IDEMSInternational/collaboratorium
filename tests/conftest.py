@@ -1,4 +1,5 @@
 import pytest
+from playwright.sync_api import expect
 import os
 import sys
 import threading
@@ -10,6 +11,24 @@ from werkzeug.serving import make_server
 logging.getLogger('werkzeug').setLevel(logging.ERROR)
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..', 'src')))
+
+# Every browser assertion here waits on a Dash round trip: a request to the
+# server, a callback, a database read and a re-render. The dashboard takes
+# about a second of that to become interactive on an idle machine, so
+# Playwright's 5s default leaves roughly five times headroom - and a machine
+# under real load eats it. Building a Docker image alongside the suite was
+# enough to fail tests/test_dashboard.py on its own first wait for
+# #dashboard-body, with nothing whatever wrong with the app.
+#
+# Measured by adding a fixed delay to every callback request: at 600ms added,
+# 21 of the 23 dashboard tests fail on the 5s default and none fail on 15s,
+# which covers a machine running some fifteen times slower than this one. The
+# tests that go first are the ones that drive several round trips in sequence,
+# which is exactly where the flakes were seen.
+#
+# Waiting longer costs nothing when a test passes, since every wait ends as
+# soon as its condition holds; it only delays the report of a real failure.
+expect.set_options(timeout=15_000)
 
 # A directory of this run's own, so two suites running at once cannot read each
 # other's rows. Relative names collided for anything sharing a working directory.

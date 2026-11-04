@@ -451,6 +451,58 @@ find that out with signatures that mean what they say.
 
 ---
 
+## 4.4 What the first real source says about all this
+
+A parallel reading of IDEMS's own eight annual reports — `docs/proposals/idems-report-import.md`
+on branch `claude/fervent-boyd-ddffa1` — is the first evidence about this design
+from a source nobody built it around. Four of its findings change something
+here.
+
+**A source's "activities" are usually initiatives.** The three structured
+reports (2018–2020) end in an itemised `Activities` appendix, which sounds like
+exactly the input this import wants. It is not: of its 76 entries, 62 are
+initiative-shaped, and the 2020 conversion turned 27 appendix entries into 23
+initiatives and only 4 activities — the other 39 activities had to be mined out
+of the surrounding prose, which was never written to be parsed. So the part of a
+document that looks structured feeds the table that is already full, and the
+sparse table is fed by the part that is not. The instructions in the bundle
+should say so, because a producer reading a well-formed list will reach for it
+first.
+
+**Initiative proposals are a join key, not records.** The reading expects 80–90%
+of the initiatives it would propose to already exist under a shorter name —
+`R-Instat`, not `Development of R-Instat`. That is the similarity advisory (item
+J) arriving with its real requirement: the drift is *prefix and gerund*, not
+edit distance, and `Investigating IDEMS Kenya` / `Establishing INNODEMS, Kenya` /
+`Supporting INNODEMS, Kenya` are three names for one thing. An advisory tuned
+for typos would pass all of them. It also wants an alias list, which is a
+producer-side artefact and another reason the snapshot is in the bundle.
+
+**Provenance should be `cited`, not `suggested`.** This is the one place the
+build is already slightly wrong. A document-derived record is a *citation of a
+secondary source* — IDEMS describing its own work a year later, reliable about
+what happened and unreliable about when — not a model's inference. `provenance`
+already has `cited` as a source and `origin` to hold what was cited, so this
+needs no new machinery; what it needs is for the format and the instructions to
+carry the distinction rather than defaulting everything to `suggested`. Fold
+into item D.
+
+**The funder is the one field the schema cannot record.** Every appendix entry
+carries one, and the five appendix sections turn out to be a taxonomy of funding
+relationship rather than of work — which is also what predicts an entry's class
+in 72 of 76 cases. So the source's primary organising principle has nowhere to
+go. `contracts` and `organisations` are adjacent but not it. Worth a decision of
+its own before an import discards it silently.
+
+One correction to the brief that produced that reading: it was told the live data
+holds about 92 initiatives and 16 activities, which was the roadmap's figure, not
+the measured one — it is 153 and 48. The direction of its overlap argument is
+unaffected and strengthened. It could not check the overlap for real because it
+had no access to the contents, which is precisely the gap `snapshot.yaml` now
+closes: the same reading done after item C can match names instead of estimating.
+
+---
+
 ## 5. Where this leaves the GDPR roadmap
 
 Items 11 and 12 are listed under "The producer interface and the LLM pipeline"

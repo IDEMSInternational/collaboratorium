@@ -89,6 +89,15 @@ before writing one. The essentials:
 - **Declare your coverage.** If your evidence runs out before the end of the
   period, say so in `coverage`. A gap nobody mentioned reads as an absence of
   activity.
+- **Expect the structured part of a source to be the wrong part.** A tidy list
+  of "activities" in a report or a changelog is, in practice, usually a list of
+  long-running strands — which is the table already full. The activities you are
+  here for tend to be sentences inside the prose around it. Read both.
+- **Match before you create.** Check every name you would create against
+  `snapshot.yaml` first, and propose an `update` or a link instead where it is
+  already there under a shorter or differently-phrased name — `R-Instat` rather
+  than `Development of R-Instat`. The import flags likely matches, but a
+  duplicate that reaches review has already cost someone the comparison.
 
 ## This deployment, as exported
 

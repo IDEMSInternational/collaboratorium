@@ -21,9 +21,23 @@ MATCH = [
     ("2nd African STACK Conference", "African STACK conference 2", "reordering"),
     ("OpenChatBuilder", "Open Chat Builder", "spacing only"),
     ("Podcasts", "The IDEMS Podcast", "a word inside a longer name"),
+    ("2nd African STACK Conference", "African STACK conference 2",
+     "the same ordinal, written two ways"),
+    ("2nd African STACK Conference", "Second African STACK Conference",
+     "an ordinal as a word"),
+    ("ICOTS 2026", "ICOTS 2026 paper submissions", "the same year"),
+    ("Open App Builder v0.23.0 release", "Open App Builder v0.23.1 release",
+     "two releases of one product still share most of their numbers"),
 ]
 
 NO_MATCH = [
+    # Found by running this against the live data: every word matches, and the
+    # ordinal is the entire difference between two real conferences.
+    ("2nd African STACK Conference", "3rd African STACK Conference 2025",
+     "a different conference in the same series"),
+    ("ICOTS 2026", "ICOTS 2025", "the year is the distinguishing part"),
+    ("The IDEMS Podcast Episode_200", "The IDEMS Podcast Episode_201",
+     "an episode number welded on by an underscore"),
     ("ePICSA", "PICSA", "distinct products, 91% alike as strings"),
     ("Open App Builder", "OpenChatBuilder", "distinct products"),
     ("IDEMS Kenya", "IDEMS Ghana", "one word apart, different places"),

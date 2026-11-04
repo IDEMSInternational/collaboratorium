@@ -560,6 +560,106 @@ activities:
     assert "initiatives_links" not in values
 
 
+# --------------------------------------------------------------------------
+# The two-step page
+#
+# These exist because every unit test above passed while the actual flow was
+# broken: the file was round-tripped between "check" and "stage" through a
+# hidden form field, where it got escaped twice, so the second step re-parsed
+# mangled YAML and staged nothing while reporting success.
+# --------------------------------------------------------------------------
+
+@pytest.fixture
+def client(dash_app, deployment):
+    return dash_app.server.test_client()
+
+
+def _post(client, text, step="check"):
+    with client.session_transaction() as flask_session:
+        flask_session["csrf_token"] = "test-token"
+    return client.post("/import", data={
+        "csrf_token": "test-token", "step": step, "text": text},
+        follow_redirects=True)
+
+
+def test_the_page_checks_then_stages(client, deployment):
+    text = _file(GOOD_ACTIVITY, deployment)
+
+    report = _post(client, text)
+    assert report.status_code == 200
+    assert b"Import report" in report.data
+    assert staging.counts() == {}, "checking must not stage anything"
+
+    staged = _post(client, "", step="stage")
+    assert b"Staged" in staged.data
+    assert staging.counts() == {"pending": 1}
+
+
+def test_a_file_with_quotes_and_newlines_survives_the_two_steps(client, deployment):
+    """The exact shape that was being corrupted: quotes, colons and a URL."""
+    text = _file("""
+activities:
+  - name: "Collaboratorium: agent handoff"
+    description: "Built it. PR: https://example.org/pull/108 — see \\"the notes\\""
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:collab#1"
+""", deployment)
+
+    _post(client, text)
+    _post(client, "", step="stage")
+
+    assert staging.counts() == {"pending": 1}
+    item = staging.queue()[0]
+    assert item["name"] == "Collaboratorium: agent handoff"
+    assert "https://example.org/pull/108" in item["payload"]["values"]["description"]
+    assert "&quot;" not in item["payload"]["values"]["description"]
+
+
+def test_csrf_is_required(client, deployment):
+    assert client.post("/import", data={"step": "check", "text": "x"}).status_code == 400
+
+
+def test_the_queue_lists_what_was_staged(client, deployment):
+    _post(client, _file(GOOD_ACTIVITY, deployment))
+    _post(client, "", step="stage")
+
+    page = client.get("/import/queue")
+    assert b"Open App Builder v0.23.0 release" in page.data
+
+
+def test_declining_from_the_queue_sticks(client, deployment):
+    _post(client, _file(GOOD_ACTIVITY, deployment))
+    _post(client, "", step="stage")
+    staged_id = staging.queue()[0]["id"]
+
+    with client.session_transaction() as flask_session:
+        flask_session["csrf_token"] = "test-token"
+    client.post("/import/decline",
+                data={"csrf_token": "test-token", "id": staged_id},
+                follow_redirects=True)
+
+    assert staging.counts() == {"declined": 1}
+    assert staging.rejections()[0]["source_ref"] == "github:oab#v0.23.0"
+
+
+def test_opening_a_suggestion_remembers_which_one(client, deployment):
+    """
+    What lets a successful save mark the suggestion answered. Without it the
+    queue never empties.
+    """
+    _post(client, _file(GOOD_ACTIVITY, deployment))
+    _post(client, "", step="stage")
+    staged_id = staging.queue()[0]["id"]
+
+    response = client.get(f"/import/open/{staged_id}")
+    assert response.status_code in (301, 302)
+    assert f"#suggest/{staged_id}" in response.headers["Location"]
+    with client.session_transaction() as flask_session:
+        assert tuple(flask_session["reviewing_suggestion"]) == (staged_id,
+                                                                "activities")
+
+
 def test_accepting_the_initiative_resolves_the_activity_s_link(deployment):
     staging.stage(_check(_file("""
 initiatives:

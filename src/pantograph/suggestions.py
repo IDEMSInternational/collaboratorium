@@ -541,12 +541,28 @@ class Checker:
                     if found is not None:
                         resolved.append(found)
                         continue
+                    # A link that resolves to nothing is nearly always a name
+                    # written the way the source writes it rather than the way
+                    # this deployment does — `ePICSA` for `E-PICSA`. Refusing
+                    # without saying so sends someone to the spreadsheet to
+                    # look it up, which is work the matcher has already done.
+                    near = similarity.matches(
+                        str(name), self.current.get(target_table) or [],
+                        threshold=self.threshold, limit=2)
+                    suggestion = ""
+                    if near:
+                        options = " or ".join(
+                            f"{found_name!r} (#{found_id})"
+                            for found_id, found_name, _ in near)
+                        suggestion = f" Did you mean {options}?"
                     record.findings.append(Finding(
                         "error",
                         f"`{bare}: {name!r}` names no existing {target_table} "
-                        f"and no `key` in this file.",
+                        f"and no `key` in this file.{suggestion}",
                         section=record.section, index=record.index,
-                        element=bare))
+                        element=bare,
+                        match=((target_table, near[0][0], near[0][1], near[0][2])
+                               if near else None)))
                 record.links[element] = resolved
 
     # -- matching ----------------------------------------------------------

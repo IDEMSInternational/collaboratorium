@@ -59,9 +59,15 @@ DEFAULT_THRESHOLD = 0.72
 
 
 def _normalise(name):
-    """Lowercase, punctuation out, whitespace collapsed."""
+    """
+    Lowercase, punctuation out, whitespace collapsed.
+
+    Underscores separate rather than join, which `\\w` would not do: live
+    activity names include `The IDEMS Podcast Episode_200`, and an episode
+    number welded to the word before it is a number no comparison can see.
+    """
     text = (name or "").lower()
-    text = re.sub(r"[^\w\s]+", " ", text)
+    text = re.sub(r"[^a-z0-9\s]+", " ", text)
     return " ".join(text.split())
 
 
@@ -107,6 +113,17 @@ def score(left, right):
 
     if _normalise(left) == _normalise(right):
         return 1.0
+
+    # Found by running this against the live data: `2nd African STACK
+    # Conference` scored 85% against the existing `3rd African STACK Conference
+    # 2025`, which is a different conference. Where a name is distinguished
+    # from its siblings by an ordinal or a year, that number is the whole of
+    # the difference, and every other signal says they are the same — the words
+    # really are identical. So two names that each carry numbers, sharing none,
+    # are not the same thing however alike they read.
+    left_numbers, right_numbers = _numbers(left), _numbers(right)
+    if left_numbers and right_numbers and not (left_numbers & right_numbers):
+        return 0.0
 
     left_core, right_core = _core(left), _core(right)
     if left_core and left_core == right_core:
@@ -155,6 +172,35 @@ def score(left, right):
     # something, and only when it is high enough to be a spelling rather than a
     # resemblance.
     return max(overlap, ratio if ratio >= 0.85 else 0.0)
+
+
+# Ordinals as a name writes them, against the number they mean, so that
+# `2nd African STACK Conference` and `African STACK conference 2` agree.
+_ORDINAL_WORDS = {
+    "first": 1, "second": 2, "third": 3, "fourth": 4, "fifth": 5,
+    "sixth": 6, "seventh": 7, "eighth": 8, "ninth": 9, "tenth": 10,
+}
+
+
+def _numbers(name):
+    """
+    The ordinals and years in a name, as integers.
+
+    `second`, `2nd` and `2` are the same number. A version string such as
+    `v0.23.0` contributes its parts, which is why two releases of one product
+    still share most of their numbers and go on matching.
+    """
+    found = set()
+    for token in _normalise(name).split():
+        if token in _ORDINAL_WORDS:
+            found.add(_ORDINAL_WORDS[token])
+        elif token.isdigit():
+            found.add(int(token))
+        else:
+            match = re.fullmatch(r"(\d+)(st|nd|rd|th)", token)
+            if match:
+                found.add(int(match.group(1)))
+    return found
 
 
 def _squashed(core):

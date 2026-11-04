@@ -12,7 +12,6 @@ ordinary editor through `#suggest/<id>`, where the values arrive marked
 unconfirmed and a person confirms them field by field. See
 docs/agentic-ingest.md §4.
 """
-import html as html_escape
 import secrets
 
 from flask import render_template_string, request, session, redirect, url_for
@@ -117,7 +116,6 @@ _REPORT = """
   <form method="post">
     <input type="hidden" name="csrf_token" value="{{ csrf_token }}">
     <input type="hidden" name="step" value="stage">
-    <input type="hidden" name="text" value="{{ raw }}">
     <button type="submit" class="btn" {{ 'disabled' if not stageable }}>Stage {{ stageable|length }} for review</button>
     <a href="/import" class="btn secondary">Start again</a>
   </form>
@@ -246,7 +244,16 @@ def register_import_routes(server):
         if not _check_csrf():
             return "CSRF token missing or invalid.", 400
 
-        text = _uploaded_text()
+        staging_step = request.form.get("step") == "stage"
+
+        # The file is carried between the two steps in the session rather than
+        # in a hidden field. A hidden input meant the YAML was escaped into an
+        # HTML attribute and read back out, which double-escaped it — Jinja
+        # autoescapes what `html.escape` had already escaped — so the staging
+        # step re-parsed mangled text and silently staged nothing. There is no
+        # safe amount of escaping for a multi-line document in an attribute;
+        # the right answer is not to put it there.
+        text = session.get("import_text", "") if staging_step else _uploaded_text()
         if not text.strip():
             return redirect(url_for("import_page"))
 
@@ -254,17 +261,18 @@ def register_import_routes(server):
             text, contract.build(config), staging.current_names(config),
             staging.pending_rows())
 
-        if request.form.get("step") == "stage":
+        if staging_step:
             person_id = get_person_id_for_user(session.get("user"))
             report = staging.stage(proposal, person_id)
+            session.pop("import_text", None)
             return render_template_string(_STAGED, report=report)
 
+        session["import_text"] = text
         return render_template_string(
             _REPORT, csrf_token=_csrf(),
             errors=proposal.errors, warnings=proposal.warnings,
             advisories=proposal.advisories, stageable=proposal.stageable,
-            blocked=[r for r in proposal.records if r.blocked],
-            raw=html_escape.escape(text))
+            blocked=[r for r in proposal.records if r.blocked])
 
     @server.route("/import/queue")
     @login_required

@@ -69,6 +69,19 @@ def message_request(text, token=None):
 
 ROUTE_EDIT = "edit"
 ROUTE_ADD = "add"
+ROUTE_SUGGEST = "suggest"
+
+
+def suggestion_request(suggestion_id, token=None):
+    """
+    Open the form for a staged suggestion.
+
+    Deliberately a request carrying only the id: resolving it means reading the
+    staging table, and a URL parser that touched the database would be a
+    surprising thing to have in this module. Core's form callback resolves it,
+    the same way it resolves `edit` by reading the record.
+    """
+    return _request("suggestion", token, id=suggestion_id)
 
 
 def parse_hash(url_hash):
@@ -112,6 +125,12 @@ def parse_hash(url_hash):
 
     if route == ROUTE_ADD and len(rest) == 1:
         return add_request(rest[0], token=url_hash)
+
+    if route == ROUTE_SUGGEST and len(rest) == 1:
+        suggestion_id = _as_id(rest[0])
+        if suggestion_id is None:
+            return None
+        return suggestion_request(suggestion_id, token=url_hash)
 
     if route == ROUTE_ADD and len(rest) == 3:
         table, element, object_id = rest

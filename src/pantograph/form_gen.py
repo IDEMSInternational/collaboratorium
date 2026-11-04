@@ -62,6 +62,15 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     """
     if object_id:
         record_data = get_latest_entry(form_name, forms_config, object_id)
+        if initial_values:
+            # An edit form opened with *proposed* changes: the record as it
+            # stands, with a caller's values laid over the elements it speaks
+            # about. This is what lets an ingested suggestion against an
+            # existing record be reviewed in the ordinary form — the reviewer
+            # sees the proposal in place, marked unconfirmed, next to the values
+            # it would replace. Elements the caller says nothing about keep what
+            # is in the record, so a proposal cannot blank a field by omission.
+            record_data = {**(record_data or {}), **initial_values}
         if provenances is None:
             # An edit form reopens the claim the record was saved with, so a
             # value nobody stood behind is still unconfirmed a year later. A
@@ -213,7 +222,49 @@ def register_click_callbacks(app, config):
                 request.get("title") or _title_for_values(table, values),
                 request.get("provenance") or None,
             )
+        if mode == "suggestion":
+            return show_suggestion_form(request.get("id"), person_id)
         return html.Div("Select a table or click an element to edit.")
+
+    def show_suggestion_form(suggestion_id, person_id):
+        """
+        A staged proposal, in the ordinary form, with every value it supplies
+        marked as not yet stood behind.
+
+        This is the whole of "confirming is the write": nothing here saves
+        anything. The reviewer gets the normal add or edit form, the proposal's
+        values are already in it, and the machinery that shipped with
+        provenance does the rest — the values render amber and dashed, they do
+        not satisfy `required:`, and a save that slips an unconfirmed required
+        answer past the disabled button is refused outright.
+        """
+        from pantograph import staging
+
+        item = staging.get(suggestion_id) if suggestion_id is not None else None
+        if not item:
+            return html.Div("That suggestion is no longer in the queue.")
+        if item["state"] != staging.PENDING:
+            return html.Div(
+                f"That suggestion was already {item['state']}.")
+
+        table = item["table"]
+        values, provenances = staging.form_inputs(item)
+        if item["action"] == "update" and item["target_id"]:
+            form_name = config["default_forms"].get(table)
+            if not form_name:
+                return html.Div(f"Error: no form for '{table}'.")
+            return login_required(generate_form_layout)(
+                form_name, forms_config=forms_config,
+                object_id=item["target_id"], initial_values=values,
+                title=f"Proposed changes to {item['name']}",
+                provenances=provenances,
+            )
+        return show_add_form(
+            table, person_id, _shaped_values(table, values),
+            f"Suggested {table[:-1] if table.endswith('s') else table}"
+            + (f" — from {item['subject']}" if item.get("subject") else ""),
+            provenances,
+        )
 
 
     # ----------------------------------------------------------
@@ -567,5 +618,12 @@ def register_submit_callbacks(app, forms_config):
 
             conn.commit()
             conn.close()
+
+            # If this save is a person confirming a staged suggestion, that
+            # suggestion is now answered. Done after the commit and on its own
+            # connection, because a staging bookkeeping failure must never roll
+            # back a record the user has just signed for.
+            from pantograph import staging
+            staging.note_saved(_fc["default_table"], object_id)
 
             return out_msg, datetime.now().isoformat(), int(datetime.now().timestamp()*1000)

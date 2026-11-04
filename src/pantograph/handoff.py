@@ -142,18 +142,26 @@ def _rejections(config):
     """
     Proposals a human has declined, so a producer does not send them again.
 
-    Empty until the staging table exists (docs/agentic-ingest.md item E), and
-    present anyway: a producer that can rely on the file being there needs no
-    change when it starts having contents, and an absent file would be
-    indistinguishable from "nothing was ever rejected".
+    Read from the staging table. Present and empty when nobody has declined
+    anything, because an absent file is indistinguishable from "nothing was
+    ever rejected".
+
+    The name and table travel with the ref, not just the ref itself. A producer
+    that can see *what* was turned down can avoid proposing the same thing
+    re-phrased under a new ref, which is the hole a bare list of identifiers
+    leaves wide open.
     """
+    from pantograph import staging
+
     return {
         "format": REJECTIONS_FORMAT,
         "config_hash": contract.config_hash(config),
         "exported_at": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "rejected": [],
-        "note": ("Suggestion staging is not built yet, so this list is always "
-                 "empty. It is exported so the shape is stable."),
+        "rejected": staging.rejections(),
+        "note": ("Do not propose these again. Each was staged and turned down "
+                 "by a person. Re-sending one under the same source_ref is "
+                 "dropped rather than re-queued; re-sending the same thing "
+                 "under a new ref wastes a reviewer's time."),
     }
 
 

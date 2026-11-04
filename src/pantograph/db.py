@@ -9,6 +9,7 @@ from pantograph import provenance
 from pantograph.settings import get_settings
 
 PROVENANCE_TABLE = "provenance"
+SUGGESTIONS_TABLE = "suggestions"
 
 
 def _db_path():
@@ -84,6 +85,10 @@ def init_db(config):
     # writes to holds no rows and appears in no query, since it is core's rather
     # than one of config["tables"].
     _create_provenance_table(cur)
+    # Same reasoning, and the same promise: a deployment that never imports a
+    # suggestion has an empty table that no query touches, because it is
+    # core's rather than one of config["tables"].
+    _create_suggestions_table(cur)
 
     conn.commit()
     if not existed:
@@ -113,6 +118,56 @@ def _create_provenance_table(cur):
             confirmed_at TEXT,
             PRIMARY KEY (record_table, record_id, record_version, element)
         )
+    ''')
+
+
+def _create_suggestions_table(cur):
+    """
+    Proposed records awaiting a person, and the ones already dealt with.
+
+    Not a shadow of the schema: it holds a proposal as submitted, as JSON, and
+    the record it became is written by the ordinary save path. Its reason to
+    exist is the two properties nothing else can provide — re-importing a file
+    produces the same state, and a declined proposal is remembered so the next
+    run can be told not to send it again.
+
+    `source_ref` is unique where present, which is the whole of the idempotency
+    mechanism. It is nullable because a producer may omit it, and such a record
+    is then simply not deduplicable; a plain UNIQUE constraint in SQLite treats
+    NULLs as distinct, but the partial index says so explicitly.
+
+    `group_id` is how overlapping work is held together: two people proposing
+    the same activity from different evidence have different `source_ref`s and
+    cannot be deduplicated, so they are grouped instead and a reviewer resolves
+    them to one record with both people linked.
+    """
+    cur.execute(f'''
+        CREATE TABLE IF NOT EXISTS "{SUGGESTIONS_TABLE}" (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            source_ref TEXT,
+            run_id TEXT,
+            subject TEXT,
+            record_table TEXT NOT NULL,
+            action TEXT NOT NULL,
+            target_id INTEGER,
+            name TEXT,
+            payload TEXT NOT NULL,
+            group_id TEXT,
+            state TEXT NOT NULL DEFAULT 'pending',
+            created_at TEXT,
+            created_by INTEGER,
+            resolved_at TEXT,
+            resolved_by INTEGER,
+            record_id INTEGER
+        )
+    ''')
+    cur.execute(f'''
+        CREATE UNIQUE INDEX IF NOT EXISTS "{SUGGESTIONS_TABLE}_source_ref"
+        ON "{SUGGESTIONS_TABLE}" (source_ref) WHERE source_ref IS NOT NULL
+    ''')
+    cur.execute(f'''
+        CREATE INDEX IF NOT EXISTS "{SUGGESTIONS_TABLE}_state"
+        ON "{SUGGESTIONS_TABLE}" (state, record_table)
     ''')
 
 

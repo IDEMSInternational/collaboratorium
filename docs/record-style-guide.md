@@ -89,9 +89,15 @@ matters, not who funded it.
 > ✅ `Tricots` — Developed tools, workflows and training materials to import,
 > clean, analyse and interpret Tricot data in R-Instat.
 
-Ten to twenty-five words. Present tense for a thing that exists, past tense for
-work that was done. A noun phrase is a complete and good description — it does
-not need a verb.
+**Aim for ten words.** Not a range — a target. The measured median is 10, and
+55% of the ones that exist are ten words or fewer; twenty-five is already an
+unusually long one. An earlier version of this page said "ten to twenty-five
+words", and the first producer to read it wrote a median of 19.5 with not one
+description at ten words or under, because a range reads as permission to use
+all of it.
+
+Present tense for a thing that exists, past tense for work that was done. A
+noun phrase is a complete and good description — it does not need a verb.
 
 Leave it empty rather than padding it. Twenty-six existing initiatives have no
 description, which is honest; one of them says `No`, which is worse than empty.
@@ -102,8 +108,14 @@ If the source tells you nothing about what a thing *is*, say nothing.
 ## Activity descriptions
 
 Longer than an initiative's, because an activity is a specific thing that
-happened and the detail is the point. Median 21 words, and the useful range is
-roughly 10 to 40.
+happened and the detail is the point. **Aim for twenty words** — again a
+target, not a range. The measured median is 21.5.
+
+Same warning as above, and it is not hypothetical: this page first said "the
+useful range is roughly 10 to 40", and the first producer to work from it
+returned a median of 32 with two thirds of its descriptions between 26 and 38.
+Every one was inside the stated range and the set as a whole was half as long
+again as the records it was meant to match. State the target.
 
 **Cite the artefact. Eighteen of the 30 activity descriptions that exist contain
 a URL** — the release, the PR, the paper, the recording. This is the strongest

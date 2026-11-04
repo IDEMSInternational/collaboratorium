@@ -307,13 +307,29 @@ class Checker:
                 "warning", "No `subject:`, so these records are not attributed "
                            "to anyone. Activities still need `people:`."))
 
+        # Only a coverage entry that stops *before* the end of the period is a
+        # gap. Warning about every entry buries the one that matters: the first
+        # real file through here declared six sources, five of which ran to the
+        # last day, and the single genuine gap — a notes log that stopped three
+        # months earlier — arrived as one line among six identical ones. A
+        # warning that fires when nothing is wrong teaches people to skip
+        # warnings.
+        period_end = self._as_date((proposal.header.get("period") or {}).get("to")) \
+            if isinstance(proposal.header.get("period"), dict) else None
         for entry in (proposal.header.get("coverage") or []):
-            if isinstance(entry, dict) and entry.get("through"):
-                proposal.findings.append(Finding(
-                    "warning",
-                    f"Evidence from {entry.get('source', 'a source')} stops at "
-                    f"{entry['through']}. Anything after that rests on the "
-                    "other sources."))
+            if not isinstance(entry, dict) or not entry.get("through"):
+                continue
+            through = self._as_date(entry["through"])
+            if period_end and through and through >= period_end:
+                continue
+            gap = (f" — {(period_end - through).days} days before the end of "
+                   f"the period" if period_end and through else "")
+            note = f" {entry['note']}" if entry.get("note") else ""
+            proposal.findings.append(Finding(
+                "warning",
+                f"Evidence from {entry.get('source', 'a source')} stops at "
+                f"{entry['through']}{gap}. Anything after that rests on the "
+                f"other sources.{note}"))
 
     # -- one record --------------------------------------------------------
 

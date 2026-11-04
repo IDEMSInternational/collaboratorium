@@ -86,9 +86,15 @@ before writing one. The essentials:
 - **Score placement separately from values.** A record's `kind` (activity or
   initiative) and its parents are the things people actually correct, so give
   them their own confidence rather than burying the doubt in a note.
-- **Declare your coverage.** If your evidence runs out before the end of the
-  period, say so in `coverage`. A gap nobody mentioned reads as an absence of
-  activity.
+- **Declare your coverage**, and put the explanation in each entry's `note`
+  rather than in a YAML comment beside it. Comments do not survive parsing, so
+  a caveat written as a comment reaches nobody. A gap nobody mentioned reads as
+  an absence of activity. Only a source whose evidence stops before the end of
+  the period is reported, so listing one that ran to the last day costs a
+  reader nothing and says what you looked at.
+- **Write to the target length, not to the top of a range.** The style guide
+  gives a target for each description; records half as long again as the ones
+  already here read as imported rather than written.
 - **Expect the structured part of a source to be the wrong part.** A tidy list
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are

@@ -115,9 +115,47 @@ def test_a_different_contract_hash_warns_rather_than_refusing(deployment):
 def test_coverage_gap_is_surfaced(deployment):
     proposal = _check(
         _file(GOOD_ACTIVITY, deployment,
+              period={"from": "2026-08-01", "to": "2026-11-04"},
               coverage=[{"source": "worklog", "through": "2026-08-06"}]),
         deployment)
-    assert any("2026-08-06" in f.message for f in proposal.warnings)
+    gap = [f for f in proposal.warnings if "2026-08-06" in f.message]
+    assert gap
+    assert "90 days before the end" in gap[0].message
+
+
+def test_a_source_that_runs_to_the_end_of_the_period_is_not_a_gap(deployment):
+    """
+    The first real file declared six sources, five of which ran to the last
+    day. Warning about each buried the one that mattered, and a warning that
+    fires when nothing is wrong teaches people to skip warnings.
+    """
+    proposal = _check(
+        _file(GOOD_ACTIVITY, deployment,
+              period={"from": "2026-08-01", "to": "2026-11-04"},
+              coverage=[
+                  {"source": "github", "through": "2026-11-04"},
+                  {"source": "drive", "through": "2026-11-04"},
+                  {"source": "worklog", "through": "2026-08-06"},
+              ]),
+        deployment)
+    gaps = [f for f in proposal.warnings if "Evidence from" in f.message]
+    assert len(gaps) == 1
+    assert "worklog" in gaps[0].message
+
+
+def test_a_coverage_note_is_carried_into_the_warning(deployment):
+    """
+    Where the explanation has to live. The first real file put four paragraphs
+    of caveats in YAML comments, which do not survive parsing.
+    """
+    proposal = _check(
+        _file(GOOD_ACTIVITY, deployment,
+              period={"from": "2026-08-01", "to": "2026-11-04"},
+              coverage=[{"source": "worklog", "through": "2026-08-06",
+                         "note": "No narrative log after this date."}]),
+        deployment)
+    assert any("No narrative log after this date." in f.message
+               for f in proposal.warnings)
 
 
 # --------------------------------------------------------------------------

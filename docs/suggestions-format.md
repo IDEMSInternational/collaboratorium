@@ -40,6 +40,9 @@ period: {from: 2026-05-29, to: 2026-11-04}
 coverage:                            # where your evidence actually stops
   - source: WorkLog/idems.yaml
     through: 2026-08-06
+    note: >-                         # why it stops, and what is lost with it
+      No narrative log after this date, so later records rest on code hosting
+      alone and the split of effort between strands is not recoverable.
   - source: github:IDEMSInternational
     through: 2026-11-04
 
@@ -237,7 +240,23 @@ Check, in this order:
 5. Dates parse, and no `end_date` precedes its `start_date`.
 6. Every name you would create is not already in the snapshot under a
    different phrasing. This is the check producers skip and reviewers pay for.
-7. `coverage` says where your evidence genuinely stops.
+7. `coverage` says where your evidence genuinely stops, with the *why* in each
+   entry's `note` — see below.
+
+## 10. `coverage`, and where the explanation goes
+
+One entry per source, each with `source`, `through`, and an optional `note`
+saying why it stops and what is lost with it. Only an entry whose `through`
+falls before the end of `period` is reported to the reviewer, so listing a
+source that ran to the last day is free and worth doing — it says what you
+looked at.
+
+**Put the explanation in `note`, not in a YAML comment beside it.** Comments do
+not survive parsing, so a caveat written as a comment reaches nobody. This is
+the mistake the first real file through here made: four paragraphs of genuinely
+useful qualifications — an unauthenticated forge, Drive revision histories not
+read, a personal repository deliberately excluded — all of it invisible to the
+import and to the person reviewing it.
 
 The import runs all of this and names what failed, before anything is staged.
 Finding it here costs nobody else's time.

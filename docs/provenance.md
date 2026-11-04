@@ -189,6 +189,19 @@ so a report rendered from an older version never borrows a newer one's claims.
 **A subform's fields cannot carry one.** A subform renders its inputs under its
 own form namespace, the same limit `relevant:` has.
 
+The subform *element* can, though, and the distinction is worth stating because
+the short version above has been misread as the whole element being excluded.
+`wrap_provenance` is applied to whatever `component_for_element` returns,
+generically, and a subform element already mounts a parent-namespace
+`{"type": "input", …}` store holding its whole value — so `description` on an
+activity carries a provenance over the block as a unit, amber and confirmable,
+exactly like a string element. What has nowhere to land is a claim about one
+*leaf*: the summary scored apart from the attachments.
+
+One consequence, the same one links have: a subform's value is a dict, which
+`_comparable` declines to compare, so its provenance survives an edit rather
+than being dropped. Doubt keeps the provenance, as everywhere else here.
+
 **A links element's provenance survives an edit to it.** Link values are stored
 in a link table and read back as an unordered list, which does not compare
 exactly, so editing one leaves the origin note in place rather than risking a

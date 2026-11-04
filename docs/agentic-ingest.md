@@ -10,7 +10,8 @@ register), and `anastom`'s `docs/activity_report_ingestion_spec.md`, which is a
 much longer design for the producer half and the reason several decisions below
 are already made rather than open.
 
-Status: design, nothing implemented. The work items in §7 are written to drop
+Status: design, nothing implemented. The four decisions the design needed are
+settled — see "Decisions taken" below. The work items in §7 are written to drop
 into GitHub issues.
 
 ---
@@ -51,6 +52,58 @@ into GitHub issues.
   implementation is a spike that does not exist, behind funding-gated
   milestones, and its model calls go through a paid provider key — the thing
   worth avoiding when a Claude Code subscription already drives the loop.
+
+---
+
+## Decisions taken
+
+Settled 2026-11-04, before any code. Each is recorded where it bites, below;
+gathered here so the import's shape can be read without the reasoning.
+
+**The bundle goes to any signed-in user, without `people.email`.** Access is
+already restricted to `@idems.international` (`auth.py:136`) and the Explore
+spreadsheet already renders a grid column for every column of every node table,
+`people.email` included (`tab_spreadsheet.py:150`), so gating the bundle by
+role protects nothing a user cannot already read in the app. The real novelty
+is bulk egress onto a laptop and into a model's context, and the answer to that
+is to send less, not to send it to fewer people. A producer needs to *resolve* a
+person — a name and an id do that — not to contact one. The `.db` download stays
+admin-only. See §2.4.
+
+**Provenance lands at element level, not per leaf.** The whole `description`
+subform carries one suggested provenance. Per-leaf confidence is deferred, not
+designed out. See §4.3 and item G.
+
+**Duplicate detection is a non-blocking similarity advisory.** There are no
+duplicated names in the live data at all, so an exact-name check would catch
+nothing; the real failure is a differently-worded record for work already
+recorded. This leaves TODO item E's general policy question untouched. See
+§4.1 rule 7.
+
+**A suggestions file may not set `tag_groups`.** Rejected by validation in 0.2.
+Tags are a human's grouping judgement, and 91 of 153 live initiatives still
+hold legacy-string tag values (roadmap item 15), so a producer reading a
+snapshot would learn the wrong shape from the majority of its examples. See §3.
+
+### The data as it stands
+
+Measured read-only against `database.db` on 2026-11-04, because several of the
+decisions above turn on it:
+
+| | live rows | notes |
+| --- | --- | --- |
+| `initiatives` | 153 | 151 have a `responsible_person`; 91 hold legacy-string `tag_groups` |
+| `activities` | 48 | 26 have a `start_date`, 5 a `location`; 47 link to an initiative, 48 to a person |
+| `people` | 34 | |
+| `organisations` | 12 | |
+| `contracts` | 6 | |
+| `provenance` | **0** | the mechanism has never run against real data |
+
+Three things follow. Activities are the sparse table and the reason to build
+this at all. Dates and locations are mostly absent even in hand-entered records,
+so an import that cannot supply them is not making the data worse. And an import
+would be the **first real exercise of #97** — worth knowing before trusting the
+amber-and-unconfirmed path with a batch of 47.
 
 ---
 
@@ -128,18 +181,41 @@ bundle is the authority; the URL is the pointer for an agent that wants the
 latest. Both carry the config hash, so a proposal drafted against last
 quarter's choice lists is detectable rather than mysterious.
 
-### 2.4 The decision this page needs taken first
+### 2.4 Who may download it: decided
 
-`snapshot.yaml` is a **bulk export of personal data** — `people.name`,
-`people.email`, who worked on what, when. Today the only bulk export is
-admin-gated for exactly that reason. `docs/data-protection-model.md` is the
-frame, and this is a lawful-basis question, not a UX one.
+`snapshot.yaml` is a bulk export of personal data — `people.name`, who worked
+on what, when — and the first instinct is that this is a question about *access*,
+answered by gating it like the `.db` download. That instinct is wrong here, for
+a reason worth stating so it is not re-litigated:
 
-The narrowest thing that still works: `contract.json` to any signed-in user
-(it holds no records); `snapshot.yaml` to any signed-in user but with
-`people.email` omitted, since a producer needs to *resolve* a person, which a
-name and an id do, not contact them. Full export stays admin. This needs
-writing down and agreeing, not assuming.
+- Access to the whole application is already restricted to
+  `@idems.international` addresses (`auth.py:136`). Every signed-in user is a
+  colleague, not a third party.
+- The Explore spreadsheet already builds a grid column from **every** column of
+  every node table, filtering and text-selection enabled
+  (`tab_spreadsheet.py:150`). `people` is a node table, so `email` and `role`
+  are on screen for any signed-in user today. The same fact is why
+  `provenance.md` rejected a JSON provenance column.
+
+So a role gate on the bundle would protect data the same user can read in the
+app a click away. It would buy nothing and cost the feature its point, which is
+that a contributor hands *their own* quarter's work to an agent without
+asking an admin.
+
+The genuinely new thing is not who sees it but **what leaves** — a file on a
+laptop, in a model's context, out of reach of the deployment. The right lever is
+therefore minimisation, not gating:
+
+- `contract.json` — any signed-in user. It holds no records.
+- `snapshot.yaml` — any signed-in user, **`people.email` omitted**. A producer
+  needs to *resolve* a person, which a name and an id do; it never needs to
+  contact one. Nothing in the format or the validator wants an address.
+- `database.db` — unchanged, still `ADMIN_EMAILS`, still the backup tool.
+
+The residual risk is honest and should be written on the page rather than
+designed away: a bundle is a point-in-time copy of colleagues' work records that
+the deployment can no longer see or revoke. Minimising it is what we can do;
+pretending the download is private is not.
 
 ---
 
@@ -175,6 +251,27 @@ there:
 - **`evidence`** — ids into the producer's own bundle, not prose. Evidence is
   never stored in Collaboratorium (`provenance.md`), so prose in the upload is
   note text leaking into the register for no benefit.
+
+### 3.0 One element the format refuses: `tag_groups`
+
+Decided. Validation rejects `tag_groups` in 0.2 rather than accepting and
+flagging it, for two independent reasons that happen to agree.
+
+The data reason: 91 of the 153 live initiatives hold old-style keyword strings
+in `tag_groups` rather than the object shape `subforms.md` documents — this is
+roadmap item 15, and it is why `failsafe_div` renders a MALFORMED SUBFORM DATA
+banner on the edit form of every tagged record. A producer handed a snapshot
+would therefore learn the wrong shape from the *majority* of its examples, and
+the most likely outcome of allowing the field is more banner-rendering rows.
+
+The better reason: tags are a grouping judgement about how this organisation
+thinks about its work, which is exactly the kind of claim a model should not be
+making from commit messages. The field costs nothing to leave empty — 62
+initiatives and 32 activities already have no tags — and a human assigning them
+during review is not a worse outcome than a human correcting them.
+
+If item 15 lands and tags are wanted later, this is a format version bump and a
+validator rule, not a redesign.
 
 ### 3.1 The corrections are structural, so score the structure
 
@@ -219,12 +316,33 @@ throwaway script already did:
 6. A contract-hash mismatch **warns**, naming what changed, rather than
    refusing. A proposal drafted on Monday against a config edited on Tuesday is
    usually still good.
-7. Near-duplicate names against existing records are surfaced, because TODO
-   item E is still an open policy question and 92 initiatives are already in
-   there. Surfaced, not blocked: "Weekly standup" is a legitimate repeat.
-8. Coverage gaps the producer declared are shown, not buried. The manual run's
+7. **Similar** names against existing records are surfaced as a non-blocking
+   advisory naming the candidate and inviting an `update` or a link instead.
+   Decided, and the shape matters — see below.
+8. `tag_groups` is rejected outright (§3.0), naming the element.
+9. Coverage gaps the producer declared are shown, not buried. The manual run's
    notes evidence stopped five weeks before the period ended and nothing in the
    file said so.
+
+Rule 7 was written as an exact-name check and that would have been useless:
+there are **no duplicated names at all** in the live data — not among 153
+initiatives, 48 activities, 34 people, 12 organisations or 6 contracts. TODO
+item E's three identically-named activities were not live data. So the failure
+this rule exists to catch is not a repeated name but *a differently-worded
+record for work already recorded* — "anastom framework development" against the
+existing "anastom" — which only a similarity measure sees.
+
+Non-blocking, for the reason TODO E has stayed open: duplicate names are
+plausibly legitimate, "Weekly standup" and "Site visit" among them, and an
+import that refuses them trains people to route around it. The advisory is also
+deliberately *not* a general duplicate policy. It is scoped to the one path that
+creates the risk at volume — a batch of 47 proposals drafted by something that
+cannot see the register's conventions — and leaves item E's question about the
+dashboard, the editor and the forms exactly where it is.
+
+The first line of defence is upstream anyway: the producer holds the snapshot
+and its instructions require preferring an `update` or a link over a `create`.
+Rule 7 is the backstop for when it does so badly.
 
 ### 4.2 Staging, and what the staging table is for
 
@@ -258,19 +376,61 @@ by the producer sending fewer, better records. Worth measuring early: how many
 records a person will actually accept in one sitting is the number that decides
 whether this feature is used.
 
-Two consequences to accept rather than engineer around:
+#### Subform granularity: element level, decided
 
-- **A subform's fields cannot carry provenance** (`provenance.md`, "Limits").
-  The activity `description` *is* a subform — `{"1": {description,
-  attachments}}` in `config/forms.yaml` — so the summary of an imported
-  activity has nowhere to land its confidence today. Activities are the sparse
-  and valuable table, so this is the most load-bearing limit in the whole
-  design, and it is a core form question rather than an import one.
-- **Producer-side review is not register confirmation.** A value the human
-  settled in chat with the agent carries `reviewed: {by, at}` in the file. It
-  must not be translated into `confirmed_by`. A signature means someone read
-  that value *here*; the moment an upload can assert one, the register stops
-  being defensible. Leave it as an explicit open question and default to no.
+`provenance.md`'s "Limits" says *a subform's **fields** cannot carry a
+provenance*, and that is easy to read — it was read that way in the first draft
+of this document — as the activity `description` being unable to carry one at
+all. It is narrower than that, and the difference decides how much core work an
+import needs.
+
+The subform **element** can already carry one, today, with no change:
+
+- `form_gen.py:80-83` applies `wrap_provenance` to whatever
+  `component_for_element` returns, generically, before the relevance wrapper.
+  The subform branch is not special-cased out of it.
+- The subform element already mounts a parent-namespace store,
+  `{"type": "input", "form": form_name, "element": element_id}`, holding the
+  whole `{"1": {description, attachments}}` dict — which is the value the
+  submit callback collects and `by_element` keys.
+
+What genuinely cannot carry one is a **leaf**: the summary scored separately
+from the attachments. Leaves render under `activities_form-description`, a
+different form namespace, which the submit callback's
+`{"type": "provenance", "form": form_name, "element": ALL}` pattern does not
+match — the same namespace limit `relevant:` has.
+
+So an imported activity's description arrives as one amber, unconfirmed block
+carrying the run id and the record's aggregate confidence. Two details make this
+comfortable rather than a compromise:
+
+- `description` is **not required** on activities, so an unconfirmed summary
+  never blocks the save. The required set is `name`, one `initiatives_links`
+  and one `people_links`, all of which carry provenance normally.
+- `_comparable` returns `None` for a dict, so `_changed` is never true for a
+  subform and the provenance is **kept** across an edit rather than dropped.
+  That is the conservative direction by design: dropping it would assert a human
+  typed the prose, which is the one claim the mechanism may not make by
+  accident. A summary rewritten after confirmation keeps a signature the person
+  is entitled to, since they wrote it.
+
+Per-leaf confidence stays on the list as item G, deferred rather than designed
+out. If the aggregate block turns out to hide a bad summary behind a good
+attachment list, that is the evidence to go and do it.
+
+#### Producer review is not register confirmation
+
+A value the human settled in chat with the agent carries `reviewed: {by, at}`
+in the file. It must not be translated into `confirmed_by`. A signature means
+someone read that value *here*; the moment an upload can assert one, the
+register stops being defensible, and the mechanism's whole point is that it
+cannot be crossed by accident. Default no, and it needs a decision of its own
+to become anything else.
+
+That `provenance` holds **0 rows** today sharpens this. There is no body of
+confirmed values to compare against, so the first import is also the first
+evidence about whether per-field confirmation is workable at volume. Better to
+find that out with signatures that mean what they say.
 
 ---
 
@@ -347,18 +507,23 @@ on.
 
 Written to drop into issues. Nothing here is started.
 
-### A. Decide the handoff page's data-protection posture
+### A. ~~Decide the handoff page's data-protection posture~~ — settled
 
 **Labels:** discussion, security, data-protection
 
-Who may download a bulk snapshot of people and their work, and does it include
-`people.email`? Today the only bulk export is admin-gated. §2.4 proposes
-contract to any signed-in user, snapshot to any signed-in user without emails,
-full export admin-only. Settle before A2, because it determines what the
-endpoint serves to whom.
+Settled in §2.4 on 2026-11-04: any signed-in user, `people.email` omitted from
+the snapshot, `.db` download unchanged. No issue needed; recorded here so the
+question is not reopened without the two facts that decided it — the
+`@idems.international` gate and the spreadsheet already showing every column of
+`people`.
 
-**Acceptance:** a written decision in `docs/data-protection-model.md`, and the
-handoff endpoint's gating follows from it.
+Note that `docs/data-protection-model.md` is **not** the home for this. Despite
+the name it is the entity model for the ROPA register deployment, not a
+statement of Collaboratorium's own posture, and no such document exists. If one
+is ever wanted, §2.4 is its first entry.
+
+**Carried into C:** the handoff page states on its face that a bundle is a
+point-in-time copy the deployment can no longer see or revoke.
 
 ### B. `pantograph export-contract`
 
@@ -398,11 +563,14 @@ links; nothing on the page restates the schema in prose.
 Adopt `anastom`'s §3.7 format, document it in this repository as the consuming
 end, and ship a machine-readable schema for it in the bundle. Includes the
 `source_ref` anchoring rule, since the manual run's run-date-based refs break
-idempotency and sticky rejection on the second run.
+idempotency and sticky rejection on the second run. `tag_groups` is excluded by
+the schema itself rather than by a validator rule, so the exclusion travels with
+the format (§3.0).
 
 **Acceptance:** a written spec and schema; the manual run's corrected file
-validates against it; two runs over unchanged inputs produce identical
-`source_ref`s.
+validates against it once its `tag_groups` values are dropped; two runs over
+unchanged inputs produce identical `source_ref`s; a file setting `tag_groups`
+fails schema validation naming the element.
 
 ### E. Validate and stage an uploaded suggestions file
 
@@ -432,21 +600,46 @@ unconfirmed; confirming the required fields saves a normal record whose
 provenance rows carry the producer's run id; declining is remembered by
 `source_ref`.
 
-### G. Provenance for subform fields
+### G. Per-leaf provenance inside a subform — deferred, not blocking
 
 **Labels:** enhancement, forms, core
 
-The activity `description` is a subform, so it cannot carry provenance
-(`provenance.md`, "Limits") — the same limit `relevant:` has. Activities are
-the table an import is for, and the summary is the field a model is most useful
-at drafting, so this is the design's tightest constraint.
+Decided in §4.3: element-level provenance on the `description` subform is
+enough for v1 and needs no core change, so this is **not** a prerequisite for
+B–F. Listed so it is not rediscovered as a blocker.
 
-Either lift the limit, or decide that an imported activity's summary arrives
-unmarked and say so loudly, which is the claim the whole mechanism exists to
-prevent making by accident.
+The remaining want is a leaf scored on its own — the summary separately from
+the attachments. Leaves render under the `activities_form-description`
+namespace, which the submit callback's `element: ALL` pattern does not match.
+The provenance table's `element` column is already a string, so a dotted path
+needs no schema change; the work is in the store ids, the submit callback's
+pattern, `requirements`, and giving `_comparable` an honest comparison for a
+nested value — which is the delicate part, since the safe answer today is
+"cannot compare, keep the provenance".
 
-**Acceptance:** a decision; if lifted, a subform leaf renders and stores
-provenance like any other element.
+Do this when there is evidence for it: an aggregate amber block hiding a bad
+summary behind a good attachment list. Not before.
+
+**Acceptance:** a subform leaf renders, stores and confirms provenance like any
+other element, and an edit to one leaf does not disown another's origin.
+
+### J. Similarity advisory on import
+
+**Labels:** feature, data-quality
+**Depends on:** E
+
+Decided in §4.1 rule 7. A non-blocking advisory comparing each `create` against
+the snapshot and naming a likely match, scoped to the import path only. An
+exact-name check is explicitly not it: the live data has zero duplicated names,
+so exact matching would find nothing and the real failure is re-wording.
+
+Deliberately not a general duplicate policy — TODO item E stays open for the
+dashboard, the editor and the forms.
+
+**Acceptance:** a proposed `create` whose name closely matches a live record is
+reported with that record's id and name and an invitation to link or update
+instead; it is still staged; the threshold is configurable and the advisory
+never refuses an import.
 
 ### H. A producer skill in this repository
 

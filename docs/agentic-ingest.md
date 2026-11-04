@@ -10,9 +10,11 @@ register), and `anastom`'s `docs/activity_report_ingestion_spec.md`, which is a
 much longer design for the producer half and the reason several decisions below
 are already made rather than open.
 
-Status: design, nothing implemented. The four decisions the design needed are
-settled — see "Decisions taken" below. The work items in §7 are written to drop
-into GitHub issues.
+Status: the way **out** is built — the contract exporter (item B) and the
+handoff page and bundle (item C). Nothing of the way **in** exists yet: no
+format schema, no validation, no staging, no review queue. The four decisions
+the design needed are settled, in "Decisions taken" below. The remaining work
+items in §7 are written to drop into GitHub issues.
 
 ---
 
@@ -97,6 +99,7 @@ decisions above turn on it:
 | `people` | 34 | |
 | `organisations` | 12 | |
 | `contracts` | 6 | |
+| `tag_groups` | **0** | the vocabulary the 91 legacy strings refer to is empty |
 | `provenance` | **0** | the mechanism has never run against real data |
 
 Three things follow. Activities are the sparse table and the reason to build
@@ -157,9 +160,10 @@ to call the feature done. Three reasons not to:
   tombstones in the link tables. Every reader has to reimplement
   `ROW_NUMBER() OVER (PARTITION BY id ORDER BY version DESC)` and the
   not-deleted filter correctly, and a producer that gets it subtly wrong
-  proposes links against superseded rows. Core already has this right in
-  `db.get_latest_record` and `db.get_relation_links`; the snapshot should be
-  its output, not an invitation to redo it.
+  proposes links against superseded rows. The snapshot should be core's output,
+  not an invitation to redo the query — `db.get_relation_links` already does it
+  for link tables, and `db.get_current_records` was added for record tables,
+  which had no such reader (see item C).
 - It carries **no contract and no hash**, so nothing ties a proposal to the
   config it was drafted against.
 
@@ -263,6 +267,19 @@ roadmap item 15, and it is why `failsafe_div` renders a MALFORMED SUBFORM DATA
 banner on the edit form of every tagged record. A producer handed a snapshot
 would therefore learn the wrong shape from the *majority* of its examples, and
 the most likely outcome of allowing the field is more banner-rendering rows.
+Worse, the `tag_groups` table those 91 values are supposed to name is **empty**,
+so there is no vocabulary to choose from even if the shape were right.
+
+The refusal is **derived, not named.** Core names no table, so the implemented
+rule is that an element whose groups come from a table rather than from the
+config does not accept suggestions — spelled the same way `component_factory`
+decides whether a subform is dynamic, which is the presence of
+`source_table` / `value_column` / `label_column` in its `parameters`. For this
+deployment that is exactly `tag_groups`, in all five forms, and it holds for a
+deployment the exporter has never seen. The contract states the refusal and the
+reason, so a producer reads it there rather than discovering it in a validation
+failure. Email-typed elements are refused by the same mechanism, on the ground
+that a contact address is not something to infer from evidence.
 
 The better reason: tags are a grouping judgement about how this organisation
 thinks about its work, which is exactly the kind of claim a model should not be
@@ -525,36 +542,63 @@ is ever wanted, §2.4 is its first entry.
 **Carried into C:** the handoff page states on its face that a bundle is a
 point-in-time copy the deployment can no longer see or revoke.
 
-### B. `pantograph export-contract`
+### B. `pantograph export-contract` — **built**
 
 **Labels:** feature, core, integration
 
-Roadmap item 11, built generally rather than for the register. A CLI emitting a
-JSON Schema projection of the merged config — tables, element names, types,
-choice lists, `required:` and `relevant:` conditions — carrying a hash of the
-config it came from. Note that `python -m pantograph` currently has no
-subcommands at all, so this introduces the CLI surface.
+Roadmap item 11, built generally rather than for the register. Lives in
+`src/pantograph/contract.py`, with the CLI in `__main__.py`, which grew its
+first subcommand for it — a bare `python -m pantograph` still serves, because
+the container's `ENTRYPOINT` depends on that.
 
-Choice lists sourced from `parameters.source_table` must be *declared as such*
-rather than resolved, since they are data and not config.
+What it emits per element: type, label, `required:` and `relevant:` (verbatim
+when they are expressions), choices, link table, and `accepts_suggestions` with
+a reason when the format refuses it. Choice lists sourced from
+`parameters.source_table` are declared as such and left for the snapshot to
+resolve — only `status` keeps its options in the config, and a contract that
+inlined the rest would be invalidated by every new person record.
 
-**Acceptance:** `pantograph export-contract` writes a schema an external tool
-validates against; editing an element's choice list changes the schema and its
-hash; a config with no Explore plugin exports without error.
+Tested in `tests/test_contract.py`, mostly against a fixture config whose
+tables this repository does not have, so a pass cannot be explained by
+Collaboratorium's own names.
 
-### C. The handoff page and bundle
+### C. The handoff page and bundle — **built**
 
 **Labels:** feature, integration
 **Depends on:** A, B
 
-A `login_required` page offering one zip — `contract.json`, `snapshot.yaml`,
-`instructions.md`, `rejections.yaml` — and one copyable launch line. The
-snapshot is built from `db.get_latest_record` and `db.get_relation_links` so
-that latest-version and tombstone handling is core's, not the reader's.
+`/handoff`, a `login_required` Flask route beside `/admin/maintenance`, serving
+one zip — `contract.json`, `snapshot.yaml`, `instructions.md`,
+`rejections.yaml` — and one copyable launch line. Assembly is in
+`handoff.py` (pure, so a test can read a bundle without a request), the route in
+`handoff_routes.py`, the snapshot in `snapshot.py`.
 
-**Acceptance:** a signed-in user gets a bundle whose contract hash matches the
-running config; the snapshot contains no superseded versions and no deleted
-links; nothing on the page restates the schema in prose.
+Two things found while building it, worth recording:
+
+**`db.get_all_records` is not the read this wanted**, and neither is
+`get_latest_record`, which §2.2 above named. The first returns *every version*
+of every non-deleted row — a plain `status != 'deleted'` filter over an
+append-only table — and the second returns a single record. So core did not in
+fact own the latest-version read, it owned it only for link tables
+(`get_relation_links`). `db.get_current_records` is the missing half, and
+`get_all_records` is left alone: it has no callers, and the comment on the new
+function says what it is there instead of.
+
+**The snapshot states what it withholds.** `omitted_elements` lists
+`people.email`, derived by walking the config for email-typed elements rather
+than naming the field. Without that a producer comparing the snapshot against
+the contract reads a withheld value as an empty one — and an empty address is
+exactly the sort of gap something helpful tries to fill.
+
+`rejections.yaml` ships empty, since staging does not exist yet (item E). It
+ships anyway so that a producer cannot tell "nothing was rejected" from "no
+such file", and so the shape is fixed before anything depends on it.
+
+Tested in `tests/test_handoff.py`, including that a record edited twice appears
+once at its latest version, that a link whose newest row is a tombstone is
+absent, and that the page states the residual risk — a bundle is a copy that
+leaves and cannot be withdrawn — which §2.4 made a requirement rather than a
+nicety.
 
 ### D. Publish the `collaboratorium-suggestions/0.2` schema
 

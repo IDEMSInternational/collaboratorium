@@ -11,6 +11,12 @@ description = "A config-driven database viewer and form engine"
 requires-python = ">=3.12"
 dependencies = [] # Relying on your existing requirements.txt
 
+# So that `pantograph export-contract` works as documented. It is the same
+# entry as `python -m pantograph`, which the Dockerfile's ENTRYPOINT uses and
+# which still serves when given no subcommand.
+[project.scripts]
+pantograph = "pantograph.__main__:main"
+
 # Page plugins are discovered through this group, so moving one out of this
 # repository into its own distribution is a packaging change and nothing else —
 # no core code refers to any plugin by name.

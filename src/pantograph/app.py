@@ -11,6 +11,7 @@ from dash import Dash, html, dcc, Input, Output, ctx, no_update
 import dash_bootstrap_components as dbc
 
 from pantograph.admin_routes import register_admin_routes
+from pantograph.handoff_routes import register_handoff_routes
 from pantograph.analytics import init_db as analytics_init_db
 from pantograph.auth import server, register_auth_callbacks
 from pantograph.config import load_config
@@ -184,6 +185,7 @@ def create_app(settings=None):
     register_auth_callbacks(app)
     register_form_callbacks(app, config)
     register_admin_routes(server)
+    register_handoff_routes(server)
     for plugin in plugins:
         plugin.register(app, config)
 

@@ -55,6 +55,18 @@ Then run:
 python -m pantograph
 ```
 
+With no arguments that serves the app, which is what the container's entrypoint
+relies on. There is one subcommand so far, for handing a deployment's shape to
+an external tool:
+
+```bash
+pantograph export-contract --out contract.json
+```
+
+See [docs/agentic-ingest.md](docs/agentic-ingest.md) for what the contract is
+for, and `/handoff` in a running deployment for the bundle a person downloads
+to go with it.
+
 Paths default to the working directory and can be overridden with
 `PANTOGRAPH_CONFIG`, `PANTOGRAPH_DB`, `PANTOGRAPH_ANALYTICS_DB` and
 `PANTOGRAPH_ASSETS`. `HOST`, `PORT` and `DEBUG` control the server.

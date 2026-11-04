@@ -248,6 +248,40 @@ def get_latest_record(table_name, object_id=None):
     return data
 
 
+def get_current_records(table_name):
+    """
+    One row per id: the highest version of each, excluding those whose latest
+    version is deleted.
+
+    This is the read every consumer of a versioned table actually wants, and
+    the reason it belongs in core rather than in whatever needs it. The schema
+    is append-only, so a plain ``WHERE status != 'deleted'`` returns *every
+    version* of every record — see `get_all_records` below, which does exactly
+    that and is why this exists separately. Getting it subtly wrong does not
+    fail loudly; it quietly returns superseded values alongside current ones.
+
+    `get_relation_links` already does the same partition for link tables.
+    """
+    conn = db_connect()
+    cur = conn.cursor()
+    cur.execute(
+        f"""
+        WITH ranked AS (
+            SELECT *,
+                   ROW_NUMBER() OVER (PARTITION BY id ORDER BY version DESC) AS rn
+            FROM "{table_name}"
+        )
+        SELECT * FROM ranked
+        WHERE rn = 1 AND (status IS NULL OR status != 'deleted')
+        ORDER BY id
+        """
+    )
+    rows = cur.fetchall()
+    cols = [d[0] for d in cur.description] if cur.description else []
+    conn.close()
+    return [{c: v for c, v in zip(cols, row) if c != "rn"} for row in rows]
+
+
 def get_all_records(table_name):
     """Return all current (non-deleted) records for a table."""
     conn = db_connect()

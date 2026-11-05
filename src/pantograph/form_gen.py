@@ -7,6 +7,7 @@ import dash_bootstrap_components as dbc
 from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
 from pantograph.component_factory import component_for_element, register_subform_blocks, wrap_provenance
+from pantograph import subforms
 from pantograph import provenance, relevance, requirements
 from pantograph.editor import parse_hash
 
@@ -40,6 +41,23 @@ def _get_max_id_from_cursor(cur, table_name):
 # ==============================================================
 # FORM LAYOUT GENERATION
 # ==============================================================
+
+
+def _leaf_provenances(provenances, element_id):
+    """
+    The provenances belonging to one subform element, keyed by their full path.
+
+    Kept whole rather than trimmed to the part after the element name, so the
+    key a caller wrote is the key the renderer, the submit callback and the
+    provenance table all see. One spelling end to end is what stops a leaf's
+    origin being filed under a name nothing else uses.
+    """
+    found = {}
+    for path, record in (provenances or {}).items():
+        split = subforms.split_leaf(path)
+        if split is not None and split[0] == element_id:
+            found[path] = record
+    return found
 
 
 def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None,
@@ -86,7 +104,12 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     for element_name, element_def in forms_config[form_name].get("elements", {}).items():
         val = record_data.get(element_name) if record_data else None
         element_def = {**element_def, "element_id": element_name}
-        component = component_for_element(element_def, form_name=form_name, value=val)
+        # A subform's fields are addressed by path — `description.1.description`
+        # — and rendered by a callback rather than here, so theirs travel in a
+        # store the callback reads. Everything else is keyed by element name.
+        component = component_for_element(
+            element_def, form_name=form_name, value=val,
+            leaf_provenances=_leaf_provenances(provenances, element_name))
         # Wrapped inside the relevance container, so hiding an irrelevant
         # element hides the claim about where its value came from too.
         component = wrap_provenance(component, form_name, element_name,

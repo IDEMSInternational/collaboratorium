@@ -393,7 +393,7 @@ by the producer sending fewer, better records. Worth measuring early: how many
 records a person will actually accept in one sitting is the number that decides
 whether this feature is used.
 
-#### Subform granularity: element level, decided
+#### Subform granularity: decided at element level, since built per leaf
 
 `provenance.md`'s "Limits" says *a subform's **fields** cannot carry a
 provenance*, and that is easy to read — it was read that way in the first draft
@@ -411,29 +411,31 @@ The subform **element** can already carry one, today, with no change:
   whole `{"1": {description, attachments}}` dict — which is the value the
   submit callback collects and `by_element` keys.
 
-What genuinely cannot carry one is a **leaf**: the summary scored separately
-from the attachments. Leaves render under `activities_form-description`, a
+A **leaf** — the summary scored separately from the attachments — could not,
+when this was written. Leaves render under `activities_form-description`, a
 different form namespace, which the submit callback's
 `{"type": "provenance", "form": form_name, "element": ALL}` pattern does not
-match — the same namespace limit `relevant:` has.
+match.
 
-So an imported activity's description arrives as one amber, unconfirmed block
-carrying the run id and the record's aggregate confidence. Two details make this
-comfortable rather than a compromise:
+**That is no longer true; item G is built.** A leaf now has a path,
+`description.1.description`, and its provenance block mounts under the parent
+form keyed by that path while its input keeps the subform's namespace, so both
+callbacks reach it unchanged. The reasoning for deferring it was sound on the
+evidence available here — what changed is that two more wants arrived pointing
+at the same seam, not that this one got stronger.
 
-- `description` is **not required** on activities, so an unconfirmed summary
-  never blocks the save. The required set is `name`, one `initiatives_links`
-  and one `people_links`, all of which carry provenance normally.
-- `_comparable` returns `None` for a dict, so `_changed` is never true for a
-  subform and the provenance is **kept** across an edit rather than dropped.
-  That is the conservative direction by design: dropping it would assert a human
-  typed the prose, which is the one claim the mechanism may not make by
-  accident. A summary rewritten after confirmation keeps a signature the person
-  is entitled to, since they wrote it.
+One claim in the deferral turned out to be the argument against it. The note
+below said `_comparable` returns `None` for a dict, so a subform's provenance
+is **kept** across an edit, and called that the conservative direction. It is
+conservative, but it also means an element-level claim on a subform survives
+*any* edit to it — including a complete rewrite of the prose it claims a model
+drafted. Per leaf, prose compares exactly again, and a rewritten summary
+disowns its origin as every other text field already did.
 
-Per-leaf confidence stays on the list as item G, deferred rather than designed
-out. If the aggregate block turns out to hide a bad summary behind a good
-attachment list, that is the evidence to go and do it.
+The other detail still holds and is still why none of this was urgent:
+`description` is **not required** on activities, so an unconfirmed summary
+never blocks a save. The required set is `name`, one `initiatives_links` and
+one `people_links`, all of which carried provenance normally throughout.
 
 #### Producer review is not register confirmation
 
@@ -696,28 +698,35 @@ unconfirmed; confirming the required fields saves a normal record whose
 provenance rows carry the producer's run id; declining is remembered by
 `source_ref`.
 
-### G. Per-leaf provenance inside a subform — deferred, not blocking
+### G. Per-leaf provenance inside a subform — **built**
 
 **Labels:** enhancement, forms, core
 
-Decided in §4.3: element-level provenance on the `description` subform is
-enough for v1 and needs no core change, so this is **not** a prerequisite for
-B–F. Listed so it is not rediscovered as a blocker.
+Deferred here for want of a motivating case, then built once three separate
+wants turned out to point at the same seam: per-leaf provenance, a `required:`
+reaching one field inside a subform, and per-leaf producer permission — the
+last two both raised by the tag-groups work. Any one of them alone was easy to
+defer; three is a different argument.
 
-The remaining want is a leaf scored on its own — the summary separately from
-the attachments. Leaves render under the `activities_form-description`
-namespace, which the submit callback's `element: ALL` pattern does not match.
-The provenance table's `element` column is already a string, so a dotted path
-needs no schema change; the work is in the store ids, the submit callback's
-pattern, `requirements`, and giving `_comparable` an honest comparison for a
-nested value — which is the delicate part, since the safe answer today is
-"cannot compare, keep the provenance".
+The seam is an address, not a namespace change. A leaf has a path —
+`description.1.description` — and its provenance block mounts under the
+**parent** form's name keyed by that path, while its input keeps the subform's
+own namespace. The submit callback's `element: ALL` and the confirm callback's
+`MATCH` then reach it with no change, and the provenance table needed none
+either, its `element` column being text. `pantograph.subforms` holds the
+vocabulary; `tests/test_subform_leaves.py` covers all three consumers.
 
-Do this when there is evidence for it: an aggregate amber block hiding a bad
-summary behind a good attachment list. Not before.
+It also closed a claim that was quietly too generous. A subform's value is a
+dict, which `_comparable` declines to compare, so an element-level provenance
+on one survived any edit at all. Per leaf, prose compares exactly: rewriting
+the summary drops its provenance, editing the attachments beside it does not.
 
-**Acceptance:** a subform leaf renders, stores and confirms provenance like any
-other element, and an edit to one leaf does not disown another's origin.
+Still out of reach, and refused at startup rather than evaluated wrongly: a
+*conditional* `required:` on a leaf, since an expression inside a subform
+resolves against the enclosing form's state — the limit `relevant:` has.
+
+**Acceptance met:** a subform leaf renders, stores and confirms provenance like
+any other element, and an edit to one leaf does not disown another's origin.
 
 ### J. Similarity advisory on import
 

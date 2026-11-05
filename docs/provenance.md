@@ -186,21 +186,36 @@ so a report rendered from an older version never borrows a newer one's claims.
 
 ## Limits
 
-**A subform's fields cannot carry one.** A subform renders its inputs under its
-own form namespace, the same limit `relevant:` has.
+**A subform's fields carry one by path.** This was a limit and is no longer;
+the reasoning is kept because the shape it produced is unusual.
 
-The subform *element* can, though, and the distinction is worth stating because
-the short version above has been misread as the whole element being excluded.
-`wrap_provenance` is applied to whatever `component_for_element` returns,
-generically, and a subform element already mounts a parent-namespace
-`{"type": "input", …}` store holding its whole value — so `description` on an
-activity carries a provenance over the block as a unit, amber and confirmable,
-exactly like a string element. What has nowhere to land is a claim about one
-*leaf*: the summary scored apart from the attachments.
+A subform renders its inputs under a form namespace of its own —
+`activities_form-description` — so a field inside one is not an element of the
+parent form, and nothing that works per element could see it. The fix is an
+address rather than a namespace change: a leaf has a path,
+`description.1.description`, and its provenance block is mounted under the
+**parent** form's name keyed by that path, while its input keeps the subform's
+namespace. The submit callback already gathers
+`{"type": "provenance", "form": <form>, "element": ALL}` and the confirm
+callback already matches on both, so a leaf addressed this way needed no change
+to either. The provenance table needed none either: its `element` column is
+text, and a path is text. See `pantograph.subforms`.
 
-One consequence, the same one links have: a subform's value is a dict, which
-`_comparable` declines to compare, so its provenance survives an edit rather
-than being dropped. Doubt keeps the provenance, as everywhere else here.
+The subform *element* can still carry one over the block as a unit, which is
+what an import used before leaves were addressable.
+
+Addressing a leaf also fixed a claim that was quietly too generous. A subform's
+value is a dict, and `_comparable` declines to compare one, so an
+element-level provenance on a subform survived **any** edit to it — doubt kept
+the provenance, which is the right direction but a weak answer when the thing
+being claimed is authorship of prose. Per leaf, prose compares exactly again:
+rewriting the summary drops its provenance, editing the attachments beside it
+does not.
+
+What is still out of reach is a *condition* inside a subform — `relevant:`, and
+`required:` written as an expression — because an expression there resolves
+against the enclosing form's state. A conditional `required:` on a leaf is
+refused at startup rather than evaluated against the wrong scope.
 
 **A links element's provenance survives an edit to it.** Link values are stored
 in a link table and read back as an unordered list, which does not compare

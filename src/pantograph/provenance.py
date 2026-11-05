@@ -310,8 +310,25 @@ def surviving_edits(provenances, previous_values, values):
     previous_values = previous_values or {}
     values = values or {}
     return {element: raw for element, raw in (provenances or {}).items()
-            if not _changed(previous_values.get(element, _MISSING),
-                            values.get(element))}
+            if not _changed(_before(previous_values, element),
+                            _after(values, element))}
+
+
+def _before(values, element):
+    """The value an element or a subform leaf held, before this save."""
+    from pantograph import subforms
+
+    if subforms.is_leaf_path(element):
+        return subforms.leaf_value(values, element, _MISSING)
+    return values.get(element, _MISSING)
+
+
+def _after(values, element):
+    from pantograph import subforms
+
+    if subforms.is_leaf_path(element):
+        return subforms.leaf_value(values, element)
+    return values.get(element)
 
 
 def _changed(before, after):

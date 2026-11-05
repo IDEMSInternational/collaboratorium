@@ -43,6 +43,7 @@ definition, so a form that has never heard of provenance is unaffected.
 from dash import ALL, Input, Output, State
 
 from pantograph import provenance as prov
+from pantograph import subforms
 from pantograph.expressions import ExpressionError, evaluate, is_truthy, parse, referenced_elements
 from pantograph.relevance import (
     FormConfigError,
@@ -99,6 +100,29 @@ def compile_required(form_name, form_config, schema=None):
         except ExpressionError as exc:
             raise FormConfigError(f"{form_name}.{element_id}: 'required': {exc}") from exc
 
+    # A field inside a statically-defined subform may be required too, keyed by
+    # its path — `description.1.description`. Only static ones: a dynamic
+    # subform's groups are rows in another table, so there is nothing in the
+    # config to walk, and a rule on one of those lives in that row's
+    # `key_values` where only something reading the table can see it.
+    #
+    # Deliberately after the element loop and never overwriting it: an element
+    # and a leaf cannot share a name, because a path always has two separators
+    # and an element name may have none.
+    for path, leaf in subforms.static_leaves(form_config):
+        raw = leaf.get("required")
+        if raw in _FALSE:
+            continue
+        if is_static_required(raw):
+            compiled[path] = True
+            continue
+        raise FormConfigError(
+            f"{form_name}.{path}: a subform field's 'required' must be yes or "
+            f"no, not {raw!r}. A condition cannot be evaluated there, because "
+            f"an expression inside a subform resolves against the enclosing "
+            f"form's state, which is the same limit 'relevant:' has."
+        )
+
     known = set(form_config.get("elements") or {}) | set(form_config.get("meta") or {})
     for element_id, node in compiled.items():
         if node is True:
@@ -144,12 +168,21 @@ def unsatisfied(form_config, values, form_name="<form>", *, provenances=None, re
     relevant = compile_form(form_name, form_config)
     unanswered, unconfirmed = [], []
     for element_id, condition in required.items():
-        relevance_condition = relevant.get(element_id)
+        leaf = subforms.is_leaf_path(element_id)
+        if leaf:
+            # A subform's own element carries the relevance; the field inside
+            # it cannot have one of its own, the same limit it has on
+            # `required:` conditions.
+            relevance_condition = relevant.get(subforms.split_leaf(element_id)[0])
+        else:
+            relevance_condition = relevant.get(element_id)
         if relevance_condition is not None and not evaluate(relevance_condition, values, resolve):
             continue
         if condition is not True and not evaluate(condition, values, resolve):
             continue
-        if not is_truthy(values.get(element_id)):
+        answer = (subforms.leaf_value(values, element_id) if leaf
+                  else values.get(element_id))
+        if not is_truthy(answer):
             unanswered.append(element_id)
         elif not prov.is_confirmed((provenances or {}).get(element_id)):
             unconfirmed.append(element_id)
@@ -188,6 +221,10 @@ def _names(form_config, element_ids):
 
 
 def label_for(form_config, element_id):
+    if subforms.is_leaf_path(element_id):
+        # "Description — Summary", not "description.1.description". A path is
+        # an address, and nothing a person should be shown.
+        return subforms.leaf_label(form_config, element_id)
     element = (form_config.get("elements") or {}).get(element_id, {})
     return element.get("label") or element_id.replace("_", " ")
 

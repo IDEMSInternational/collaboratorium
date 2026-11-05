@@ -110,13 +110,33 @@ def _subform(element):
         }
     groups = {
         group_id: {
-            field_id: {"type": field.get("type"), "label": field.get("label")}
+            field_id: _leaf_contract(field)
             for field_id, field in (fields or {}).items()
             if isinstance(field, dict)
         }
         for group_id, fields in parameters.items()
     }
     return {"kind": "static", "groups": groups}
+
+
+def _leaf_contract(field):
+    """
+    One field of a static subform, as the contract states it.
+
+    A leaf gets the same three statements a top-level element does — what it
+    is, whether it must be answered, and whether a producer may propose it —
+    because all three are now addressable per leaf. The path is
+    `<element>.<group>.<field>`; see pantograph.subforms.
+    """
+    stated = {"type": field.get("type"), "label": field.get("label")}
+    if field.get("required") in _REQUIRED:
+        stated["required"] = True
+    if field.get("producer") is False:
+        stated["accepts_suggestions"] = False
+        stated["refused_because"] = (
+            field.get("producer_note")
+            or "this deployment does not accept a proposed value for it")
+    return stated
 
 
 def _refusal(element):

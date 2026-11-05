@@ -150,6 +150,12 @@ date is far more expensive than a missing one — nothing downstream can tell a
 guessed date from a read one.
 
 - A real date in the source → use it, and do not list it in `inferred:`.
+- **A range you derived by grouping evidence is inferred, even though both
+  ends are real dates.** If an activity runs from the first commit in a
+  cluster you assembled to the last one, the dates are read but the
+  *boundary* is your judgement — you decided those commits were one activity.
+  Say so. This is the easiest inference to miss, because nothing about either
+  date looks like a guess.
 - A month → first of that month, and declare it inferred.
 - "this year", "towards the end of the year" → you may bracket it to the year,
   declare it inferred, and say what the words were. Consider leaving it out.

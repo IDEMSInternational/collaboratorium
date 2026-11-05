@@ -360,6 +360,24 @@ initiatives:
                for f in proposal.advisories)
 
 
+def test_document_phrasing_is_not_flagged_on_an_activity(deployment):
+    """
+    An activity is a thing that happened, so a name describing work is what
+    its name is for. The advisory is about initiatives, and it quotes a
+    statistic about initiatives to justify itself — it fired on an activity in
+    the first real run.
+    """
+    proposal = _check(_file("""
+activities:
+  - name: Teaching statistical problem solving
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "x:phrasing"
+""", deployment), deployment)
+    assert not [f for f in proposal.advisories
+                if "description of work" in f.message]
+
+
 def test_two_records_in_one_file_naming_the_same_thing(deployment):
     proposal = _check(_file("""
 activities:

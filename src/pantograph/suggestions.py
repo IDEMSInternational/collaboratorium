@@ -619,7 +619,15 @@ class Checker:
                     section=record.section, index=record.index,
                     match=("pending", ref, name, value)))
 
-            if similarity.looks_like_document_phrasing(record.name):
+            # Initiatives only. An initiative should be named for the thing —
+            # `R-Instat`, not `Development of R-Instat` — and only 5 of 153
+            # live ones are named any other way. An *activity* is a thing that
+            # happened, so describing work is exactly what its name is for, and
+            # `Teaching statistical problem solving` is a perfectly good one.
+            # This fired on an activity in the first real run, and told the
+            # reader a statistic about initiatives to justify it.
+            if (record.table == "initiatives"
+                    and similarity.looks_like_document_phrasing(record.name)):
                 record.findings.append(Finding(
                     "advisory",
                     f"{record.name!r} reads as a description of work rather "

@@ -106,6 +106,13 @@ def _subform(element):
                 "from_table": parameters["source_table"],
                 "value_column": parameters["value_column"],
                 "label_column": parameters["label_column"],
+                # The terms are data, so they are not listed here. Read them
+                # from the snapshot's rows for this table: each row's
+                # `key_values` names its categories, and each category names
+                # its terms. A category carrying `"producer": false` is one
+                # this deployment will not take a proposed value for, and the
+                # import drops it with the reason that row gives.
+                "resolved_in": "snapshot",
             },
         }
     groups = {
@@ -148,17 +155,18 @@ def _refusal(element):
     """
     element_type = element.get("type")
 
-    if element_type == "subform" and _VOCABULARY_KEYS.issubset(
-            element.get("parameters") or {}):
-        # A tag grouping, in this deployment. The groups are rows in another
-        # table and their inner shape is a JSON blob in that row, so the
-        # contract cannot state what a valid value looks like and the importer
-        # cannot validate one. That the vocabulary is also a grouping judgement
-        # a person should be making is the better reason, but this one is the
-        # one the config can prove. See docs/agentic-ingest.md §3.0.
-        return ("its groups come from a table rather than from the config, so "
-                "neither this contract nor the importer can state or check a "
-                "valid value")
+    # A vocabulary subform — a tag grouping — used to be refused here, on the
+    # ground that neither the contract nor the importer could state or check a
+    # valid value. Half of that was always true and is still: the terms are
+    # rows in another table, so this document cannot list them. The other half
+    # was only true while the table was empty. The snapshot carries those rows,
+    # and the importer reads them at import time, so a proposed term can be
+    # checked against the vocabulary that actually exists.
+    #
+    # So the contract declares where the terms live rather than refusing, which
+    # is exactly what it already does for a `select_multiple` over a table.
+    # Permission per category lives in the vocabulary row too, because that is
+    # the only place a category is named.
 
     if element_type == "email":
         return "a contact address is not something to infer from evidence"

@@ -52,6 +52,51 @@ def current_names(config):
     return names
 
 
+def tag_vocabulary(config):
+    """
+    The tag groups as they exist right now: `{group_id: key_values}`.
+
+    Read at import time rather than from the bundle's snapshot, for the same
+    reason names are: a term added this morning should be proposable this
+    afternoon. Empty when a deployment has no tag groups, which is how a
+    proposal that sets tags is told there is nothing to set them to.
+
+    The element whose groups these are is found from config rather than named
+    here, so a deployment that calls its tag element something else still
+    works.
+    """
+    table = None
+    for form in (config.get("forms") or {}).values():
+        for element in (form.get("elements") or {}).values():
+            parameters = (element or {}).get("parameters") or {}
+            if (element or {}).get("type") == "subform" and {
+                    "source_table", "value_column", "label_column"
+            }.issubset(parameters):
+                table = parameters["source_table"]
+                break
+        if table:
+            break
+    if not table:
+        return {}
+
+    found = {}
+    try:
+        rows = get_current_records(table)
+    except Exception:
+        return {}
+    for row in rows:
+        raw = row.get("key_values")
+        if not raw:
+            continue
+        try:
+            parsed = json.loads(raw) if isinstance(raw, str) else raw
+        except (ValueError, TypeError):
+            continue
+        if isinstance(parsed, dict):
+            found[str(row["id"])] = parsed
+    return found
+
+
 def pending_rows():
     """
     `[(source_ref, table, name, subject)]` for everything awaiting review.

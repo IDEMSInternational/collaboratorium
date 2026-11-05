@@ -235,24 +235,24 @@ activities:
     assert any("usually an initiative" in f.message for f in proposal.advisories)
 
 
-def test_tags_is_dropped_with_a_warning_not_refused(deployment):
+def test_tags_are_dropped_when_there_is_no_vocabulary(deployment):
     """
-    Every producer writes `tags:`, the element is `tag_groups`, and that element
-    is refused. It has to arrive as one dropped field, not as a dead record.
+    A deployment with no tag groups has nothing to choose from. The record
+    still stages — tagging is never the reason a record fails.
     """
     proposal = _check(_file("""
 activities:
   - name: Tagged
     initiatives: [R-Instat]
     people: [Gabe Bolton]
-    tags: [climate]
+    tags:
+      impact_area: [Climate]
     source_ref: "x:6"
 """, deployment), deployment)
     assert not proposal.errors
     assert len(proposal.stageable) == 1
     assert "tag_groups" not in proposal.stageable[0].values
-    assert any("not accepted and was dropped" in f.message
-               for f in proposal.warnings)
+    assert any("no tag groups defined" in f.message for f in proposal.warnings)
 
 
 def test_an_element_that_does_not_exist_is_an_error(deployment):

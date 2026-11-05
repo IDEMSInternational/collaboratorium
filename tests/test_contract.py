@@ -109,14 +109,25 @@ def test_static_subform_groups_are_described(minimal_config):
     assert notes.get("accepts_suggestions") is not False
 
 
-def test_a_vocabulary_subform_is_refused(minimal_config):
+def test_a_vocabulary_subform_says_where_its_terms_live(minimal_config):
     """
-    docs/agentic-ingest.md §3.0. Derived from `parameters`, not from the element
-    being called `tag_groups`, so it holds for a deployment core has not seen.
+    It used to be refused outright, on the ground that neither the contract nor
+    the importer could check a value. Only half of that was ever true: the
+    terms are rows, so this document cannot list them, but the snapshot carries
+    those rows and the importer reads them. So it declares rather than refuses,
+    exactly as a `select_multiple` over a table does.
     """
     groups = contract.build(minimal_config)["tables"]["widgets"]["elements"]["groups"]
-    assert groups["accepts_suggestions"] is False
-    assert "from the config" in groups["refused_because"]
+    assert groups.get("accepts_suggestions") is not False
+    assert groups["subform"]["kind"] == "dynamic"
+    assert groups["subform"]["vocabulary"]["from_table"] == "group_table"
+    assert groups["subform"]["vocabulary"]["resolved_in"] == "snapshot"
+
+
+def test_a_vocabulary_subform_does_not_inline_its_terms(minimal_config):
+    """The terms are data; inlining them would stale the contract on every edit."""
+    groups = contract.build(minimal_config)["tables"]["widgets"]["elements"]["groups"]
+    assert "values" not in groups["subform"]["vocabulary"]
 
 
 def test_an_email_element_is_refused(minimal_config):
@@ -179,7 +190,7 @@ def test_real_deployment_config_exports(app_config):
 
     assert activities["name"]["required"] is True
     assert activities["initiatives_links"]["required"] is True
-    assert activities["tag_groups"]["accepts_suggestions"] is False
+    assert activities["tag_groups"]["subform"]["vocabulary"]["from_table"] == "tag_groups"
     # The activity summary is a static subform and must stay proposable: it is
     # the field a model is most useful at drafting.
     assert activities["description"]["subform"]["kind"] == "static"

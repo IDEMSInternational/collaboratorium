@@ -232,12 +232,16 @@ class Checker:
     here rather than silently becoming two records.
     """
 
-    def __init__(self, contract_doc, current, pending=(), threshold=None):
+    def __init__(self, contract_doc, current, pending=(), threshold=None,
+                 vocabulary=None):
         self.contract = contract_doc or {}
         self.current = {table: list(rows) for table, rows in (current or {}).items()}
         self.pending = list(pending)
         self.threshold = (similarity.DEFAULT_THRESHOLD if threshold is None
                           else threshold)
+        # `{group_id: key_values}` as the deployment holds them right now. The
+        # contract names where the terms live; this is them.
+        self.vocabulary = dict(vocabulary or {})
 
     # -- contract lookups --------------------------------------------------
 
@@ -418,6 +422,14 @@ class Checker:
             if field not in elements and ELEMENT_ALIASES.get(field) in elements:
                 field = ELEMENT_ALIASES[field]
 
+            # A tag grouping: proposed by category and term name, resolved
+            # against the vocabulary that exists now.
+            if ((elements.get(field) or {}).get("subform") or {}).get("kind") == "dynamic":
+                resolved = self._read_tags(record, field, value)
+                if resolved is not None:
+                    record.values[field] = resolved
+                continue
+
             if field in refused:
                 named = (f"`{raw_field}` (read as `{field}`)"
                          if field != raw_field else f"`{field}`")
@@ -455,6 +467,124 @@ class Checker:
                     f"`inferred:` mentions `{element}`, which this record does "
                     f"not set.", section=record.section, index=record.index,
                     element=element))
+
+    # Soft, because the glossary describes it as forcing hard choices rather
+    # than as a limit nobody reaches, and because a person who has a good
+    # reason should be able to exceed it. Reported, never refused.
+    TAG_CEILING = 6
+
+    def _read_tags(self, record, field, value):
+        """
+        A proposed `tags:` mapping, as the stored subform value.
+
+        Written by category and term *name* —
+
+            tags:
+              impact_area: [Education, Data Science]
+              idems_domain: [IDEMS R&D]
+
+        — because that is what a person reviewing the file can read, and the
+        same reason links are written by name. Stored keyed by the vocabulary
+        row and the option keys, which is what the form loads.
+
+        Returns None when nothing survives, so the element is left unset
+        rather than set to an empty shape.
+        """
+        where = dict(section=record.section, index=record.index, element=field)
+
+        if not self.vocabulary:
+            record.findings.append(Finding(
+                "warning",
+                f"`{field}` was dropped: this deployment has no tag groups "
+                f"defined, so there is no vocabulary to choose from.", **where))
+            return None
+
+        if not isinstance(value, dict):
+            record.findings.append(Finding(
+                "error",
+                f"`{field}` must be a mapping of category to a list of terms, "
+                f"such as `impact_area: [Education]`.", **where))
+            return None
+
+        # One group holds the categories. Where a deployment has several, the
+        # category name says which, so a proposal never has to know the row id.
+        stored, chosen = {}, 0
+        for category, terms in value.items():
+            group_id, definition = self._category(category)
+            if definition is None:
+                known = sorted({c for kv in self.vocabulary.values() for c in kv})
+                record.findings.append(Finding(
+                    "error",
+                    f"`{field}.{category}` is not a tag category here. "
+                    f"This deployment has: {', '.join(known) or 'none'}.",
+                    **where))
+                continue
+
+            if definition.get("producer") is False:
+                record.findings.append(Finding(
+                    "warning",
+                    f"`{field}.{category}` was dropped — "
+                    + (definition.get("producer_note")
+                       or "this deployment does not accept a proposed value "
+                          "for that category"),
+                    **where))
+                continue
+
+            options = definition.get(definition.get("list_name")) or {}
+            if not isinstance(options, dict):
+                options = {}
+            resolved = []
+            for term in self._as_list(terms):
+                key = self._term_key(options, term)
+                if key is None:
+                    near = similarity.matches(
+                        str(term), list(options.items()),
+                        threshold=self.threshold, limit=2)
+                    hint = (" Did you mean "
+                            + " or ".join(f"{label!r}" for _, label, _ in near)
+                            + "?") if near else ""
+                    record.findings.append(Finding(
+                        "error",
+                        f"`{field}.{category}: {term!r}` is not one of its "
+                        f"terms.{hint}", **where))
+                    continue
+                resolved.append(key)
+            if resolved:
+                stored.setdefault(group_id, {})[category] = resolved
+                chosen += len(resolved)
+
+        if chosen > self.TAG_CEILING:
+            record.findings.append(Finding(
+                "advisory",
+                f"{chosen} tags across all categories. The house guidance is "
+                f"four to six in total, which is meant to force a choice — "
+                f"more than that and the tags stop telling a reader which "
+                f"records are unlike each other. Not a rule; override it if "
+                f"you have a reason.", **where))
+
+        return stored or None
+
+    def _category(self, category):
+        """`(group_id, definition)` for a category name, or `(None, None)`."""
+        for group_id, key_values in self.vocabulary.items():
+            if category in key_values and isinstance(key_values[category], dict):
+                return group_id, key_values[category]
+        return None, None
+
+    @staticmethod
+    def _term_key(options, term):
+        """
+        The stored key for a proposed term, by label or by key.
+
+        Matched without case or punctuation, because a producer reads the term
+        off a glossary written for people — `IDEMS R&D`, not `idems_rd` — and
+        being strict about an ampersand would fail the common case for nothing.
+        """
+        wanted = similarity._normalise(str(term))
+        for key, label in options.items():
+            if wanted in (similarity._normalise(key), similarity._normalise(label)):
+                return key
+        return None
 
     @staticmethod
     def _as_list(value):
@@ -649,11 +779,11 @@ class Checker:
                     section=record.section, index=record.index))
 
 
-def check(text, contract_doc, current, pending=(), threshold=None):
+def check(text, contract_doc, current, pending=(), threshold=None, vocabulary=None):
     """Parse and check an uploaded file. Always returns a Proposal."""
     document, finding = parse(text)
     if finding is not None:
         proposal = Proposal()
         proposal.findings.append(finding)
         return proposal
-    return Checker(contract_doc, current, pending, threshold).check(document)
+    return Checker(contract_doc, current, pending, threshold, vocabulary).check(document)

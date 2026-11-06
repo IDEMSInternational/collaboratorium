@@ -459,6 +459,13 @@ class Checker:
 
             record.values[field] = value
 
+        # `inferred:` is written in the producer's spelling, so `tags` has to
+        # mean what `tags:` meant, or a reason given for a value it did set is
+        # reported as a reason for a value it did not.
+        record.inferred = {
+            (ELEMENT_ALIASES[e] if e not in elements and ELEMENT_ALIASES.get(e) in elements else e): why
+            for e, why in record.inferred.items()}
+
         for element in record.inferred:
             if element not in record.values and element not in {
                     v for v in aliases.values()} and element not in aliases:

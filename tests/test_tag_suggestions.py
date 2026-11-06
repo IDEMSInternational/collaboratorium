@@ -254,3 +254,13 @@ def test_a_staged_tag_value_loads_into_the_form(tagged):
     values, provenances = staging.form_inputs(staging.queue()[0])
     assert values["tag_groups"] == {"7": {"impact_area": ["climate"]}}
     assert provenances["tag_groups"]["source"] in ("suggested", "cited")
+
+
+def test_a_reason_given_for_tags_is_not_reported_as_a_reason_for_nothing(tagged):
+    """
+    `inferred:` is in the producer's spelling. Found by acceptance run 3, where
+    every record that set `tags` and explained why was warned that it did not.
+    """
+    proposal = _check(_activity("      impact_area: [Climate]\n"
+                                "    inferred:\n      tags: from the README\n"), tagged)
+    assert not [f for f in proposal.warnings if "does not set" in f.message]

@@ -83,6 +83,7 @@ recorded. This leaves TODO item E's general policy question untouched. See
 §4.1 rule 7.
 
 **A suggestions file may not set `tag_groups`.** Rejected by validation in 0.2.
+**Superseded on 2026-11-06**, once a real vocabulary existed — see §3.0.
 Tags are a human's grouping judgement, and 91 of 153 live initiatives still
 hold legacy-string tag values (roadmap item 15), so a producer reading a
 snapshot would learn the wrong shape from the majority of its examples. See §3.
@@ -256,7 +257,38 @@ there:
   never stored in Collaboratorium (`provenance.md`), so prose in the upload is
   note text leaking into the register for no benefit.
 
-### 3.0 One element the format refuses: `tag_groups`
+### 3.0 Tags: refused, then permitted once a vocabulary existed
+
+**Superseded on 2026-11-06.** The reasoning below stands as written and is kept
+because one half of it is still load-bearing; what changed is the fact it
+rested on. A real vocabulary now exists — three categories and 28 terms, in a
+`tag_groups` row pasted into the running deployment rather than committed as
+config — so a producer may propose Impact Area and IDEMS Domain terms, and the
+format carries them. What that looks like is in
+[`suggestions-format.md`](suggestions-format.md) §8 and the
+[style guide](record-style-guide.md).
+
+Which half survived matters. The contract still **cannot list the terms**: they
+are rows, so a document generated from config can only say where they live.
+What stopped being true is that nothing could *check* a proposed term — the
+snapshot carries those rows, and the importer reads them at import time, so it
+validates against the vocabulary that exists rather than one frozen at export.
+The contract therefore declares instead of refusing, which is exactly what it
+already did for a `select_multiple` over a table. The config/data boundary did
+not move.
+
+The "better reason" below — that tagging is a judgement a model should not be
+making — also survived, but narrowed rather than disappeared. It now applies
+per category rather than to the field: **Sociotechnical Innovation** carries
+`"producer": false` in the vocabulary row and is dropped from any proposal,
+because it is the strategic reading of what a piece of work is *for*. Impact
+Area and IDEMS Domain are answerable from the work itself. That the refusal
+lives in the row rather than in core is the point: the category is only named
+there, and the reason shown to a producer is the one that row gives.
+
+The original reasoning follows.
+
+---
 
 Decided. Validation rejects `tag_groups` in 0.2 rather than accepting and
 flagging it, for two independent reasons that happen to agree.

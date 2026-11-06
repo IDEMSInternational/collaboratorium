@@ -217,15 +217,51 @@ What you should not do: leave your colleague off a record because you are not
 sure how to express joint work. An activity with one person named and a flagged
 inference is better than one person's private copy of a shared thing.
 
-## 8. What is refused outright
+## 8. Tags
+
+Written by category and term name, like a link and for the same reason — it is
+what a reviewer can read:
+
+```yaml
+    tags:
+      impact_area: [Education, Data Science]
+      idems_domain: [IDEMS R&D]
+```
+
+The terms are **data, not config**, so this page does not list them and the
+contract cannot either. `contract.json` says where they live —
+`subform.vocabulary.resolved_in: snapshot` — and the terms themselves are in
+`snapshot.yaml`, under the rows of the table that vocabulary names. Read them
+from there, every run, because a term added this morning is proposable this
+afternoon and a list copied into a producer goes stale silently.
+
+Each row's `key_values` names its categories; each category names its terms as
+`{key: label}`. Write the label; the import matches without case or
+punctuation and stores the key.
+
+Three rules the import enforces:
+
+- **A term must be in the vocabulary.** An invented one is refused, and the
+  message names the category's real terms. Multi-word near-misses are offered
+  back; a single-word typo currently is not, because the matcher refuses fuzzy
+  matching on one-word names — that is what stops it confusing two genuinely
+  different products whose names differ by a letter.
+- **A category may refuse proposals.** One carrying `"producer": false` in its
+  `key_values` is dropped with the reason that row gives. Its terms are ones a
+  person is expected to choose.
+- **Too many is reported, never refused.** See the style guide for the number
+  and why it is guidance.
+
+What the terms *mean* is in the [record style guide](record-style-guide.md),
+which carries the definitions. Choose from those rather than from the labels:
+several terms read obviously and are not, and the labels alone are what made an
+earlier attempt at mapping historical values fail.
+
+## 8.1 What is refused outright
 
 Read `contract.json`: an element with `accepts_suggestions: false` is refused
-and the reason is given there. In this deployment that is every `tag_groups`
-element — its vocabulary lives in a table that is currently empty, so neither
-the contract nor the import can check a value — and `people.email`.
-
-`tags:` is therefore **not** a field you may set. Several producers write one
-anyway; it is reported and dropped, not silently ignored.
+and the reason is given there. In this deployment that is `people.email`, and
+one tag category (above).
 
 ## 9. Before you hand it over
 

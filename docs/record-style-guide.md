@@ -213,15 +213,102 @@ source does not describe an agreement, there is no contract record to make.
 
 ---
 
-## Status and tags
+## Status
 
 `status: active` unless the source says the thing is finished and you are sure.
 `deleted` is not for things that ended; it is for records that should not exist.
 
-**Do not set `tags`.** The import refuses it: the tag vocabulary lives in a
-table which is currently empty, and tagging is a judgement about how this
-organisation groups its work. Several producers write a plausible-looking
-`tags: [climate]` anyway. It is reported and dropped.
+---
+
+## Tags
+
+IDEMS tags its work with the same vocabulary it uses for its podcast and
+articles. There are three categories, and a record may carry terms from any or
+all of them:
+
+    tags:
+      impact_area: [Education, Data Science]
+      idems_domain: [IDEMS R&D]
+
+Write the term as it reads, not as a key — `IDEMS R&D`, not `idems_rd`. Case
+and punctuation do not matter. A term that is not in the vocabulary is refused
+and names what is, so there is no value in guessing at one.
+
+### Four to six, in total
+
+**Aim for four to six tags across all three categories together** — not per
+category. This is IDEMS's own rule and the glossary is explicit that it will
+"require some hard choices". That is the point of it. A record carrying ten
+terms is a record the vocabulary is no longer discriminating between, and
+filtering by tag stops telling anyone which records are unlike each other.
+
+It is guidance, not a check. The import reports more than six and stages the
+record anyway, because a person with a good reason should be able to exceed it.
+You are rarely that person: if you are drafting from commit messages, you are
+not in a position to know the reason.
+
+If a category does not apply, leave it out. An empty category is the normal
+case rather than a failure — in IDEMS's own tagged material, the third category
+is absent from roughly 40% of items.
+
+### What you may set, and what you may not
+
+**Impact Area — yes.** What area of impact the work serves.
+
+**IDEMS Domain — yes.** Which aspect of IDEMS's own work it concerns.
+
+**Sociotechnical Innovation — no.** The import drops it. This is the strategic
+reading of what a piece of work is *for*, and it is a judgement for someone who
+knows the strategy, not something to infer from a repository. Do not try.
+
+### Impact Area
+
+Pick by what the work is *about*, from the definitions rather than the labels:
+
+| Term | Means |
+| --- | --- |
+| Education | Education as an area of impact, e.g. STEM education. **Not** research methods, and not training that exists to make a programme usable. |
+| Data Science | Data science, statistics, AI. |
+| Climate | PICSA, meteorological services, climate data. |
+| Public Health | Parenting, sex workers, disease prevention. |
+| Agroecology | As it sounds. |
+| Biodiversity | CASAS and similar. |
+| Labour Exploitation | Innovation for sex workers and other marginalised workers, as an impact area. |
+| Responsible Business | Social enterprise, sustainable funding, commercialising impact work. |
+| Socio-Technical Innovation | Broad: work that directly explores the meeting of people and novel technology. |
+
+The Education boundary is the one most often got wrong. Research methods
+support is **not** Education — the glossary excludes it explicitly — and the
+same work is usually Data Science, or IDEMS Evidence of Impact, depending on
+what the record is about.
+
+### IDEMS Domain
+
+| Term | Means |
+| --- | --- |
+| IDEMS Governance | The CIC model, sharing power, collaboration, capacity building, principles. |
+| IDEMS Strategy | As it sounds. |
+| IDEMS R&D | Getting novel technologies and digital products off the ground. |
+| IDEMS Impact Products | Turning R&D into usable, financially sustainable products. |
+| IDEMS Revenue & Funding | Who pays, how the work is funded. |
+| IDEMS Mission & Vision | As it sounds. |
+| IDEMS Evidence of Impact | Case studies, research outcomes. |
+| IDEMS Inclusive Innovation | How communities and stakeholders are included. |
+
+Most engineering work is **IDEMS R&D**. Reach for Impact Products only once a
+thing is being made sustainable rather than being built.
+
+### Do not invent terms
+
+The vocabulary is a published list IDEMS is answerable to, and there is no
+technical gate on it — a term that is not in the glossary is visibly not from
+the glossary, which is what keeps it honest. If the work you are describing
+genuinely has no term, set fewer tags and say so in a note. Nobody is served by
+a plausible-looking tag that means nothing.
+
+Two terms read alike and are not the same: **Responsible Business** is an Impact
+Area, **Responsible Business Models** is a Sociotechnical Innovation term you
+may not set. If you meant the first, name the category and you cannot go wrong.
 
 ---
 

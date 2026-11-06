@@ -35,6 +35,46 @@ _FORMAT_DOC = "docs/agentic-ingest.md"
 _REPO = "https://github.com/IDEMSInternational/collaboratorium"
 
 
+def _tag_summary(config):
+    """
+    The tag categories as they stand, and which of them take a proposal.
+
+    Read from the vocabulary rather than from the contract, because a category
+    is only named in the row — the contract can say where the terms live and
+    nothing more. Without this a producer would learn that a category refuses
+    proposals by having one dropped.
+    """
+    from pantograph import staging
+
+    vocabulary = staging.tag_vocabulary(config)
+    if not vocabulary:
+        return ("This deployment has no tag groups, so leave `tags` out "
+                "entirely — there is nothing to choose from.")
+
+    lines = []
+    for group_id, key_values in sorted(vocabulary.items()):
+        for category, definition in (key_values or {}).items():
+            if not isinstance(definition, dict):
+                continue
+            options = definition.get(definition.get("list_name")) or {}
+            label = definition.get("label") or category
+            count = len(options) if isinstance(options, dict) else 0
+            if definition.get("producer") is False:
+                why = definition.get("producer_note") or "not open to proposals"
+                lines.append(f"- `{category}` — {label}, {count} terms. "
+                             f"**Do not set this one**: {why}.")
+            else:
+                lines.append(f"- `{category}` — {label}, {count} terms.")
+
+    return (
+        "\n".join(lines)
+        + "\n\nThe terms themselves are in `snapshot.yaml` under the tag-group "
+          "rows, as `{key: label}` per category. Write the label. What each "
+          "term *means* is in the style guide, and several are not what they "
+          "sound like — read the definitions, not the labels."
+    )
+
+
 def _instructions(config, contract_doc, snapshot_doc):
     """The README a producer reads first."""
     counts = snapshot_doc.get("counts", {})
@@ -54,6 +94,7 @@ def _instructions(config, contract_doc, snapshot_doc):
         f"- {', '.join('`' + name + '`' for name in sorted(names))}\n  — {reason}"
         for reason, names in sorted(by_reason.items())
     )
+    tag_summary = _tag_summary(config)
     return f"""# Proposing records for {contract_doc.get("deployment") or "this deployment"}
 
 This bundle is everything you need to draft records for a human to review. It
@@ -95,6 +136,11 @@ before writing one. The essentials:
 - **Write to the target length, not to the top of a range.** The style guide
   gives a target for each description; records half as long again as the ones
   already here read as imported rather than written.
+- **Tag from the vocabulary in the snapshot, not from memory.** The terms are
+  rows, so they change without this bundle changing. Read them, write the
+  label, and choose by the definitions in the style guide rather than by how
+  the label reads — several terms are not what they sound like. Four to six
+  across all categories together, which is meant to force a choice.
 - **Expect the structured part of a source to be the wrong part.** A tidy list
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are
@@ -120,6 +166,10 @@ Activities are the sparse table and the reason this path exists. Note from the
 counts how much thinner they are than initiatives — and that most of what is
 already there has no location and often no dates, so a record you cannot fully
 date is not a worse record than the ones already in here.
+
+## Tag categories in this deployment
+
+{tag_summary}
 
 ## What this bundle does not contain
 

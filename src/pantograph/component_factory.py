@@ -385,19 +385,13 @@ def register_subform_blocks(app, forms_config):
                     new_state = input_dict
 
 
-                for key in list(new_state.keys()):
-                    keep=False
-                    if type(new_state[key]) is dict:
-                        for key2 in new_state[key].keys():
-                            if new_state[key][key2] not in [None, '', []]:
-                                keep = True
-                    elif new_state[key] not in [None, '', []]:
-                        keep = True
-                    if key == str(auto_keep):
-                        keep = True
-                    if not keep:
-                        new_state.pop(key)
-
+                # A group whose values are all empty is deliberately kept here.
+                # Dropping it as soon as the last value was cleared removed the
+                # whole block from the page, because a dynamic subform draws the
+                # groups its value holds: a reviewer swapping one tag for another
+                # lost the block between removing the old and picking the new.
+                # Empty groups are dropped when the record is saved instead; see
+                # `subforms.prune_empty_groups`.
                 return json.dumps(new_state, indent=2)
             
 

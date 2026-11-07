@@ -554,7 +554,12 @@ def register_submit_callbacks(app, forms_config):
                 col_name = col[1]
                 cols_sql_ls.append(col_name)
                 placeholders.append("?")
-                vals.append(data[col_name])
+                value = data[col_name]
+                # An emptied group stays on the page so it can be filled again,
+                # but is not stored.
+                if _fc["elements"].get(col_name, {}).get("type") == "subform":
+                    value = subforms.prune_empty_groups(value)
+                vals.append(value)
             cols_sql = ", ".join(cols_sql_ls)
             placeholders = ", ".join(placeholders)
             # Normalize Dash data types before SQL

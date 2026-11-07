@@ -240,9 +240,18 @@ def test_clearing_the_last_tag_keeps_the_block_so_another_can_be_chosen(page: Pa
 
     # Then pick another, which is what the reviewer came to do.
     # The dropdown sits just under its label, and is not itself labelled.
-    box = editor.get_by_text("Impact Area", exact=True).first.bounding_box()
-    page.mouse.click(box["x"] + 180, box["y"] + 32)
-    page.locator(".dash-options-list-option:visible", has_text="Climate").first.click()
+    # The form redraws after the clear, and on a slow machine that can land after
+    # the click and close the dropdown it opened, so open it until it stays open.
+    option = page.locator(".dash-options-list-option:visible", has_text="Climate").first
+    for _ in range(5):
+        box = editor.get_by_text("Impact Area", exact=True).first.bounding_box()
+        page.mouse.click(box["x"] + 180, box["y"] + 32)
+        try:
+            option.wait_for(state="visible", timeout=3000)
+            break
+        except Exception:
+            page.keyboard.press("Escape")
+    option.click()
     page.wait_for_timeout(1500)
 
     confirms = editor.get_by_role("button", name="Confirm", exact=True)

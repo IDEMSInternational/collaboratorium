@@ -32,7 +32,11 @@ def provenance_note(record):
     return provenance.describe(record)
 
 
-def wrap_provenance(component, form_name, element_id, record):
+PREVIOUS_STYLE = {'fontSize': '0.85em', 'color': '#6c757d', 'whiteSpace': 'pre-wrap',
+                  'marginTop': '6px'}
+
+
+def wrap_provenance(component, form_name, element_id, record, previous=None):
     """
     Put a value that came from somewhere else in a container that says so.
 
@@ -51,9 +55,15 @@ def wrap_provenance(component, form_name, element_id, record):
         return component
 
     confirmed = provenance.is_confirmed(record)
+    # What the record says now, when this value is a proposal to change it. The
+    # form lays the proposal over the record, so without this line the reviewer
+    # sees only the new value and has to remember or look up the old one.
+    was = ([html.Div([html.Strong("Currently recorded: "), previous],
+                     style=PREVIOUS_STYLE)] if previous is not None else [])
     return html.Div(
         [
             component,
+            *was,
             html.Div(
                 [
                     html.Span(provenance.describe(record),

@@ -60,6 +60,74 @@ def _leaf_provenances(provenances, element_id):
     return found
 
 
+def _describe_previous(element_def, value):
+    """
+    A recorded value as one readable line for "Currently recorded: …".
+
+    Link lists are shown by name, not id; a subform (tags, the grouped
+    description) by its non-empty leaves; anything empty as "nothing".
+    """
+    if value in (None, "", [], {}):
+        return "nothing"
+    if isinstance(value, str):
+        try:
+            parsed = json.loads(value)
+            if isinstance(parsed, (dict, list)):
+                value = parsed
+        except ValueError:
+            return value
+    # Two spellings of "the options come from this table": a select's
+    # `parameters`, and a links element's `choices`.
+    params = element_def.get("parameters") or {}
+    from_table = (params.get("source_table")
+                  or (element_def.get("choices") or {}).get("from_table"))
+    id_column = params.get("value_column") or "id"
+    label_column = params.get("label_column") or "name"
+
+    def name_of(item):
+        if not (from_table and isinstance(item, int)):
+            return str(item)
+        conn = db_connect()
+        try:
+            row = conn.execute(
+                f'SELECT "{label_column}" FROM "{from_table}" WHERE "{id_column}" = ? '
+                f'ORDER BY version DESC LIMIT 1', (item,)).fetchone()
+        finally:
+            conn.close()
+        return str(row[0]) if row else str(item)
+
+    if isinstance(value, list):
+        return ", ".join(name_of(item) for item in value) or "nothing"
+    if isinstance(value, int):
+        return name_of(value)
+    if isinstance(value, dict):
+        parts = []
+        for group in value.values():
+            fields = group if isinstance(group, dict) else {}
+            for key, leaf in fields.items():
+                if leaf in (None, "", []):
+                    continue
+                parts.append(f"{key}: " + (", ".join(map(str, leaf))
+                                           if isinstance(leaf, list) else str(leaf)))
+        return "; ".join(parts) or "nothing"
+    return str(value)
+
+
+def previous_values(form_name, forms_config, object_id, initial_values):
+    """
+    {element: description} of what the record holds for each element a proposal
+    changes. Elements the proposal leaves as they are get no entry.
+    """
+    before = get_latest_entry(form_name, forms_config, object_id) or {}
+    elements = forms_config[form_name].get("elements", {})
+    shown = {}
+    for element, proposed in (initial_values or {}).items():
+        if element not in elements or before.get(element) == proposed:
+            continue
+        shown[element] = _describe_previous(elements[element], before.get(element))
+    return shown
+
+
 def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None,
                          title=None, provenances=None):
     """
@@ -80,6 +148,8 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     """
     if object_id:
         record_data = get_latest_entry(form_name, forms_config, object_id)
+        previous = (previous_values(form_name, forms_config, object_id, initial_values)
+                    if initial_values else {})
         if initial_values:
             # An edit form opened with *proposed* changes: the record as it
             # stands, with a caller's values laid over the elements it speaks
@@ -98,6 +168,7 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
                                          object_id, record_data.get("version"))
     else:
         record_data = dict(initial_values or {})
+        previous = {}
     provenances = provenances or {}
 
     elements = []
@@ -113,7 +184,8 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
         # Wrapped inside the relevance container, so hiding an irrelevant
         # element hides the claim about where its value came from too.
         component = wrap_provenance(component, form_name, element_name,
-                                    provenances.get(element_name))
+                                    provenances.get(element_name),
+                                    previous=previous.get(element_name))
         if element_def.get("relevant"):
             # Only conditional elements are wrapped, so nothing about an
             # existing deployment's DOM changes.

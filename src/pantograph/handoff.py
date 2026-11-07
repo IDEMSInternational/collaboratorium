@@ -147,6 +147,10 @@ essentials:
   an absence of activity. Only a source whose evidence stops before the end of
   the period is reported, so listing one that ran to the last day costs a
   reader nothing and says what you looked at.
+- **Keep scan facts out of an initiative's description.** Commit counts, date
+  ranges, issue and version numbers and phrases like "in what was scanned"
+  describe your search, not the work, and go stale. Put them in an activity or in
+  `inferred:`/`coverage`. Credit people by name for what they did.
 - **Write descriptions to the length the style guide gives**, which depends on
   how large the initiative is. A thin description is the commonest failure of a
   producer working from commit messages: say what the thing is, who it serves,

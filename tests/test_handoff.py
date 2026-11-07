@@ -159,6 +159,7 @@ def test_the_instructions_say_where_to_look_for_work(app_config):
     assert "A repository is an initiative" in text
     # Not every issue: only the overarching ones, with many beneath them.
     assert "never every issue" in text
+    assert "Keep scan facts out" in text
     assert "Do not stop at the first source" in text
 
 

@@ -112,7 +112,12 @@ stands beats a twelve-sentence list.
 
 Work through this list and include each item you have evidence for:
 
-1. **What it is, and why it exists.** The need it answers.
+1. **Why it exists, and what it is.** Open with the need it answers or the
+   situation it came out of, then say what it is. "A small Python library that
+   sends requests to…" tells a reader what the thing is before they know why they
+   should care; "IDEMS needed one way to call several language-model providers,
+   so…" does both. The careful writers almost never open with a bare noun phrase
+   ("A …", "X is a Y that…").
 2. **Who it serves, and where.** A country, an institution, a site; named, not
    "communities".
 3. **What IDEMS specifically did**, as opposed to what the project as a whole
@@ -132,6 +137,29 @@ pad, and do not guess at the rest; say in `inferred:` which parts you worked out
 An initiative you can only describe in a sentence or two from the evidence you
 have should still be proposed with that sentence, and flagged as thin, rather
 than dressed up.
+
+### Keep the scan out of the description
+
+A standing description should still read as true in a year. The facts a scanner
+trips over first are the ones that go stale or describe the scan rather than the
+work, so leave them out of an initiative's description:
+
+- commit counts and the date range they cover ("made 42 commits between 6 August
+  and 3 November 2026");
+- issue, PR and version numbers, and lists of them ("#524 to #532", "0.4.0 to
+  0.10.0");
+- language about your own search ("in what was scanned", "when scanned", "no code
+  yet", "nothing found").
+
+They belong in an *activity* (where a date range and a link are the point), in a
+citation, or under `inferred:` and `coverage`. The careful writers use few
+numbers, and the ones they use are about the work's effect, not its bookkeeping:
+families reached, a cost per user, a number of countries.
+
+**Do credit people by name.** Saying that Gabe wrote most of the code, or that
+Michele's assistant is what a tool reimplements, is good practice and a
+description should have it. Credit a person for what they did and not for how
+often they committed.
 
 ### Voice
 

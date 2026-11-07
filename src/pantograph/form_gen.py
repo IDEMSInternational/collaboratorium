@@ -26,9 +26,9 @@ def triggered_props():
     return {t.get("prop_id", "") for t in (ctx.triggered or [])}
 
 
-# ==============================================================
+# =======================================================
 # DATABASE HELPERS
-# ==============================================================
+# =======================================================
 
 
 def _get_max_id_from_cursor(cur, table_name):
@@ -38,9 +38,9 @@ def _get_max_id_from_cursor(cur, table_name):
     return int(r[0]) if r and r[0] is not None else 0
 
 
-# ==============================================================
+# =======================================================
 # FORM LAYOUT GENERATION
-# ==============================================================
+# =======================================================
 
 
 def _leaf_provenances(provenances, element_id):
@@ -58,6 +58,30 @@ def _leaf_provenances(provenances, element_id):
         if split is not None and split[0] == element_id:
             found[path] = record
     return found
+
+
+
+_IRREGULAR_SINGULARS = {"people": "person"}
+
+
+def singular(table_name):
+    """
+    A table name as one thing, for a sentence like "Suggested activity".
+
+    Only for wording: nothing is looked up by the result. The rule is the English
+    one and covers the tables this app is built around: `activities` becomes
+    `activity`, `initiatives` becomes `initiative`. A name it does not recognise
+    as plural is returned as it came, which reads oddly and breaks nothing.
+    """
+    if table_name in _IRREGULAR_SINGULARS:
+        return _IRREGULAR_SINGULARS[table_name]
+    if table_name.endswith("ies") and len(table_name) > 3:
+        return table_name[:-3] + "y"
+    if table_name.endswith("ses") or table_name.endswith("xes"):
+        return table_name[:-2]
+    if table_name.endswith("s") and not table_name.endswith(("ss", "us", "is")):
+        return table_name[:-1]
+    return table_name
 
 
 def _describe_previous(element_def, value):
@@ -223,9 +247,9 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     ])
 
 
-# ==============================================================
+# =======================================================
 # CALLBACK REGISTRATION
-# ==============================================================
+# =======================================================
 
 def register_form_callbacks(app, config):
     register_click_callbacks(app, config)
@@ -366,7 +390,7 @@ def register_click_callbacks(app, config):
             )
         return show_add_form(
             table, person_id, _shaped_values(table, values),
-            f"Suggested {table[:-1] if table.endswith('s') else table}"
+            f"Suggested {singular(table)}"
             + (f" — from {item['subject']}" if item.get("subject") else ""),
             provenances,
         )

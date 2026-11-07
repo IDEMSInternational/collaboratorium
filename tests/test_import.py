@@ -737,3 +737,39 @@ activities:
     assert staging.unresolved_links(activity) == {}
     values, _ = staging.form_inputs(activity)
     assert values["initiatives_links"] == [77]
+
+
+def _text_of(component):
+    """Every string in a Dash component tree, joined."""
+    if isinstance(component, str):
+        return component
+    children = getattr(component, "children", None)
+    if isinstance(children, (list, tuple)):
+        return " ".join(_text_of(c) for c in children)
+    return _text_of(children) if children is not None else ""
+
+
+def test_an_update_form_shows_what_is_recorded_now(deployment):
+    """
+    A proposal against an existing record is laid over it in the ordinary form,
+    so the old value is overwritten on screen. The reviewer is asked to confirm a
+    change, so the form has to say what it changes.
+    """
+    from pantograph.form_gen import generate_form_layout
+
+    forms = deployment["forms"]
+    form_name = deployment["default_forms"]["initiatives"]
+    layout = generate_form_layout(
+        form_name, forms_config=forms, object_id=1,
+        initial_values={"name": "R-Instat Renamed"},
+        provenances={"name": {"source": "suggested", "confirmed": False}})
+    text = _text_of(layout)
+    assert "Currently recorded:" in text
+    assert "R-Instat" in text
+
+    # A value the proposal leaves alone gets no such line.
+    same = generate_form_layout(
+        form_name, forms_config=forms, object_id=1,
+        initial_values={"name": "R-Instat"},
+        provenances={"name": {"source": "suggested", "confirmed": False}})
+    assert "Currently recorded:" not in _text_of(same)

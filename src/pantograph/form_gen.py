@@ -76,22 +76,30 @@ def _describe_previous(element_def, value):
                 value = parsed
         except ValueError:
             return value
-    from_table = ((element_def.get("choices") or {}).get("from_table"))
+    # Two spellings of "the options come from this table": a select's
+    # `parameters`, and a links element's `choices`.
+    params = element_def.get("parameters") or {}
+    from_table = (params.get("source_table")
+                  or (element_def.get("choices") or {}).get("from_table"))
+    id_column = params.get("value_column") or "id"
+    label_column = params.get("label_column") or "name"
+
+    def name_of(item):
+        if not (from_table and isinstance(item, int)):
+            return str(item)
+        conn = db_connect()
+        try:
+            row = conn.execute(
+                f'SELECT "{label_column}" FROM "{from_table}" WHERE "{id_column}" = ? '
+                f'ORDER BY version DESC LIMIT 1', (item,)).fetchone()
+        finally:
+            conn.close()
+        return str(row[0]) if row else str(item)
+
     if isinstance(value, list):
-        names = []
-        for item in value:
-            name = None
-            if from_table and isinstance(item, int):
-                conn = db_connect()
-                try:
-                    row = conn.execute(
-                        f'SELECT name FROM "{from_table}" WHERE id = ? '
-                        f'ORDER BY version DESC LIMIT 1', (item,)).fetchone()
-                finally:
-                    conn.close()
-                name = row[0] if row else None
-            names.append(str(name if name is not None else item))
-        return ", ".join(names) or "nothing"
+        return ", ".join(name_of(item) for item in value) or "nothing"
+    if isinstance(value, int):
+        return name_of(value)
     if isinstance(value, dict):
         parts = []
         for group in value.values():

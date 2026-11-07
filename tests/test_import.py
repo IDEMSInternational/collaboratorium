@@ -767,6 +767,13 @@ def test_an_update_form_shows_what_is_recorded_now(deployment):
     assert "Currently recorded:" in text
     assert "R-Instat" in text
 
+    # A single linked value is shown by name, not by its id.
+    person = generate_form_layout(
+        form_name, forms_config=forms, object_id=1,
+        initial_values={"responsible_person": 2},
+        provenances={"responsible_person": {"source": "suggested", "confirmed": False}})
+    assert "Currently recorded: Gabe Bolton" in _text_of(person).replace("  ", " ")
+
     # A value the proposal leaves alone gets no such line.
     same = generate_form_layout(
         form_name, forms_config=forms, object_id=1,

@@ -123,6 +123,15 @@ reads nicely and several producers do it. They are *not* read: comments do not
 survive parsing, so a reason that exists only in a comment reaches nobody. Put
 it in `inferred:` and comment as well if you like.
 
+**Quote a reason that contains punctuation.** A plain YAML value that starts
+with a quotation mark and then carries on is a syntax error, and one such line
+makes the whole file unreadable: the import refuses it and names the line, and
+nothing is staged. A reason like `"commissioned by NFPB" is read from the
+wording` must be written `'"commissioned by NFPB" is read from the wording'`.
+Wrap every `inferred:` reason, and any value containing `: ` or ` #`, in single
+quotes or use a folded `>-` block. If you can run any language with a YAML
+parser, parse the file before you hand it over.
+
 Getting this wrong in the generous direction is cheap and in the mean direction
 is not. An inferred value you declared is a field someone glances at; one you
 did not is a guess that enters the record as a reading.

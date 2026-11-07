@@ -8,12 +8,13 @@ The question is not "can a reader tell it is machine-written". It is: **what, in
 a generated description, differs from what IDEMS's careful writers produce, and
 is the difference a defect we can instruct away or a limit of the input?**
 
-**Where the texts are.** The real entries and the generated ones are not in this
-repository. The real ones come from IDEMS's internal working documents, and the
-generated ones are drawn from internal Drive documents, so both stay out of a
-public repository. The side-by-side page is a private artifact owned by the
-person who ran this: <https://claude.ai/artifact/5je9gH13ZeKidK44kxUTbH>. To
-rebuild the real set, see "The real set" below.
+**Where the full record is.** In the private repository
+`IDEMSInternational/collaboratorium-prompt-lab` on git.idems.international, which
+holds the real entries, the generated file, the shuffled pairs and key, the blind
+agents' reports, the original findings study and a copy of the guide as it stood.
+They are not in this public repository because the real entries are internal
+text and the generated ones are drawn from internal Drive documents. This file is
+the method and the results, without the texts. Scripts are in `benchmark/`.
 
 ## What was compared
 
@@ -32,8 +33,8 @@ Elena, Esmee and Chiara. Headings and authors:
 | P07 | ParentText for contracts outside of GPI (Myanmar, Cambodia, China) | Chiara |
 
 These were chosen by the "report-style" research session under the same
-attribution rule as `report-style-findings.md`, which also supplies the sizing
-the guide uses. Entries quoted in the style guide were excluded from the answer
+attribution rule as `findings/report-style-findings.md`, which also supplies the sizing
+the guide uses (in the lab repository, `findings/`). Entries quoted in the style guide were excluded from the answer
 key, because the generator had seen them.
 
 **Generated.** One Sonnet session given only the handoff zip and told to write

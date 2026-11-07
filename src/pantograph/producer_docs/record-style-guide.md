@@ -7,7 +7,7 @@ file's shape is; this says what belongs in the fields.
 Most are a few words, and a quarter of the initiatives have none. They are what
 got entered in a hurry, not what the register is for. The standard comes from
 what IDEMS's most careful writers have put in the annual activity reports, and
-the numbers below are measured from 152 of those entries. Names, dates and the
+the numbers below are measured from 120 of those entries. Names, dates and the
 activity-or-initiative question are different: for those the existing records
 are a fair guide, and the sections say so where it applies.
 

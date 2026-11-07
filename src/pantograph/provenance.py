@@ -391,13 +391,16 @@ def annotation(raw):
     Appended to the value rather than gathered into a footnote: a reader who has
     to look elsewhere to learn that nobody stood behind a purpose will read that
     purpose as asserted, and the export is the artefact a regulator is handed.
+
+    Only for a value nobody has stood behind. Once someone has confirmed it, it
+    is as good as typed, and a line after every confirmed value ("Suggested by
+    run-4, confirmed by Ada") made the report unreadable while saying nothing a
+    reader needed. Who confirmed what stays on the record and in the edit form.
     """
     text = describe(raw)
-    if not text:
+    if not text or is_confirmed(raw):
         return ""
-    if not is_confirmed(raw):
-        text += ", not confirmed"
-    return f" _[{text}]_"
+    return f" _[{text}, not confirmed]_"
 
 
 # --------------------------------------------------------------------------

@@ -181,7 +181,9 @@ Where a value came from is appended to the value, not gathered into a footnote:
 
 A reader who has to look elsewhere to learn that nobody stood behind a purpose
 will read that purpose as asserted, and the export is the artefact a regulator
-is handed. The annotation is matched on the record's version as well as its id,
+is handed. Only a value nobody has confirmed carries the note: once someone has
+stood behind it, it reads as any other value, and who confirmed what stays on
+the record and in the edit form. The annotation is matched on the record's version as well as its id,
 so a report rendered from an older version never borrows a newer one's claims.
 
 ## Limits

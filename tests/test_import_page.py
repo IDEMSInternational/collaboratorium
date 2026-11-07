@@ -6,6 +6,8 @@ chain no unit test reaches — a nav button, a Dash callback writing to the shar
 `url.hash`, and core's editor opening on a suggestion that was staged a moment
 ago, which only works if the page also told the session which one it opened.
 """
+import re
+
 from playwright.sync_api import Page, expect
 
 FILE = """\
@@ -19,6 +21,40 @@ initiatives:
     responsible_person: Automated Tester
     source_ref: "test:import-page"
 """
+
+
+def _tag_vocabulary():
+    """
+    A `tag_groups` row to propose tags against, added once for the session and
+    returned by id. Inserting it twice would give the form two groups to offer.
+    """
+    import json
+    from pantograph.db import db_connect
+
+    vocabulary = {"impact_area": {
+        "type": "select_multiple", "label": "Impact Area",
+        "list_name": "impact_area_list",
+        "impact_area_list": {"education": "Education", "climate": "Climate"}},
+        "idems_domain": {
+        "type": "select_multiple", "label": "IDEMS Domain",
+        "list_name": "idems_domain_list",
+        "idems_domain_list": {"idems_rd": "IDEMS R&D"}}}
+    conn = db_connect()
+    try:
+        row = conn.execute(
+            "SELECT id FROM tag_groups WHERE name = 'Tags' ORDER BY id LIMIT 1").fetchone()
+        if row:
+            return row[0]
+        next_id = conn.execute(
+            "SELECT COALESCE(MAX(id), 0) + 1 FROM tag_groups").fetchone()[0]
+        conn.execute(
+            "INSERT INTO tag_groups (id, version, name, key_values, status, timestamp, created_by)"
+            " VALUES (?, 1, 'Tags', ?, 'active', '2026-11-07T00:00:00', 1)",
+            (next_id, json.dumps(vocabulary)))
+        conn.commit()
+        return next_id
+    finally:
+        conn.close()
 
 
 def _open_import(page: Page):
@@ -103,18 +139,7 @@ def test_a_suggestion_carrying_tags_can_be_saved(page: Page):
     import json
     from pantograph.db import db_connect
 
-    vocabulary = {"impact_area": {
-        "type": "select_multiple", "label": "Impact Area",
-        "list_name": "impact_area_list",
-        "impact_area_list": {"education": "Education", "climate": "Climate"}}}
-    conn = db_connect()
-    next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM tag_groups").fetchone()[0]
-    conn.execute(
-        "INSERT INTO tag_groups (id, version, name, key_values, status, timestamp, created_by)"
-        " VALUES (?, 1, 'Tags', ?, 'active', '2026-11-07T00:00:00', 1)",
-        (next_id, json.dumps(vocabulary)))
-    conn.commit()
-    conn.close()
+    next_id = _tag_vocabulary()
 
     name = "Import Page Tagged Initiative"
     _open_import(page)
@@ -180,3 +205,56 @@ def test_a_suggestion_opened_from_its_link_is_marked_answered_when_saved(page: P
     expect(editor).to_contain_text("Created initiatives record")
 
     assert staging.get(suggestion_id)["state"] == staging.ACCEPTED
+
+
+def test_clearing_the_last_tag_keeps_the_block_so_another_can_be_chosen(page: Page):
+    """
+    Found on the live server: removing the only selected tag made the whole tags
+    block vanish, because an all-empty group was dropped from the form's state
+    and a dynamic subform draws the groups its state holds. Swapping one tag for
+    another therefore lost the block between the two clicks. The empty group now
+    stays on the page and is dropped only when the record is saved.
+    """
+    import json
+    from pantograph.db import db_connect
+
+    group_id = _tag_vocabulary()
+    name = "Import Page Cleared Tags Initiative"
+    _open_import(page)
+    page.locator("#import-textarea").fill(
+        FILE.replace("Import Page Test Initiative", name)
+            .replace("test:import-page", "test:import-page-cleared")
+        + "    tags:\n      impact_area: [Education]\n")
+    page.locator("#import-check").click()
+    page.locator("#import-stage").click()
+    page.locator("#import-queue tr", has_text=name).get_by_role("button", name="Open").click()
+
+    editor = page.locator("#editor-popup")
+    expect(editor).to_contain_text(re.compile("impact area", re.I))
+
+    # Remove the only tag.
+    editor.locator("[id*='tag_groups'] button[aria-label*='lear'], [id*='tag_groups'] [class*='clear']").first.click()
+    page.wait_for_timeout(1500)
+    expect(editor).to_contain_text(re.compile("impact area", re.I))
+    expect(editor).to_contain_text(re.compile("idems domain", re.I))
+
+    # Then pick another, which is what the reviewer came to do.
+    # The dropdown sits just under its label, and is not itself labelled.
+    box = editor.get_by_text("Impact Area", exact=True).first.bounding_box()
+    page.mouse.click(box["x"] + 180, box["y"] + 32)
+    page.locator(".dash-options-list-option:visible", has_text="Climate").first.click()
+    page.wait_for_timeout(1500)
+
+    confirms = editor.get_by_role("button", name="Confirm", exact=True)
+    for _ in range(12):
+        if not confirms.count():
+            break
+        confirms.first.click()
+        page.wait_for_timeout(300)
+    editor.get_by_role("button", name="Submit").click()
+    expect(editor).to_contain_text("Created initiatives record")
+
+    conn = db_connect()
+    saved = conn.execute("SELECT tag_groups FROM initiatives WHERE name = ?", (name,)).fetchone()
+    conn.close()
+    assert json.loads(saved[0])[str(group_id)]["impact_area"] == ["climate"]

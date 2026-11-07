@@ -353,3 +353,18 @@ def test_a_subform_given_a_mapping_does_not_need_it_as_json():
               "parameters": {"groups": {"a": {"label": "A", "elements": [
                   {"element_id": "x", "type": "text", "label": "X"}]}}}}
     generate_subform_block(config, "form", {"a": {"x": "1"}}, None, "form")
+
+
+def test_an_emptied_group_is_dropped_when_saved_and_the_rest_is_kept():
+    import json
+    from pantograph import subforms
+
+    text = json.dumps({"2": {"impact_area": [], "idems_domain": None},
+                       "3": {"impact_area": ["climate"], "idems_domain": []}})
+    assert json.loads(subforms.prune_empty_groups(text)) == {
+        "3": {"impact_area": ["climate"], "idems_domain": []}}
+    # A mapping in gives a mapping out, and nothing left is an empty mapping.
+    assert subforms.prune_empty_groups({"2": {"a": []}}) == {}
+    # Not a group mapping: returned as it came.
+    assert subforms.prune_empty_groups("not json") == "not json"
+    assert subforms.prune_empty_groups(None) is None

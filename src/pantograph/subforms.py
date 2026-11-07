@@ -149,3 +149,37 @@ def leaf_label(form_config, path):
     name = (leaf or {}).get("label") or field.replace("_", " ")
     outer = element.get("label")
     return f"{outer} — {name}" if outer else name
+
+
+def _is_empty(value):
+    return value in (None, "", [])
+
+
+def prune_empty_groups(value):
+    """
+    A subform's value without the groups that hold nothing.
+
+    The form keeps an emptied group on screen so it can be filled again; what is
+    stored should not carry one. `value` is the JSON text the form holds, or a
+    mapping when the form was opened with one. Returns the same kind of thing it
+    was given, with every group whose fields are all empty removed. A value that
+    is not a group mapping is returned untouched.
+    """
+    import json
+
+    given_text = isinstance(value, str)
+    try:
+        groups = json.loads(value) if given_text and value.strip() else value
+    except ValueError:
+        return value
+    if not isinstance(groups, dict):
+        return value
+
+    kept = {}
+    for key, group in groups.items():
+        if isinstance(group, dict):
+            if any(not _is_empty(field) for field in group.values()):
+                kept[key] = group
+        elif not _is_empty(group):
+            kept[key] = group
+    return json.dumps(kept, indent=2) if given_text else kept

@@ -150,7 +150,7 @@ essentials:
 - **Keep scan facts out of an initiative's description.** Commit counts, date
   ranges, issue and version numbers and phrases like "in what was scanned"
   describe your search, not the work, and go stale. Put them in an activity or in
-  `inferred:`/`coverage`. Credit people by name for what they did.
+  `inferred:`/`coverage`.
 - **Write descriptions to the length the style guide gives**, which depends on
   how large the initiative is. A thin description is the commonest failure of a
   producer working from commit messages: say what the thing is, who it serves,

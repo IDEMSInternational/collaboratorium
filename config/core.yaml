@@ -11,3 +11,4 @@ plugins:
 - id: dashboard
   landing: true
 - id: explore
+- id: import

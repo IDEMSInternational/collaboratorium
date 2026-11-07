@@ -23,6 +23,7 @@ pantograph = "pantograph.__main__:main"
 [project.entry-points."pantograph.plugins"]
 explore = "pantograph_explore.plugin:Plugin"
 dashboard = "pantograph_dashboard.plugin:Plugin"
+import = "pantograph_import.plugin:Plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

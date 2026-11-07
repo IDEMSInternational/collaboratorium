@@ -260,6 +260,32 @@ def groups(state=PENDING):
     return gathered
 
 
+def review_order():
+    """
+    The queue as `(groups, total)`, in the order a reviewer should take it.
+
+    Initiatives first, then whatever is ready, then whatever is waiting on
+    something else. An activity cannot be saved without an initiative to link it
+    to, so a queue that offers them in file order sends the reviewer to a form
+    whose submit button will not enable. Each item gains a `waiting` entry
+    naming what it is waiting on.
+    """
+    grouped = groups()
+    keys = resolved_keys()
+    for items in grouped.values():
+        for item in items:
+            item["waiting"] = unresolved_links(item, keys)
+    order = {"initiatives": 0, "contracts": 1, "activities": 2}
+    ordered = dict(sorted(
+        grouped.items(),
+        key=lambda entry: (
+            any(item["waiting"] for item in entry[1]),
+            min(order.get(item["table"], 9) for item in entry[1]),
+            -len(entry[1]),
+        )))
+    return ordered, sum(len(items) for items in ordered.values())
+
+
 def get(suggestion_id):
     for item in queue(PENDING) + queue(ACCEPTED) + queue(DECLINED):
         if item["id"] == suggestion_id:

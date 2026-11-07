@@ -277,27 +277,9 @@ def register_import_routes(server):
     @server.route("/import/queue")
     @login_required
     def import_queue():
-        grouped = staging.groups()
-        keys = staging.resolved_keys()
-        for items in grouped.values():
-            for item in items:
-                item["waiting"] = staging.unresolved_links(item, keys)
-
-        # Initiatives first, then whatever is ready, then whatever is waiting on
-        # something else. An activity cannot be saved without an initiative to
-        # link it to, so a queue that offers them in file order sends the
-        # reviewer to a form whose submit button will not enable.
-        order = {"initiatives": 0, "contracts": 1, "activities": 2}
-        ordered = dict(sorted(
-            grouped.items(),
-            key=lambda entry: (
-                any(item["waiting"] for item in entry[1]),
-                min(order.get(item["table"], 9) for item in entry[1]),
-                -len(entry[1]),
-            )))
+        ordered, total = staging.review_order()
         return render_template_string(
-            _QUEUE, groups=ordered, csrf_token=_csrf(),
-            total=sum(len(items) for items in ordered.values()))
+            _QUEUE, groups=ordered, csrf_token=_csrf(), total=total)
 
     @server.route("/import/open/<int:suggestion_id>")
     @login_required

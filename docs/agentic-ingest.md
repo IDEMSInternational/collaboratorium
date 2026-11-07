@@ -730,6 +730,12 @@ unconfirmed; confirming the required fields saves a normal record whose
 provenance rows carry the producer's run id; declining is remembered by
 `source_ref`.
 
+**Built as a page plugin** (`pantograph_import`, id `import`), mounted from the
+deployment's `plugins:` list like Dashboard and Explore, so it has a nav button
+and opens a suggestion in the editor already on screen. A deployment that does
+not want it leaves it out of the list. The standalone `/import` and
+`/import/queue` routes remain, for a bookmark or a script that posts to them.
+
 ### G. Per-leaf provenance inside a subform — **built**
 
 **Labels:** enhancement, forms, core

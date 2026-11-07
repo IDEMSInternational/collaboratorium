@@ -7,6 +7,7 @@ import dash_bootstrap_components as dbc
 from pantograph.analytics import analytics_log
 from pantograph.auth import login_required
 from pantograph.component_factory import component_for_element, register_subform_blocks, wrap_provenance
+from pantograph import subforms
 from pantograph import provenance, relevance, requirements
 from pantograph.editor import parse_hash
 
@@ -42,6 +43,23 @@ def _get_max_id_from_cursor(cur, table_name):
 # ==============================================================
 
 
+def _leaf_provenances(provenances, element_id):
+    """
+    The provenances belonging to one subform element, keyed by their full path.
+
+    Kept whole rather than trimmed to the part after the element name, so the
+    key a caller wrote is the key the renderer, the submit callback and the
+    provenance table all see. One spelling end to end is what stops a leaf's
+    origin being filed under a name nothing else uses.
+    """
+    found = {}
+    for path, record in (provenances or {}).items():
+        split = subforms.split_leaf(path)
+        if split is not None and split[0] == element_id:
+            found[path] = record
+    return found
+
+
 def generate_form_layout(form_name, forms_config, object_id=None, initial_values=None,
                          title=None, provenances=None):
     """
@@ -62,6 +80,15 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     """
     if object_id:
         record_data = get_latest_entry(form_name, forms_config, object_id)
+        if initial_values:
+            # An edit form opened with *proposed* changes: the record as it
+            # stands, with a caller's values laid over the elements it speaks
+            # about. This is what lets an ingested suggestion against an
+            # existing record be reviewed in the ordinary form — the reviewer
+            # sees the proposal in place, marked unconfirmed, next to the values
+            # it would replace. Elements the caller says nothing about keep what
+            # is in the record, so a proposal cannot blank a field by omission.
+            record_data = {**(record_data or {}), **initial_values}
         if provenances is None:
             # An edit form reopens the claim the record was saved with, so a
             # value nobody stood behind is still unconfirmed a year later. A
@@ -77,7 +104,12 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
     for element_name, element_def in forms_config[form_name].get("elements", {}).items():
         val = record_data.get(element_name) if record_data else None
         element_def = {**element_def, "element_id": element_name}
-        component = component_for_element(element_def, form_name=form_name, value=val)
+        # A subform's fields are addressed by path — `description.1.description`
+        # — and rendered by a callback rather than here, so theirs travel in a
+        # store the callback reads. Everything else is keyed by element name.
+        component = component_for_element(
+            element_def, form_name=form_name, value=val,
+            leaf_provenances=_leaf_provenances(provenances, element_name))
         # Wrapped inside the relevance container, so hiding an irrelevant
         # element hides the claim about where its value came from too.
         component = wrap_provenance(component, form_name, element_name,
@@ -213,7 +245,49 @@ def register_click_callbacks(app, config):
                 request.get("title") or _title_for_values(table, values),
                 request.get("provenance") or None,
             )
+        if mode == "suggestion":
+            return show_suggestion_form(request.get("id"), person_id)
         return html.Div("Select a table or click an element to edit.")
+
+    def show_suggestion_form(suggestion_id, person_id):
+        """
+        A staged proposal, in the ordinary form, with every value it supplies
+        marked as not yet stood behind.
+
+        This is the whole of "confirming is the write": nothing here saves
+        anything. The reviewer gets the normal add or edit form, the proposal's
+        values are already in it, and the machinery that shipped with
+        provenance does the rest — the values render amber and dashed, they do
+        not satisfy `required:`, and a save that slips an unconfirmed required
+        answer past the disabled button is refused outright.
+        """
+        from pantograph import staging
+
+        item = staging.get(suggestion_id) if suggestion_id is not None else None
+        if not item:
+            return html.Div("That suggestion is no longer in the queue.")
+        if item["state"] != staging.PENDING:
+            return html.Div(
+                f"That suggestion was already {item['state']}.")
+
+        table = item["table"]
+        values, provenances = staging.form_inputs(item)
+        if item["action"] == "update" and item["target_id"]:
+            form_name = config["default_forms"].get(table)
+            if not form_name:
+                return html.Div(f"Error: no form for '{table}'.")
+            return login_required(generate_form_layout)(
+                form_name, forms_config=forms_config,
+                object_id=item["target_id"], initial_values=values,
+                title=f"Proposed changes to {item['name']}",
+                provenances=provenances,
+            )
+        return show_add_form(
+            table, person_id, _shaped_values(table, values),
+            f"Suggested {table[:-1] if table.endswith('s') else table}"
+            + (f" — from {item['subject']}" if item.get("subject") else ""),
+            provenances,
+        )
 
 
     # ----------------------------------------------------------
@@ -567,5 +641,12 @@ def register_submit_callbacks(app, forms_config):
 
             conn.commit()
             conn.close()
+
+            # If this save is a person confirming a staged suggestion, that
+            # suggestion is now answered. Done after the commit and on its own
+            # connection, because a staging bookkeeping failure must never roll
+            # back a record the user has just signed for.
+            from pantograph import staging
+            staging.note_saved(_fc["default_table"], object_id)
 
             return out_msg, datetime.now().isoformat(), int(datetime.now().timestamp()*1000)

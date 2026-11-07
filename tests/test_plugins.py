@@ -29,6 +29,7 @@ def test_entry_points_resolve_the_shipped_plugins():
     # distributed plugin would be.
     assert resolve_plugin_class("explore").id == "explore"
     assert resolve_plugin_class("dashboard").id == "dashboard"
+    assert resolve_plugin_class("import").id == "import"
 
 
 def test_unknown_plugin_names_the_ways_to_provide_it():

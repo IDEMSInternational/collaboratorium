@@ -4,7 +4,7 @@ import json
 from pantograph.visual_customization import dcl
 from pantograph.db import get_dropdown_options
 from pantograph.requirements import can_be_required
-from pantograph import provenance
+from pantograph import provenance, subforms
 import dash_bootstrap_components as dbc
 
 
@@ -81,7 +81,12 @@ def wrap_provenance(component, form_name, element_id, record):
 # ==============================================================
 
 
-def component_for_element(element_config, form_name, value=None):
+def leaf_store_id(form_name, element_id):
+    """The store carrying a subform element's leaf provenances to its renderer."""
+    return {"type": "subform-provenance", "form": form_name, "element": element_id}
+
+
+def component_for_element(element_config, form_name, value=None, leaf_provenances=None):
     """Map element type from YAML to Dash component"""
     element_type = element_config.get("type")
     label = element_config.get("label", element_config["element_id"])
@@ -269,7 +274,15 @@ def component_for_element(element_config, form_name, value=None):
         subform_block = html.Div([
             html.Div(id={"type": "subform", "form": form_name, "element": element_config["element_id"]}),
             dcc.Store(id={"type": "input", "form": form_name, "element": element_config["element_id"]},
-                  data=value)
+                  data=value),
+            # Where a leaf's provenance travels. The subform's body is built by
+            # a callback rather than here, so the records cannot be handed
+            # straight to the renderer — they wait in a store the callback
+            # reads. Keyed by leaf path (see pantograph.subforms), and empty for
+            # every form that has never been given one, which is all of them
+            # until something supplies one.
+            dcc.Store(id=leaf_store_id(form_name, element_config["element_id"]),
+                      data=leaf_provenances or {}),
             ], style=wrapper_style)
         return subform_block
         
@@ -308,9 +321,16 @@ def register_subform_blocks(app, forms_config):
             @app.callback(
                 Output({"type": "subform", "form": form_name, "element": element_config["element_id"]}, "children"),
                 Input({"type": "input", "form": form_name, "element": element_config["element_id"]}, "data"),
+                # The leaf provenances the form was rendered with. A State and
+                # not an Input: a subform re-renders on every keystroke in it,
+                # and where a value came from does not change because somebody
+                # typed in the box next to it.
+                State(leaf_store_id(form_name, element_config["element_id"]), "data"),
             )
-            def call_gen_subform_block(value, _element_config = element_config, _form_name = form_name):
-                return generate_subform_block(_element_config, _form_name, value)
+            def call_gen_subform_block(value, leaf_provenances,
+                                       _element_config = element_config, _form_name = form_name):
+                return generate_subform_block(_element_config, _form_name, value,
+                                              leaf_provenances, _form_name)
             
 
             @app.callback(
@@ -381,6 +401,26 @@ def register_subform_blocks(app, forms_config):
                 return json.dumps(new_state, indent=2)
             
 
+def _leaf(component, parent_form, element_id, group, field, leaf_provenances):
+    """
+    Wrap one field of a subform in its provenance block, if it has one.
+
+    The wrapper's ids carry the **parent** form's name and the leaf's path, not
+    the subform's namespace. That is the whole trick: the submit callback
+    already gathers `{"type": "provenance", "form": <form>, "element": ALL}`,
+    and the confirm callback already matches on both, so a leaf addressed this
+    way is picked up by machinery that needs no change. The input keeps its own
+    namespace, because that is what `handle_subform_block` gathers.
+
+    Unwrapped when there is no provenance for this leaf, so a form nobody has
+    supplied one for renders exactly the DOM it rendered before.
+    """
+    if not leaf_provenances:
+        return component
+    path = subforms.leaf_path(element_id, group, field)
+    return wrap_provenance(component, parent_form, path, leaf_provenances.get(path))
+
+
 def failsafe_div(label, subform_name, value):
     return html.Div(
         [
@@ -395,7 +435,8 @@ def failsafe_div(label, subform_name, value):
                   'padding': '15px', 'borderRadius': '6px', 'marginBottom': '10px'}
     )
 
-def generate_subform_block(element_config, form_name, value=None):
+def generate_subform_block(element_config, form_name, value=None,
+                           leaf_provenances=None, parent_form=None):
     label = element_config.get("label", element_config["element_id"])
     appearance = element_config.get("appearance", None)
     subform_name = form_name+'-'+element_config["element_id"]
@@ -407,7 +448,10 @@ def generate_subform_block(element_config, form_name, value=None):
 
     failsafe = False
     try:
-        value = json.loads(value) if value else {}
+        # Already a mapping when the values came from a staged suggestion
+        # rather than from the form's own store, which holds a JSON string.
+        value = (value if isinstance(value, dict)
+                 else json.loads(value) if value else {})
     except json.decoder.JSONDecodeError:
         failsafe = True
 
@@ -418,7 +462,8 @@ def generate_subform_block(element_config, form_name, value=None):
     if is_dynamic_form:
         if failsafe:
             return failsafe_div(label, subform_name, value)
-        elements = generate_dynamic_subform_elements(element_config, form_name, value)
+        elements = generate_dynamic_subform_elements(
+            element_config, form_name, value, leaf_provenances, parent_form)
     else:
         if failsafe or value == {}:
             failsafe_element_found = False if value != {} else True
@@ -437,7 +482,8 @@ def generate_subform_block(element_config, form_name, value=None):
             else:
                 return failsafe_div(label, subform_name, value)
         # Pass appearance flag downwards
-        elements = generate_static_subform_elements(element_config, form_name, value, appearance)
+        elements = generate_static_subform_elements(
+            element_config, form_name, value, appearance, leaf_provenances, parent_form)
 
     # Completely strips border boxes if flat presentation strategy is specified
     if appearance == "flat":
@@ -451,9 +497,11 @@ def generate_subform_block(element_config, form_name, value=None):
     )
 
 
-def generate_static_subform_elements(element_config, form_name, value=None, appearance=None):
+def generate_static_subform_elements(element_config, form_name, value=None, appearance=None,
+                                     leaf_provenances=None, parent_form=None):
     label = element_config.get("label", element_config["element_id"])
     subform_name = form_name+'-'+element_config["element_id"]
+    parent_form = parent_form or form_name
 
     subform_ls = [dict(id=id, **val) for id, val in element_config['parameters'].items()]
 
@@ -473,10 +521,14 @@ def generate_static_subform_elements(element_config, form_name, value=None, appe
             for field, config in subform.items():
                 if type(config) is not dict:
                     continue
-                sf_elements.append(component_for_element(
-                    element_config=dict(element_id=f'{key}|{field}', **config),
-                    form_name=subform_name,
-                    value=subform_value.get(field)
+                sf_elements.append(_leaf(
+                    component_for_element(
+                        element_config=dict(element_id=f'{key}|{field}', **config),
+                        form_name=subform_name,
+                        value=subform_value.get(field)
+                    ),
+                    parent_form, element_config["element_id"], key, field,
+                    leaf_provenances,
                 ))
                 
         box_style = {'marginTop': '5px'} if appearance == "flat" else {
@@ -492,9 +544,11 @@ def generate_static_subform_elements(element_config, form_name, value=None, appe
 
     return elements
 
-def generate_dynamic_subform_elements(element_config, form_name, value=None):
+def generate_dynamic_subform_elements(element_config, form_name, value=None,
+                                      leaf_provenances=None, parent_form=None):
     label = element_config.get("label", element_config["element_id"])
     subform_name = form_name+'-'+element_config["element_id"]
+    parent_form = parent_form or form_name
 
     subform_names = get_dropdown_options(
         element_config["parameters"]["source_table"],
@@ -541,10 +595,14 @@ def generate_dynamic_subform_elements(element_config, form_name, value=None):
         else:
             subform_label = subform['label']
             for field, config in subform['key_values'].items():
-                sf_elements.append(component_for_element(
-                    element_config=dict(element_id=f'{key}|{field}', **config),
-                    form_name=subform_name,
-                    value=subform_value.get(field)
+                sf_elements.append(_leaf(
+                    component_for_element(
+                        element_config=dict(element_id=f'{key}|{field}', **config),
+                        form_name=subform_name,
+                        value=subform_value.get(field)
+                    ),
+                    parent_form, element_config["element_id"], key, field,
+                    leaf_provenances,
                 ))
         elements.append(html.Div(
             [

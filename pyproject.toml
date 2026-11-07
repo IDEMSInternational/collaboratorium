@@ -11,12 +11,19 @@ description = "A config-driven database viewer and form engine"
 requires-python = ">=3.12"
 dependencies = [] # Relying on your existing requirements.txt
 
+# So that `pantograph export-contract` works as documented. It is the same
+# entry as `python -m pantograph`, which the Dockerfile's ENTRYPOINT uses and
+# which still serves when given no subcommand.
+[project.scripts]
+pantograph = "pantograph.__main__:main"
+
 # Page plugins are discovered through this group, so moving one out of this
 # repository into its own distribution is a packaging change and nothing else —
 # no core code refers to any plugin by name.
 [project.entry-points."pantograph.plugins"]
 explore = "pantograph_explore.plugin:Plugin"
 dashboard = "pantograph_dashboard.plugin:Plugin"
+import = "pantograph_import.plugin:Plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
@@ -26,3 +33,8 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The producer-facing docs ship inside the package, because the handoff bundle
+# is built from them at runtime and the Docker image carries src/ and no docs/.
+[tool.setuptools.package-data]
+pantograph = ["producer_docs/*.md"]

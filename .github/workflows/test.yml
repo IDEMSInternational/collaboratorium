@@ -45,7 +45,7 @@ jobs:
           python -c "
           from importlib.metadata import entry_points
           eps = {e.name for e in entry_points(group='pantograph.plugins')}
-          assert eps == {'explore', 'dashboard'}, f'unexpected entry points: {eps}'
+          assert eps == {'explore', 'dashboard', 'import'}, f'unexpected entry points: {eps}'
           print('entry points OK:', sorted(eps))
           "
 
@@ -68,7 +68,7 @@ jobs:
           docker run --rm --entrypoint python pantograph:ci -c "
           from importlib.metadata import entry_points
           eps = {e.name for e in entry_points(group='pantograph.plugins')}
-          assert eps == {'explore', 'dashboard'}, f'unexpected entry points: {eps}'
+          assert eps == {'explore', 'dashboard', 'import'}, f'unexpected entry points: {eps}'
           print('entry points OK:', sorted(eps))
           "
 

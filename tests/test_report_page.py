@@ -104,7 +104,14 @@ def test_the_same_action_can_be_clicked_twice(page: Page):
 
     _action(page, "+ activity").click()
     expect(editor).to_be_visible()
-    page.keyboard.press("Escape")
+    # Retried rather than pressed once: the modal reports visible while it is
+    # still fading in, and a key that lands before its listeners are attached
+    # is lost — a property of the test's speed, not of the app.
+    for _ in range(5):
+        page.keyboard.press("Escape")
+        if not editor.is_visible():
+            break
+        page.wait_for_timeout(500)
     expect(editor).to_be_hidden()
     page.wait_for_function("() => window.location.hash === ''")
 

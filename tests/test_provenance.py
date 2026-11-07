@@ -751,3 +751,29 @@ def test_the_note_is_beside_the_value_rather_than_in_a_footnote():
     assert annotation(SUGGESTION) == " _[Suggested by run-4 (82% confidence), not confirmed]_"
     assert annotation(None) == ""
     assert annotation(record(ENTERED)) == ""
+
+
+def test_confirmed_by_names_the_person_when_they_can_be_found(app_config):
+    """An id is stored because a name can change; it is not what is shown."""
+    import datetime, os, tempfile
+    from pantograph import settings
+    from pantograph.db import db_connect, init_db
+
+    directory = tempfile.mkdtemp(prefix="describe-")
+    previous = settings.get_settings()
+    settings.configure(database_path=os.path.join(directory, "t.db"),
+                       analytics_path=os.path.join(directory, "a.db"))
+    try:
+        init_db(app_config)
+        conn = db_connect()
+        conn.execute("INSERT INTO people (id,version,name,status,timestamp,created_by)"
+                     " VALUES (37,1,'Gabe Bolton','active',?,1)",
+                     (datetime.datetime.now().isoformat(),))
+        conn.commit()
+        conn.close()
+        line = describe({"source": "cited", "from": "run-3", "confirmed_by": 37})
+        assert line.endswith("confirmed by Gabe Bolton")
+        assert describe({"source": "cited", "confirmed_by": 99}).endswith("confirmed by 99")
+    finally:
+        settings.configure(database_path=previous.database_path,
+                           analytics_path=previous.analytics_path)

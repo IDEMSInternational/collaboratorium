@@ -172,8 +172,35 @@ def describe(raw):
     else:
         text = "Of unrecorded origin"
     if provenance.get("confirmed_by"):
-        text += f", confirmed by {provenance['confirmed_by']}"
+        text += f", confirmed by {_person(provenance['confirmed_by'])}"
     return text
+
+
+def _person(person_id):
+    """
+    Who confirmed, by name. `confirmed_by` is stored as an id because a name can
+    change, but an id is not something a reader can act on. Falls back to the id
+    when the person cannot be found — a line that names nobody is worse than one
+    that names a number.
+    """
+    import os
+
+    from pantograph.db import _db_path, db_connect
+
+    # sqlite creates a database on connect, and a description is no reason to.
+    if not os.path.exists(_db_path()):
+        return str(person_id)
+    try:
+        conn = db_connect()
+        try:
+            row = conn.execute(
+                'SELECT name FROM people WHERE id = ? ORDER BY version DESC LIMIT 1',
+                (person_id,)).fetchone()
+        finally:
+            conn.close()
+    except Exception:
+        return str(person_id)
+    return row[0] if row and row[0] else str(person_id)
 
 
 def _origin(origin):

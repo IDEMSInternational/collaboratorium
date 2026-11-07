@@ -448,7 +448,10 @@ def generate_subform_block(element_config, form_name, value=None,
 
     failsafe = False
     try:
-        value = json.loads(value) if value else {}
+        # Already a mapping when the values came from a staged suggestion
+        # rather than from the form's own store, which holds a JSON string.
+        value = (value if isinstance(value, dict)
+                 else json.loads(value) if value else {})
     except json.decoder.JSONDecodeError:
         failsafe = True
 

@@ -341,3 +341,15 @@ def test_a_required_leaf_is_stated_in_the_contract(leafy_form):
     groups = document["tables"]["widgets"]["elements"]["detail"]["subform"]["groups"]
     assert groups["1"]["summary"]["required"] is True
     assert "required" not in groups["1"]["note"]
+
+
+def test_a_subform_given_a_mapping_does_not_need_it_as_json():
+    """
+    A staged suggestion supplies its tags as a mapping; the form's own store
+    holds a JSON string. Submitting from a suggestion crashed on the former.
+    """
+    from pantograph.component_factory import generate_subform_block
+    config = {"element_id": "tag_groups", "type": "subform", "label": "Tags",
+              "parameters": {"groups": {"a": {"label": "A", "elements": [
+                  {"element_id": "x", "type": "text", "label": "X"}]}}}}
+    generate_subform_block(config, "form", {"a": {"x": "1"}}, None, "form")

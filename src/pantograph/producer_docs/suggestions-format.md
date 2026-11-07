@@ -69,6 +69,9 @@ activities:
   - name: Development of Internet of Good Things version 2 for UNICEF
     description: >-
       The major focus of the year for many in the team.
+    attachments:
+      - name: Version 2 release notes
+        url: https://github.com/IDEMSInternational/iogt/releases/tag/v2
     start_date: 2021-01-01
     end_date: 2021-12-31
     initiatives: [iogt]             # a key in this file, or an existing name
@@ -86,6 +89,15 @@ contracts: []
 Three record lists, one per table a proposal may target: `initiatives`,
 `activities`, `contracts`. Everything else — people, organisations — is referred
 to, never created. An identity is something a person establishes.
+
+**Attachments.** An activity's `description` (also written `summary`) and its
+`attachments` are two fields of the same block. Attachments are the evidence a
+reader would want to open: the release, the pull request, the document, the
+recording. Give each as `name` and an `http(s)` `url`; a row with no address is
+dropped with a warning. Propose them wherever you cited a page or a file for the
+activity, and leave them out only when there is nothing to open. On an activity
+that already has attachments yours are **added to** the list, never replacing it,
+and a link already there is not repeated.
 
 ## 2. Values are plain
 

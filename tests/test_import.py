@@ -668,8 +668,9 @@ activities:
     assert staging.counts() == {"pending": 1}
     item = staging.queue()[0]
     assert item["name"] == "Collaboratorium: agent handoff"
-    assert "https://example.org/pull/108" in item["payload"]["values"]["description"]
-    assert "&quot;" not in item["payload"]["values"]["description"]
+    summary = item["payload"]["values"]["description"]["1"]["description"]
+    assert "https://example.org/pull/108" in summary
+    assert "&quot;" not in summary
 
 
 def test_csrf_is_required(client, deployment):
@@ -780,3 +781,100 @@ def test_an_update_form_shows_what_is_recorded_now(deployment):
         initial_values={"name": "R-Instat"},
         provenances={"name": {"source": "suggested", "confirmed": False}})
     assert "Currently recorded:" not in _text_of(same)
+
+
+# --------------------------------------------------------------------------
+# Attachments: a leaf of the activity's description, proposed and kept
+# --------------------------------------------------------------------------
+
+def test_attachments_can_be_proposed_beside_the_summary(deployment):
+    """
+    An activity's attachments are a leaf of its `description`, and nothing told a
+    producer so, or let one fill them in: every suggested activity arrived with
+    none.
+    """
+    body = """
+activities:
+  - name: Open App Builder v0.23.0 release
+    summary: Released v0.23.0 with offline sync.
+    attachments:
+      - name: Release notes
+        url: https://example.org/releases/v0.23.0
+      - {name: Pull request, url: "https://example.org/pull/12"}
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:oab#v0.23.0"
+"""
+    proposal = _check(_file(body, deployment), deployment)
+    assert not proposal.errors, [f.message for f in proposal.errors]
+    value = proposal.stageable[0].values["description"]
+    assert value["1"]["description"] == "Released v0.23.0 with offline sync."
+    assert value["1"]["attachments"] == [
+        {"name": "Release notes", "url": "https://example.org/releases/v0.23.0"},
+        {"name": "Pull request", "url": "https://example.org/pull/12"}]
+
+
+def test_an_attachment_without_a_web_address_is_dropped_with_a_warning(deployment):
+    body = """
+activities:
+  - name: Open App Builder v0.23.0 release
+    attachments: [{name: Release notes}]
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:oab#v0.23.0"
+"""
+    proposal = _check(_file(body, deployment), deployment)
+    record = proposal.stageable[0]
+    assert "description" not in record.values
+    assert any("no http(s)" in f.message for f in record.findings)
+
+
+def test_a_proposed_summary_keeps_the_attachments_already_recorded(deployment):
+    """
+    The form lays a proposal over the stored record. A proposal that names only
+    the summary used to replace the whole subform, so the attachments beside it
+    disappeared from the form and were lost on save.
+    """
+    from pantograph import subforms
+
+    stored = json.dumps({"1": {"description": "old", "attachments": [
+        {"name": "Release notes", "url": "https://example.org/r"},
+        {"name": None, "url": None}]}})
+    merged = subforms.overlay(stored, {"1": {"description": "new"}})
+    assert merged["1"]["description"] == "new"
+    assert merged["1"]["attachments"][0] == {
+        "name": "Release notes", "url": "https://example.org/r"}
+
+    # Proposed attachments are added, and one already there is not repeated.
+    merged = subforms.overlay(stored, {"1": {"attachments": [
+        {"name": "Release notes again", "url": "https://example.org/r"},
+        {"name": "Docs", "url": "https://example.org/d"}]}})
+    assert merged["1"]["description"] == "old"
+    assert [r["url"] for r in merged["1"]["attachments"]] == [
+        "https://example.org/r", "https://example.org/d"]
+
+
+def test_an_update_form_still_shows_the_recorded_attachment(deployment):
+    from pantograph.form_gen import generate_form_layout
+
+    now = datetime.datetime.now().isoformat()
+    conn = db_connect()
+    conn.execute(
+        "INSERT INTO activities (id,version,name,description,status,timestamp,created_by)"
+        " VALUES (1,1,'Release',?, 'active',?,1)",
+        (json.dumps({"1": {"description": "", "attachments": [
+            {"name": "Release Notes", "url": "https://example.org/notes"}]}}), now))
+    conn.commit()
+    conn.close()
+
+    layout = generate_form_layout(
+        deployment["default_forms"]["activities"], forms_config=deployment["forms"],
+        object_id=1,
+        initial_values={"description": {"1": {"description": "Cut the release."}}},
+        provenances={"description": {"source": "suggested", "confirmed": False}})
+    # Dash components keep values in props, which `repr` shows and the helper
+    # that reads children does not. Take it from the form's own subform store.
+    text = repr(layout)
+    assert "Cut the release." in text
+    # Once in the "Currently recorded" line, and once more in the form itself.
+    assert text.count("https://example.org/notes") >= 2

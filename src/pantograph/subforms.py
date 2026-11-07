@@ -183,3 +183,68 @@ def prune_empty_groups(value):
         elif not _is_empty(group):
             kept[key] = group
     return json.dumps(kept, indent=2) if given_text else kept
+
+
+def overlay(existing, proposed):
+    """
+    A subform's stored value with a proposal laid over it, leaf by leaf.
+
+    A proposal that names only the summary must not take the attachments beside
+    it away, and "an update never removes anything" is the rule the suggestions
+    format promises. So a leaf the proposal does not mention keeps what is
+    stored, a list leaf (attachments) is added to — a row already present, by
+    its url, is not added twice — and any other leaf the proposal does set
+    replaces the stored one. Returns a mapping, whatever shape either arrived in.
+    """
+    merged = {group: dict(fields) if isinstance(fields, dict) else fields
+              for group, fields in _as_mapping(existing).items()}
+    for group, fields in _as_mapping(proposed).items():
+        if not isinstance(fields, dict):
+            merged[group] = fields
+            continue
+        have = merged.setdefault(group, {})
+        if not isinstance(have, dict):
+            have = merged[group] = {}
+        for leaf, value in fields.items():
+            if _is_empty(value):
+                continue
+            if isinstance(value, list):
+                rows = list(have.get(leaf) or [])
+                seen = {_row_key(r) for r in rows if not _row_empty(r)}
+                # A stored row with nothing in it is the blank the form keeps for
+                # adding another; it is not an attachment to preserve.
+                rows = [r for r in rows if not _row_empty(r)]
+                rows += [r for r in value if _row_key(r) not in seen]
+                have[leaf] = rows
+            else:
+                have[leaf] = value
+    return merged
+
+
+def _row_empty(row):
+    return not isinstance(row, dict) or all(_is_empty(v) for v in row.values())
+
+
+def _row_key(row):
+    """What makes two attachment rows the same one: the link, else the whole row."""
+    if isinstance(row, dict):
+        return row.get("url") or tuple(sorted((k, str(v)) for k, v in row.items()))
+    return row
+
+
+def as_leaves(element_config, proposed):
+    """
+    A proposed subform value as `{group: {leaf: value}}`.
+
+    A suggestion staged before the importer read leaves holds the summary as a
+    bare string. It means the first text leaf of the first group, which is what
+    the form already does with one, so say so here and the overlay can keep the
+    other leaves.
+    """
+    if not isinstance(proposed, str) or not proposed.strip():
+        return proposed
+    for group, fields in ((element_config or {}).get("parameters") or {}).items():
+        for leaf, spec in (fields or {}).items():
+            if isinstance(spec, dict) and spec.get("type") == "string":
+                return {str(group): {leaf: proposed}}
+    return proposed

@@ -131,8 +131,17 @@ def _describe_previous(element_def, value):
             for key, leaf in fields.items():
                 if leaf in (None, "", []):
                     continue
-                parts.append(f"{key}: " + (", ".join(map(str, leaf))
-                                           if isinstance(leaf, list) else str(leaf)))
+                if isinstance(leaf, list):
+                    leaf = ", ".join(
+                        (f"{row.get('name') or row.get('url')} ({row.get('url')})"
+                         if isinstance(row, dict) and row.get("name") and row.get("url")
+                         else str(row.get("url") or row) if isinstance(row, dict)
+                         else str(row))
+                        for row in leaf
+                        if not (isinstance(row, dict) and not any(row.values())))
+                    if not leaf:
+                        continue
+                parts.append(f"{key}: {leaf}")
         return "; ".join(parts) or "nothing"
     return str(value)
 
@@ -182,7 +191,18 @@ def generate_form_layout(form_name, forms_config, object_id=None, initial_values
             # sees the proposal in place, marked unconfirmed, next to the values
             # it would replace. Elements the caller says nothing about keep what
             # is in the record, so a proposal cannot blank a field by omission.
-            record_data = {**(record_data or {}), **initial_values}
+            before = record_data or {}
+            record_data = {**before, **initial_values}
+            # A subform is laid over leaf by leaf: a proposal that names only the
+            # summary keeps the attachments beside it, and one that names
+            # attachments adds to the ones already there.
+            elements_def = forms_config[form_name].get("elements", {})
+            for name, proposed in initial_values.items():
+                element = elements_def.get(name) or {}
+                if element.get("type") == "subform" and not subforms.is_dynamic(element):
+                    proposed = subforms.as_leaves(element, proposed)
+                    if isinstance(proposed, dict):
+                        record_data[name] = subforms.overlay(before.get(name), proposed)
         if provenances is None:
             # An edit form reopens the claim the record was saved with, so a
             # value nobody stood behind is still unconfirmed a year later. A

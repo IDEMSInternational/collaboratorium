@@ -91,3 +91,92 @@ def test_a_saved_suggestion_leaves_the_queue_without_a_reload(page: Page):
     editor.get_by_role("button", name="Submit").click()
 
     expect(page.locator("#import-queue tr", has_text=name)).to_have_count(0, timeout=10000)
+
+
+def test_a_suggestion_carrying_tags_can_be_saved(page: Page):
+    """
+    Found on the live server: opening a staged suggestion that carries tags put
+    the tags in the form as a mapping, and submitting handed that mapping to
+    SQLite, which cannot bind one, so the save failed with a server error and
+    nothing was recorded. Every earlier test saved a suggestion with no tags.
+    """
+    import json
+    from pantograph.db import db_connect
+
+    vocabulary = {"impact_area": {
+        "type": "select_multiple", "label": "Impact Area",
+        "list_name": "impact_area_list",
+        "impact_area_list": {"education": "Education", "climate": "Climate"}}}
+    conn = db_connect()
+    next_id = conn.execute("SELECT COALESCE(MAX(id), 0) + 1 FROM tag_groups").fetchone()[0]
+    conn.execute(
+        "INSERT INTO tag_groups (id, version, name, key_values, status, timestamp, created_by)"
+        " VALUES (?, 1, 'Tags', ?, 'active', '2026-11-07T00:00:00', 1)",
+        (next_id, json.dumps(vocabulary)))
+    conn.commit()
+    conn.close()
+
+    name = "Import Page Tagged Initiative"
+    _open_import(page)
+    page.locator("#import-textarea").fill(
+        FILE.replace("Import Page Test Initiative", name)
+            .replace("test:import-page", "test:import-page-tagged")
+        + "    tags:\n      impact_area: [Education]\n")
+    page.locator("#import-check").click()
+    expect(page.locator("#import-report")).to_contain_text("1 ready")
+    page.locator("#import-stage").click()
+
+    row = page.locator("#import-queue tr", has_text=name)
+    expect(row).to_have_count(1)
+    row.get_by_role("button", name="Open").click()
+
+    editor = page.locator("#editor-popup")
+    expect(editor).to_contain_text("Suggested initiative")
+    confirms = editor.get_by_role("button", name="Confirm", exact=True)
+    for _ in range(12):
+        if not confirms.count():
+            break
+        confirms.first.click()
+        page.wait_for_timeout(300)
+    editor.get_by_role("button", name="Submit").click()
+
+    expect(page.locator("#import-queue tr", has_text=name)).to_have_count(0, timeout=10000)
+    conn = db_connect()
+    saved = conn.execute(
+        "SELECT tag_groups FROM initiatives WHERE name = ?", (name,)).fetchone()
+    conn.close()
+    assert saved and json.loads(saved[0])[str(next_id)]["impact_area"] == ["education"]
+
+
+def test_a_suggestion_opened_from_its_link_is_marked_answered_when_saved(page: Page):
+    """
+    The editor route `#suggest/<id>` is a link people paste and bookmark. It has
+    to remember which suggestion it opened, or saving creates the record and
+    leaves the suggestion pending, which in turn leaves anything waiting on it
+    unable to link.
+    """
+    from pantograph import staging
+
+    name = "Import Page Linked Initiative"
+    _open_import(page)
+    page.locator("#import-textarea").fill(
+        FILE.replace("Import Page Test Initiative", name)
+            .replace("test:import-page", "test:import-page-linked"))
+    page.locator("#import-check").click()
+    page.locator("#import-stage").click()
+    expect(page.locator("#import-queue tr", has_text=name)).to_have_count(1)
+    suggestion_id = next(i["id"] for i in staging.queue() if i["name"] == name)
+
+    page.goto(f"/#suggest/{suggestion_id}")
+    editor = page.locator("#editor-popup")
+    expect(editor).to_contain_text("Suggested initiative")
+    confirms = editor.get_by_role("button", name="Confirm", exact=True)
+    for _ in range(12):
+        if not confirms.count():
+            break
+        confirms.first.click()
+        page.wait_for_timeout(300)
+    editor.get_by_role("button", name="Submit").click()
+    expect(editor).to_contain_text("Created initiatives record")
+
+    assert staging.get(suggestion_id)["state"] == staging.ACCEPTED

@@ -271,6 +271,16 @@ def register_click_callbacks(app, config):
                 f"That suggestion was already {item['state']}.")
 
         table = item["table"]
+        # Remembered here, not only where the queue hands the form over, so a
+        # pasted or bookmarked #suggest link marks the suggestion answered when
+        # it is saved, as the queue's Open button does. Otherwise the record is
+        # created and its suggestion stays pending, and anything that was
+        # waiting on it stays unlinkable.
+        try:
+            from flask import session
+            session["reviewing_suggestion"] = (suggestion_id, table)
+        except RuntimeError:
+            pass
         values, provenances = staging.form_inputs(item)
         if item["action"] == "update" and item["target_id"]:
             form_name = config["default_forms"].get(table)
@@ -558,6 +568,11 @@ def register_submit_callbacks(app, forms_config):
                         vals[i] = ",".join(map(str, v))
                 elif isinstance(v, bool):
                     vals[i] = int(v)
+                elif isinstance(v, dict):
+                    # A subform's value is stored as JSON text. It arrives as a
+                    # mapping when the form was opened with one, as a staged
+                    # suggestion's tags are, and has not been touched since.
+                    vals[i] = json.dumps(v)
             cur.execute(f'INSERT INTO "{_fc["default_table"]}" ({cols_sql}) VALUES ({placeholders})', vals)
 
             # Same cursor, so the row and where its values came from commit

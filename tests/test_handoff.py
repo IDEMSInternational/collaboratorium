@@ -133,9 +133,38 @@ def test_snapshot_round_trips_as_yaml(app_config):
 # The bundle
 # --------------------------------------------------------------------------
 
-def test_bundle_holds_the_four_files(app_config):
+def test_bundle_holds_every_file_a_producer_needs(app_config):
     assert set(handoff.build(app_config)) == {
-        "contract.json", "snapshot.yaml", "rejections.yaml", "instructions.md"}
+        "contract.json", "snapshot.yaml", "rejections.yaml", "instructions.md",
+        "suggestions-format.md", "record-style-guide.md"}
+
+
+def test_the_bundle_does_not_send_a_producer_to_a_url(app_config):
+    """
+    The format and the style guide travel inside the bundle. A link to the
+    repository fails for a producer with no network access to it and is a 404
+    for any path not yet on main; both happened.
+    """
+    files = handoff.build(app_config)
+    assert "IDEMSInternational/collaboratorium" not in files["instructions.md"]
+    assert "blob/main" not in files["instructions.md"]
+    assert "suggestions-format.md" in files["instructions.md"]
+    assert files["suggestions-format.md"].startswith("# `collaboratorium-suggestions/0.3`")
+
+
+def test_the_instructions_say_where_to_look_for_work(app_config):
+    text = handoff.build(app_config)["instructions.md"]
+    for place in ("Forgejo", "Shared drive", "Publications", "Calendar"):
+        assert place in text
+    assert "A repository is an initiative" in text
+    assert "Do not stop at the first source" in text
+
+
+def test_the_style_guide_defines_every_tag_category(app_config):
+    guide = handoff.build(app_config)["record-style-guide.md"]
+    for term in ("Deep Interoperability", "Local Capacity Building",
+                 "IDEMS R&D", "Public Health"):
+        assert term in guide
 
 
 def test_bundle_parts_agree_on_the_config_hash(app_config):
@@ -151,8 +180,8 @@ def test_instructions_name_what_the_format_refuses(app_config):
     instructions = handoff.build(app_config)["instructions.md"]
     assert "tag_groups" in instructions
     assert "people.email" in instructions
-    # It points at the spec rather than restating the schema (item C).
-    assert "docs/agentic-ingest.md" in instructions
+    # It points at the bundled spec rather than restating the schema (item C).
+    assert "suggestions-format.md" in instructions
 
 
 def test_instructions_state_the_record_counts(app_config):

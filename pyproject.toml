@@ -33,3 +33,8 @@ package-dir = {"" = "src"}
 
 [tool.setuptools.packages.find]
 where = ["src"]
+
+# The producer-facing docs ship inside the package, because the handoff bundle
+# is built from them at runtime and the Docker image carries src/ and no docs/.
+[tool.setuptools.package-data]
+pantograph = ["producer_docs/*.md"]

@@ -265,8 +265,8 @@ rested on. A real vocabulary now exists — three categories and 28 terms, in a
 `tag_groups` row pasted into the running deployment rather than committed as
 config — so a producer may propose Impact Area and IDEMS Domain terms, and the
 format carries them. What that looks like is in
-[`suggestions-format.md`](suggestions-format.md) §8 and the
-[style guide](record-style-guide.md).
+[`suggestions-format.md`](../src/pantograph/producer_docs/suggestions-format.md) §8 and the
+[style guide](../src/pantograph/producer_docs/record-style-guide.md).
 
 Which half survived matters. The contract still **cannot list the terms**: they
 are rows, so a document generated from config can only say where they live.

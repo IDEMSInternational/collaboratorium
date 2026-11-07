@@ -19,6 +19,7 @@ import io
 import json
 import zipfile
 from datetime import datetime, timezone
+from importlib import resources
 
 import yaml
 
@@ -28,11 +29,19 @@ BUNDLE_FORMAT = "collaboratorium-handoff/1"
 
 REJECTIONS_FORMAT = "collaboratorium-rejections/1"
 
-# Where a producer reads the format from. Pinned by path rather than by commit
-# because the repository is the authority and the hash below is what detects
-# drift; a URL with a commit in it goes stale in the opposite direction.
-_FORMAT_DOC = "docs/agentic-ingest.md"
-_REPO = "https://github.com/IDEMSInternational/collaboratorium"
+# The two documents a producer must read, shipped *inside* the bundle. They used
+# to be linked on GitHub, which fails twice: a producer with no network access to
+# the repository (a chat model, say) cannot follow a link at all, and a link to a
+# path on `main` is a 404 until the branch that adds it has merged. A bundle that
+# has to be supplemented from elsewhere is a bundle that gets used without them.
+_PRODUCER_DOCS = ("suggestions-format.md", "record-style-guide.md")
+
+
+def _producer_docs():
+    """`{filename: text}` for the documents that travel with the bundle."""
+    root = resources.files("pantograph") / "producer_docs"
+    return {name: (root / name).read_text(encoding="utf-8")
+            for name in _PRODUCER_DOCS}
 
 
 def _tag_summary(config):
@@ -101,16 +110,21 @@ This bundle is everything you need to draft records for a human to review. It
 was exported at {contract_doc["exported_at"]} against config
 `{contract_doc["config_hash"]}`.
 
-    contract.json     the shape: tables, elements, types, required, choices
-    snapshot.yaml     the contents: current records and links, latest version only
-    rejections.yaml   proposals a human has already declined
-    instructions.md   this file
+    instructions.md          this file: read it first
+    suggestions-format.md    the file you will write: its shape, with an example
+    record-style-guide.md    how each field should read, and what every tag means
+    contract.json            the shape of the database: tables, elements, required
+    snapshot.yaml            the contents: current records and links, latest version
+    rejections.yaml          proposals a human has already declined
 
 ## What you are producing
 
-One YAML file in the `{contract.SUGGESTIONS_FORMAT}` format. Its shape is
-specified in [`{_FORMAT_DOC}`]({_REPO}/blob/main/{_FORMAT_DOC}) §3 — read that
-before writing one. The essentials:
+One YAML file in the `{contract.SUGGESTIONS_FORMAT}` format, and no other
+version: write `format: {contract.SUGGESTIONS_FORMAT}` on its first line. Read
+`suggestions-format.md` in this bundle before writing one, and
+`record-style-guide.md` before writing any description — both are short and both
+are in the folder you were given, so you do not need to look anything up. The
+essentials:
 
 - **Nothing you write becomes a record.** Every value you propose arrives
   marked as suggested and unconfirmed, and a person confirms it field by field
@@ -133,14 +147,26 @@ before writing one. The essentials:
   an absence of activity. Only a source whose evidence stops before the end of
   the period is reported, so listing one that ran to the last day costs a
   reader nothing and says what you looked at.
-- **Write to the target length, not to the top of a range.** The style guide
-  gives a target for each description; records half as long again as the ones
-  already here read as imported rather than written.
-- **Tag from the vocabulary in the snapshot, not from memory.** The terms are
-  rows, so they change without this bundle changing. Read them, write the
-  label, and choose by the definitions in the style guide rather than by how
-  the label reads — several terms are not what they sound like. Four to six
-  across all categories together, which is meant to force a choice.
+- **Write descriptions to the length the style guide gives**, which depends on
+  how large the initiative is. A thin description is the commonest failure of a
+  producer working from commit messages: say what the thing is, who it serves,
+  what has been done and where it stands.
+- **Tag from the vocabulary in the snapshot, not from memory, and by definition
+  rather than by label.** The terms are rows, so they change without this bundle
+  changing; read them from `snapshot.yaml` and write the label. Every term is
+  defined in `record-style-guide.md`, and several are not what they sound like:
+  read the definition before you choose. Four to six across all categories
+  together, which is meant to force a choice.
+  Propose every category you can, including the strategic one, but declare each
+  tag you are not sure of under `inferred: tags:` with your reason — an
+  unconfirmed guess a person can correct is useful, and a confident wrong one is
+  not.
+- **A repository is an initiative; its issues and milestones are activities.**
+  Someone is ultimately responsible for a repository, which is what makes it an
+  initiative, whereas an individual issue, a release or a burst of pull requests
+  is a thing that happened inside it. Follow links: an issue that references
+  another repository, a project board or a document tells you about work the
+  person is connected to that you have not yet looked at.
 - **Expect the structured part of a source to be the wrong part.** A tidy list
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are
@@ -150,6 +176,35 @@ before writing one. The essentials:
   already there under a shorter or differently-phrased name — `R-Instat` rather
   than `Development of R-Instat`. The import flags likely matches, but a
   duplicate that reaches review has already cost someone the comparison.
+
+## Where to look
+
+The person has told you to scan their work; they have not told you where it
+lives, and they should not have to. Look in every place you can reach, and say
+in `coverage` which ones you did and did not:
+
+- **Code hosts.** Every GitHub organisation and Forgejo/Gitea instance they work
+  in (for IDEMS, `github.com/IDEMSInternational` and `git.idems.international`):
+  repositories they own or contribute to, their commits and pull requests, the
+  issues assigned to or opened by them, milestones, releases and READMEs. Read
+  the issues as well as the code; goals and decisions are written there.
+- **Shared drive.** Documents they own or edited recently: reports, proposals,
+  meeting notes, design documents, spreadsheets. A document's title and opening
+  paragraph often name the initiative it belongs to.
+- **Publications and media.** Podcast episodes, articles, papers, talks and
+  newsletters they appear in or wrote, which are activities and sometimes
+  initiatives in their own right.
+- **Calendar, email and chat**, if you can reach them: meetings, visits and
+  workshops leave no commit, and are exactly the activities a code-only scan
+  misses.
+- **Anything linked from what you find.** Issues, documents and calendar entries
+  point at repositories, boards, folders and other people's work. Follow them
+  one step.
+
+Do not stop at the first source that returns something. A scan that found three
+documents and no repositories has not scanned; it has sampled. If a source
+cannot be reached, say so in `coverage`, with the reason, rather than leaving a
+silent gap that reads as an absence of activity.
 
 ## This deployment, as exported
 
@@ -231,6 +286,7 @@ def build(config):
     contract_doc = contract.build(config)
     snapshot_doc = snapshot.build(config)
     return {
+        **_producer_docs(),
         "contract.json": json.dumps(contract_doc, indent=2) + "\n",
         "snapshot.yaml": yaml.safe_dump(snapshot_doc, sort_keys=False,
                                         allow_unicode=True,

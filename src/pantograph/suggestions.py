@@ -1,7 +1,7 @@
 """
 suggestions.py
 Reading, checking and resolving an uploaded `collaboratorium-suggestions/0.3`
-file. The format is specified in docs/suggestions-format.md.
+file. The format is specified in src/pantograph/producer_docs/suggestions-format.md.
 
 Nothing here writes a record. The output is a `Proposal` — the file's records
 with their links resolved to ids, their problems named, and their advisories

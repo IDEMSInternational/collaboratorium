@@ -170,7 +170,7 @@ def test_a_near_miss_on_a_multi_word_term_is_offered(tagged):
                           "name, which is what stops `ePICSA` reaching `PICSA`. "
                           "For a tag term a typo is the expected failure, so the "
                           "rule is wrong here and the hint never fires — see the "
-                          "note in docs/suggestions-format.md.",
+                          "note in src/pantograph/producer_docs/suggestions-format.md.",
                    strict=True)
 def test_a_single_word_typo_would_ideally_be_offered(tagged):
     proposal = _check(_activity("      impact_area: [Educaton]\n"), tagged)

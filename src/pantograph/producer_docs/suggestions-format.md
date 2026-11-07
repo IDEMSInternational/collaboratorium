@@ -260,8 +260,9 @@ earlier attempt at mapping historical values fail.
 ## 8.1 What is refused outright
 
 Read `contract.json`: an element with `accepts_suggestions: false` is refused
-and the reason is given there. In this deployment that is `people.email`, and
-one tag category (above).
+and the reason is given there. In this deployment that is `people.email`. A tag
+category is refused only if the vocabulary marks it so (above); the strategic
+category is currently open to proposals, which should be declared as guesses.
 
 ## 9. Before you hand it over
 

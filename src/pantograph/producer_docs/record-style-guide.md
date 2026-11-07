@@ -251,15 +251,27 @@ If a category does not apply, leave it out. An empty category is the normal
 case rather than a failure — in IDEMS's own tagged material, the third category
 is absent from roughly 40% of items.
 
-### What you may set, and what you may not
+### What you may set
 
-**Impact Area — yes.** What area of impact the work serves.
+All three categories. They differ in how sure you can be.
 
-**IDEMS Domain — yes.** Which aspect of IDEMS's own work it concerns.
+**Impact Area** and **IDEMS Domain** are largely a matter of reading what the
+work is about, and the definitions below are enough to choose from.
 
-**Sociotechnical Innovation — no.** The import drops it. This is the strategic
-reading of what a piece of work is *for*, and it is a judgement for someone who
-knows the strategy, not something to infer from a repository. Do not try.
+**Sociotechnical Innovation** is the strategic reading of what a piece of work
+is *for*: how it moves an expert-built digital tool towards local community
+ownership. It is the least settled category (the glossary calls it "still a bit
+of an experiment"), and it is the one where a producer working from a repository
+is most likely to be wrong. **Propose it anyway, and always say you are unsure**
+— write the reason under `inferred: tags:`. A reviewer who sees a low-confidence
+guess can correct it in a moment; a reviewer who sees nothing has to work it out
+from scratch, and a producer that leaves the whole category blank teaches
+nobody anything about what it should have been. Choose the nearest term whose
+definition you can defend in a sentence, and write that sentence.
+
+Do not reach for a Sociotechnical term because the work involves software. Most
+of IDEMS's work does, and a tag that is true of everything discriminates
+nothing. Ask which of the definitions below the work actually advances.
 
 ### Impact Area
 
@@ -298,6 +310,33 @@ what the record is about.
 Most engineering work is **IDEMS R&D**. Reach for Impact Products only once a
 thing is being made sustainable rather than being built.
 
+### Sociotechnical Innovation
+
+The strategy: show that everything IDEMS does is part of one process, taking an
+expert-developed digital intervention and handing it over to local community
+ownership. Each term names a way a piece of work serves that process. These
+definitions are the glossary's and are being refined, so expect to be unsure.
+
+| Term | Means |
+| --- | --- |
+| Accountable Agentic AI | Making AI answerable to the human communities it affects. About answerability, not about explaining how a model works. |
+| Community Ownership | Technology owned and controlled by a community. Rare today, so usually work *moving towards* it. The test for an initiative is whether the work moves that way, not whether anyone discussed it. |
+| Data Privacy | Individual data privacy inside a locally governed, accountable system, e.g. for sex workers, or a GDPR conversation and its limits. Not anonymity. |
+| Deep Interoperability | IDEMS's IP category: category theory, code as data, the patents, and enabling a locally owned, context-specific application inside one interoperable space. |
+| Distributed Governance | How complex systems are governed so they stay accountable to low-resource communities; when power should be central and when distributed. Part social, part technical. |
+| Community Retained Value | The economic value that stays with a community because it owns the thing, e.g. a community turning crops into products. |
+| Stakeholder Adaptation | Local communities leading the localisation and continued improvement of an application for their own context. The strongest example is FUMA Gaskiya. |
+| Contextualised Variants | Expert work on the central, deterministic data core from which local variants are made: the textbooks work, and current GPI/PLH work. Not yet ready to hand to local stakeholders. |
+| Responsible Business Models | Beyond IDEMS's own interests: how communities are served by the way work is funded and run. |
+| Education & Training | Training that makes local people the keepers of their own applications, such as research-methods support and facilitator training. It is the other half of Impact Area's Education, which excludes exactly this. |
+| Local Capacity Building | Building local skills for technology upkeep, e.g. INNODEMS and GHAIDEMS. |
+
+Some of these are closer to the work than others. A library or a tool that
+others build on is more likely **Deep Interoperability** or **Contextualised
+Variants** than anything about communities; work on training or hand-over is
+**Education & Training** or **Local Capacity Building**. When two seem equally
+good, choose neither and say what you weighed.
+
 ### Do not invent terms
 
 The vocabulary is a published list IDEMS is answerable to, and there is no
@@ -306,9 +345,11 @@ the glossary, which is what keeps it honest. If the work you are describing
 genuinely has no term, set fewer tags and say so in a note. Nobody is served by
 a plausible-looking tag that means nothing.
 
-Two terms read alike and are not the same: **Responsible Business** is an Impact
-Area, **Responsible Business Models** is a Sociotechnical Innovation term you
-may not set. If you meant the first, name the category and you cannot go wrong.
+Two pairs of terms read alike and are not the same: **Responsible Business** is
+an Impact Area while **Responsible Business Models** is a Sociotechnical
+Innovation term; and **Socio-Technical Innovation** is an Impact Area term while
+Sociotechnical Innovation is a whole category. Name the category when you write
+a term, and each lands where you meant it.
 
 ---
 

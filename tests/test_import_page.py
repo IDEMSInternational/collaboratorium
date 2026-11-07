@@ -239,16 +239,17 @@ def test_clearing_the_last_tag_keeps_the_block_so_another_can_be_chosen(page: Pa
     expect(editor).to_contain_text(re.compile("idems domain", re.I))
 
     # Then pick another, which is what the reviewer came to do.
-    # The dropdown sits just under its label, and is not itself labelled.
-    # The form redraws after the clear, and on a slow machine that can land after
-    # the click and close the dropdown it opened, so open it until it stays open.
+    # The dropdown is found by what it is, not by an offset from its label: a
+    # fixed offset lands on it on one machine's fonts and beside it on another's.
+    # The form also redraws after the clear, which on a slow machine can close a
+    # dropdown just opened, so click until it stays open. No Escape: it closes
+    # the whole editor.
     option = page.locator(".dash-options-list-option:visible", has_text="Climate").first
-    # No Escape here: it closes the whole editor.
+    dropdown = editor.locator("button.dash-dropdown[id*='impact_area']")
     for _ in range(5):
         if option.is_visible():
             break
-        box = editor.get_by_text("Impact Area", exact=True).first.bounding_box()
-        page.mouse.click(box["x"] + 180, box["y"] + 32)
+        dropdown.click()
         page.wait_for_timeout(1500)
     option.click()
     page.wait_for_timeout(1500)

@@ -723,11 +723,16 @@ def test_the_export_says_where_a_value_came_from(saved):
     assert "_[Suggested by run-4 (82% confidence), not confirmed]_" in md
 
 
-def test_the_export_names_who_stood_behind_a_value(saved):
+def test_the_export_leaves_a_confirmed_value_unannotated(saved):
+    """
+    Someone stood behind it, so it reads as any other value. The origin stays on
+    the record and in the edit form; a line after every confirmed field made the
+    report unreadable.
+    """
     saved({"name": "n", "description": "d"},
           {"description": confirm(SUGGESTION, person_id="Ada")})
     md = generate_markdown_report(REPORT_CFG, nodes(id=RECORD_ID))
-    assert "confirmed by Ada" in md and "not confirmed" not in md
+    assert md == "# Register\n\n## n\n\nd\n"
 
 
 def test_the_export_of_a_record_with_no_provenance_is_the_report_it_always_was(saved):
@@ -751,6 +756,7 @@ def test_the_note_is_beside_the_value_rather_than_in_a_footnote():
     assert annotation(SUGGESTION) == " _[Suggested by run-4 (82% confidence), not confirmed]_"
     assert annotation(None) == ""
     assert annotation(record(ENTERED)) == ""
+    assert annotation(confirm(SUGGESTION, person_id="Ada")) == ""
 
 
 def test_confirmed_by_names_the_person_when_they_can_be_found(app_config):

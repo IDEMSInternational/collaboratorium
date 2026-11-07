@@ -163,6 +163,18 @@ def test_the_instructions_say_where_to_look_for_work(app_config):
     assert "Do not stop at the first source" in text
 
 
+def test_producers_are_told_to_attach_evidence_to_an_activity(app_config):
+    """
+    Attachments are a field of an activity's description, and no producer was told
+    so, so none ever proposed one.
+    """
+    bundle = handoff.build(app_config)
+    assert "Attach the evidence" in bundle["instructions.md"]
+    assert "{name, url}" in bundle["instructions.md"]
+    assert "attachments:" in bundle["suggestions-format.md"]
+    assert "added to" in bundle["suggestions-format.md"]
+
+
 def test_the_style_guide_defines_every_tag_category(app_config):
     guide = handoff.build(app_config)["record-style-guide.md"]
     for term in ("Deep Interoperability", "Local Capacity Building",

@@ -175,6 +175,11 @@ essentials:
   activities, not forty. Follow links: an issue that references another
   repository, a project board or a document tells you about work the person is
   connected to that you have not yet looked at.
+- **Attach the evidence to an activity.** Each activity can carry `attachments:`,
+  a list of `{{name, url}}`: the release, pull request, issue or document it
+  summarises. They are added to what is already recorded, never replacing it. An
+  activity with sources and no attachments is missing the part a reader opens
+  first.
 - **Expect the structured part of a source to be the wrong part.** A tidy list
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are

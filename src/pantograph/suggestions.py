@@ -83,6 +83,13 @@ ELEMENT_ALIASES = {
     "summary": "description",
 }
 
+# Top-level spellings of a static subform's leaf, by the leaf's type. The leaf is
+# found by type, not name, so a deployment that calls it something else works.
+LEAF_ALIASES = {
+    "attachments": "table",
+    "attachment": "table",
+}
+
 _DATE_ELEMENTS = ("start_date", "end_date")
 
 
@@ -422,6 +429,22 @@ class Checker:
             if field not in elements and ELEMENT_ALIASES.get(field) in elements:
                 field = ELEMENT_ALIASES[field]
 
+            # A leaf of a static subform written at the top of the record:
+            # `attachments:` on an activity is a leaf of its `description`.
+            if field not in elements and field in LEAF_ALIASES:
+                found = self._leaf_of_type(elements, LEAF_ALIASES[field])
+                if found:
+                    rows = self._attachment_rows(record, found[0], value)
+                    if rows is not None:
+                        self._set_leaf(record, *found, rows)
+                    continue
+
+            # A static subform: its leaves are proposed by type, so a bare string
+            # is the summary and a list is the attachments.
+            if ((elements.get(field) or {}).get("subform") or {}).get("kind") == "static":
+                self._read_static(record, field, elements[field]["subform"], value)
+                continue
+
             # A tag grouping: proposed by category and term name, resolved
             # against the vocabulary that exists now.
             if ((elements.get(field) or {}).get("subform") or {}).get("kind") == "dynamic":
@@ -474,6 +497,93 @@ class Checker:
                     f"`inferred:` mentions `{element}`, which this record does "
                     f"not set.", section=record.section, index=record.index,
                     element=element))
+
+    @staticmethod
+    def _leaf_of_type(elements, leaf_type):
+        """`(element, group, leaf)` of the first static-subform leaf of a type."""
+        for element, definition in elements.items():
+            sub = (definition or {}).get("subform") or {}
+            if sub.get("kind") != "static":
+                continue
+            for group, leaves in (sub.get("groups") or {}).items():
+                for leaf, spec in leaves.items():
+                    if (spec or {}).get("type") == leaf_type:
+                        return element, group, leaf
+        return None
+
+    @staticmethod
+    def _set_leaf(record, element, group, leaf, value):
+        have = record.values.get(element)
+        if not isinstance(have, dict):
+            have = record.values[element] = {}
+        have.setdefault(group, {})[leaf] = value
+
+    def _attachment_rows(self, record, element, value):
+        """
+        Attachments as `[{name, url}]`: a list of such rows, or a `name: url`
+        mapping. A row with no http(s) address is dropped with a warning, so a
+        document title with no link does not become an attachment that goes
+        nowhere.
+        """
+        if isinstance(value, dict):
+            value = [{"name": name, "url": url} for name, url in value.items()]
+        rows = []
+        for row in self._as_list(value):
+            if isinstance(row, str):
+                row = {"name": row, "url": row}
+            url = str((row or {}).get("url") or "").strip() if isinstance(row, dict) else ""
+            if not url.lower().startswith(("http://", "https://")):
+                record.findings.append(Finding(
+                    "warning",
+                    f"An attachment ({row!r}) has no http(s) `url` and was dropped.",
+                    section=record.section, index=record.index, element=element))
+                continue
+            rows.append({"name": str(row.get("name") or url).strip(), "url": url})
+        return rows or None
+
+    def _read_static(self, record, element, subform, value):
+        """
+        A proposed value for a static subform, as `{group: {leaf: value}}`.
+
+        A bare string is the first text leaf of the first group. A mapping may
+        name groups and leaves, which are checked against the contract.
+        """
+        groups = subform.get("groups") or {}
+        first_group = next(iter(groups), None)
+        if isinstance(value, str):
+            leaf = next((name for name, spec in (groups.get(first_group) or {}).items()
+                         if (spec or {}).get("type") == "string"), None)
+            if leaf is None:
+                record.findings.append(Finding(
+                    "error", f"`{element}` takes no plain text.",
+                    section=record.section, index=record.index, element=element))
+                return
+            self._set_leaf(record, element, first_group, leaf, value)
+            return
+        if not isinstance(value, dict):
+            record.findings.append(Finding(
+                "error", f"`{element}` must be text or a mapping of its fields.",
+                section=record.section, index=record.index, element=element))
+            return
+        for group, leaves in value.items():
+            known = groups.get(str(group))
+            if known is None or not isinstance(leaves, dict):
+                record.findings.append(Finding(
+                    "error", f"`{element}` has no group {group!r}.",
+                    section=record.section, index=record.index, element=element))
+                continue
+            for leaf, leaf_value in leaves.items():
+                spec = known.get(leaf)
+                if spec is None:
+                    record.findings.append(Finding(
+                        "error", f"`{element}.{group}.{leaf}` is not a field of it.",
+                        section=record.section, index=record.index, element=element))
+                    continue
+                if spec.get("type") == "table":
+                    leaf_value = self._attachment_rows(record, element, leaf_value)
+                    if leaf_value is None:
+                        continue
+                self._set_leaf(record, element, str(group), leaf, leaf_value)
 
     # Soft, because the glossary describes it as forcing hard choices rather
     # than as a limit nobody reaches, and because a person who has a good

@@ -161,12 +161,16 @@ essentials:
   tag you are not sure of under `inferred: tags:` with your reason — an
   unconfirmed guess a person can correct is useful, and a confident wrong one is
   not.
-- **A repository is an initiative; its issues and milestones are activities.**
-  Someone is ultimately responsible for a repository, which is what makes it an
-  initiative, whereas an individual issue, a release or a burst of pull requests
-  is a thing that happened inside it. Follow links: an issue that references
-  another repository, a project board or a document tells you about work the
-  person is connected to that you have not yet looked at.
+- **A repository is an initiative. Only its large, overarching issues are
+  activities, never every issue.** Someone is ultimately responsible for a
+  repository, which is what makes it an initiative. Inside it, a goal-level
+  issue or milestone that holds a large body of other issues beneath it is one
+  activity of its own; the ordinary issues, pull requests and commits under it
+  are the detail of that activity, to be summarised in its description rather
+  than listed as records. A repository with forty small issues has a handful of
+  activities, not forty. Follow links: an issue that references another
+  repository, a project board or a document tells you about work the person is
+  connected to that you have not yet looked at.
 - **Expect the structured part of a source to be the wrong part.** A tidy list
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are

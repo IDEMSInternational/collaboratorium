@@ -3,37 +3,45 @@
 How a record should read. The [format spec](suggestions-format.md) says what the
 file's shape is; this says what belongs in the fields.
 
-Everything below is measured from the 153 initiatives and 48 activities already
-in Collaboratorium, not invented. Where this guide and the existing records
-disagree, the records are probably right and this page is out of date.
+**The records already in Collaboratorium are not the standard for descriptions.**
+Most are a few words, and a quarter of the initiatives have none. They are what
+got entered in a hurry, not what the register is for. The standard comes from
+what IDEMS's most careful writers have put in the annual activity reports, and
+the numbers below are measured from 152 of those entries. Names, dates and the
+activity-or-initiative question are different: for those the existing records
+are a fair guide, and the sections say so where it applies.
 
 ---
 
 ## The one mistake worth naming first
 
-**Do not write annual-report prose.** This is the failure mode of every tool
-that drafts records from documents, and it is obvious in a diff:
+**Do not write a description that persuades. Write one that informs.** The
+failure of every tool that drafts records from documents is to copy the
+promotional register of the source:
 
 > ❌ A collaboration with CASAS Global on mathematical modelling, specifically the
 > PBDM approach. Described as particularly satisfying because it pushes IDEMS to
 > engage in cutting-edge mathematical research with direct application, and as
 > showing great alignment of purpose and values.
 
-That is 44 words, and about four of them are facts. It is written to persuade a
-reader who is deciding whether IDEMS is impressive. A tracker record is written
-for a colleague who already works here and is trying to find a thing.
+That is 44 words and about four of them are facts. The rest is the author's
+feelings about the work, written to impress a reader who is deciding whether
+IDEMS is impressive. The careful writers do the opposite. Their entries run to
+five or ten or fifteen sentences, and nearly every sentence carries a fact: a
+place, a partner, a number, a date, a result, or a problem and what was done
+about it.
 
-> ✅ Collaboration with CASAS Global on physiologically-based demographic
-> modelling (PBDM).
+> ✅ IDEMS collaborated with UoR, the Mozambique National Institute of
+> Meteorology (INAM) and the World Food Programme (WFP) Mozambique to evaluate
+> five high-resolution gridded rainfall products against gauge measurements from
+> six stations. The evaluation assessed total rainfall and the number of rainy
+> days on yearly and monthly timescales, to determine how accurate and reliable
+> the products are.
 
-Eleven words, every one load-bearing. The median initiative description in
-Collaboratorium is **10 words**. Seventy of the 127 that have one are ten words
-or fewer. Two are longer than 60. If you are writing 60, you are writing the
-wrong thing.
-
-The judgements — satisfying, impactful, challenging, rewarding, seminal — are
-not facts about the work and have no home here. Drop them. If a thing mattered,
-the activities under it will show that.
+So the rule is not "be short". It is: **every sentence earns its place with a
+fact, and none of them is an opinion.** The judgements — satisfying, impactful,
+challenging, rewarding, seminal — are not facts about the work and have no home
+here. If a thing mattered, the numbers and the result will show it.
 
 ---
 
@@ -76,68 +84,118 @@ at what the snapshot already uses. Most records have no prefix and that is fine.
 
 ## Initiative descriptions
 
-**One sentence saying what the thing is.** Not what was achieved, not why it
-matters, not who funded it.
+An initiative's description says what the strand of work *is*: what it does, who
+it serves and where, who is involved or pays, and what state it is in. It is a
+standing description, not a diary; what happened and when belongs in the
+activities under it.
 
-> ✅ `r-instat` — A free menu driven statistics software powered by R. It is
-> designed to exploit the power of the R statistical system while simultaneously
-> being as easy to use as other traditional point and click statistics software.
+**How long depends on how big the thing is.** The measured median across the
+careful writers' entries is six sentences and about 140 words, and nine in ten
+of them run to at least three sentences.
+
+| Size of the initiative | Sentences | Words | Paragraphs |
+| --- | --- | --- | --- |
+| Small: a tool, a single partnership, a course | **4 to 6**; never fewer than 3 | 80 to 140 | 1 |
+| Medium: a product with several uses, a programme with a few strands | 6 to 9 | 140 to 220 | 1 to 2 |
+| Flagship: ParentText, the Global Parenting Initiative, R-Instat | **10 to 15** | 250 to 400 | 3 or more |
+
+Count sentences rather than paragraphs. Bullet lines inflate a paragraph count,
+and the entries that run past about 450 words stop being descriptions and
+become logs: stop before that.
+
+**Three sentences is the floor, not the aim.** At exactly three sentences the
+careful writers' entries are mostly lists of events attended, and they read as
+thin. A four-sentence entry that says why, where, what was done and where it
+stands beats a twelve-sentence list.
+
+### What a good one contains
+
+Work through this list and include each item you have evidence for:
+
+1. **What it is, and why it exists.** The need it answers.
+2. **Who it serves, and where.** A country, an institution, a site; named, not
+   "communities".
+3. **What IDEMS specifically did**, as opposed to what the project as a whole
+   did: "IDEMS built the first prototype in five days", "IDEMS hosts its own
+   RapidPro".
+4. **What changed, with at least one number**: users, families, countries,
+   sessions, a cost per user, a date launched.
+5. **Partners and funders**, by name.
+6. **Where it stands now**, and what comes next. One closing sentence.
+7. **A problem, if there was one, and what was done.** The best entries state
+   setbacks plainly: a pilot that did not produce a deployed product; a surge of
+   users that forced a suspension. This is a sign of a trustworthy description,
+   not of a bad project.
+
+If the source gives you only some of these, write what you have and stop. Do not
+pad, and do not guess at the rest; say in `inferred:` which parts you worked out.
+An initiative you can only describe in a sentence or two from the evidence you
+have should still be proposed with that sentence, and flagged as thin, rather
+than dressed up.
+
+### Voice
+
+Plain, factual, first person plural ("IDEMS", "we"), in the past tense for what
+happened and the present for what is ongoing. Concrete over abstract: a number
+or a name stands where an adjective would. Expand an acronym the first time
+(PICSA, UoR (University of Reading)). The careful writers almost never use a
+marketing adjective, and the weakest entries are the ones that do ("comprehensive
+support", "enhance capabilities") and omit the figures.
+
+> ✅ **Small (4 sentences, 91 words).** PLH in collaboration with IDEMS designed
+> an audio-only chatbot specifically for Rohingya parents and caregivers of
+> children aged 2 to 6, living as refugees in Malaysia (released April 2024).
+> Piloted with 80 families in collaboration with UNICEF Malaysia, the chatbot
+> delivers five lessons over 10 days, offering the ParentText curriculum through
+> concise audio messages. The user experience was tailored to the needs of
+> Rohingya refugees through co-design workshops. To support illiterate users,
+> all features, including a help menu, are audio-led.
 >
-> ✅ `Certificator` — Web-based API for creating course completion certificates
-> for ParentText.
->
-> ✅ `Tricots` — Developed tools, workflows and training materials to import,
-> clean, analyse and interpret Tricot data in R-Instat.
+> — Elena, *Rohingya Text, Malaysia*, IDEMS Activities 2024
 
-**Aim for ten words.** Not a range — a target. The measured median is 10, and
-55% of the ones that exist are ten words or fewer; twenty-five is already an
-unusually long one. An earlier version of this page said "ten to twenty-five
-words", and the first producer to read it wrote a median of 19.5 with not one
-description at ten words or under, because a range reads as permission to use
-all of it.
+A flagship runs in three movements: the year's focus, then what happened in
+order (planning, build, deployment), then the outcome and where it stands. Chiara's
+2025 ParentText entries are the model, at 9 to 18 sentences each in three
+paragraphs, ending on a result: *"By year's end, the research team was analysing
+the data, with early findings indicating positive parenting retention at seven
+months at a cost of approximately USD 0.86 per user."*
 
-Present tense for a thing that exists, past tense for work that was done. A
-noun phrase is a complete and good description — it does not need a verb.
+### When you have little
 
-Leave it empty rather than padding it. Twenty-six existing initiatives have no
-description, which is honest; one of them says `No`, which is worse than empty.
-If the source tells you nothing about what a thing *is*, say nothing.
+Do not write `No`, `TBD` or a restatement of the name. If the evidence tells you
+nothing about what a thing *is*, leave the description out and say so under
+`inferred:` or in a note. An empty description is honest and a padded one is not.
+Entries left blank in the reports are not a standard to copy: they are mostly
+the standing items that were repeated each year and then dropped.
 
 ---
 
 ## Activity descriptions
 
-Longer than an initiative's, because an activity is a specific thing that
-happened and the detail is the point. **Aim for twenty words** — again a
-target, not a range. The measured median is 21.5.
+An activity is one thing that happened, so its description says what happened,
+who was involved, where it landed, and what came next. The careful writers' own
+sub-entries (a country deployment, an evaluation, an event) median eight
+sentences and about 190 words, but those are pieces of work. A release, a
+submitted application or a single meeting is smaller and is fine at two or three
+sentences with a link. **Aim for three to five sentences, 60 to 120 words, for an
+activity that was a piece of work, and never leave it at a bare title.**
 
-Same warning as above, and it is not hypothetical: this page first said "the
-useful range is roughly 10 to 40", and the first producer to work from it
-returned a median of 32 with two thirds of its descriptions between 26 and 38.
-Every one was inside the stated range and the set as a whole was half as long
-again as the records it was meant to match. State the target.
+**Cite the artefact.** Link the release, the PR, the paper, the recording or the
+document. It is the strongest convention in the existing records, and the
+easiest to honour, because a scanner already has the link in hand.
 
-**Cite the artefact. Eighteen of the 30 activity descriptions that exist contain
-a URL** — the release, the PR, the paper, the recording. This is the strongest
-convention in the data and the easiest for a producer to honour, since a scanner
-reading GitHub or Drive already has the link in hand.
-
-> ✅ Release notes:
-> https://github.com/IDEMSInternational/open-app-builder/releases/tag/v0.23.1
->
-> ✅ Michele and Santiago visited Edinburgh to meet with Chris Sangwin and
-> discuss the STACK Assistant project. Chris expressed interest but is currently
-> more focused on other STACK-related priorities, such as GitSync.
+> ✅ Michele and Santiago visited Edinburgh to meet Chris Sangwin and discuss
+> the STACK Assistant project. Chris expressed interest but is currently more
+> focused on other STACK-related priorities, such as GitSync.
 >
 > ✅ Application was submitted to the IFS system. Feedback expected by May 2026.
 
-Those read like a colleague telling you what happened. Specific nouns, named
-people, a date, a link, and an outcome where there is one. No adjectives of
-quality.
+Those read like a colleague telling you what happened: specific nouns, named
+people, a date, a link, an outcome where there is one, no adjectives of quality.
 
 What to include when you have it: who was involved, what was produced, where it
-landed, and what happened next. What to leave out: significance, difficulty,
-enjoyment, and anything you are inferring about how it was received.
+landed, what changed, and what happened next. What to leave out: significance,
+difficulty, enjoyment, and anything you are inferring about how it was received.
 
 ---
 
@@ -192,6 +250,14 @@ Tests that actually work, in order of reliability:
 4. **A closed date proves nothing.** Finished initiatives are extremely common —
    a contract that ended, a course that ran its last cohort. Do not promote
    something to an activity because it stopped.
+
+**Code hosts.** A repository you or your team own is an initiative, because
+someone is answerable for it. Inside it, an activity is a large, overarching
+piece of work: a goal-level issue or milestone that has many other issues
+beneath it. Most issues are not activities. They are the detail of one, and
+belong in its description ("closed 23 issues, including the export bug") rather
+than as records of their own. A useful test: would a colleague look this up to
+find out what happened that quarter? A ten-line bug fix would not be.
 
 When genuinely torn, propose it as an **activity under an existing initiative**.
 The initiative table is nearly full and the activity table is nearly empty, so a
@@ -388,15 +454,18 @@ initiatives:
   - key: iogt
     name: Internet of Good Things
     description: >-
-      Websites making health and safety information freely available on low-end
-      devices in over eighty countries. Delivered for UNICEF.
+      The Internet of Good Things is a set of websites that make health and
+      safety information freely available, even on low-end devices, in over
+      eighty countries. The content covers maternal health, hygiene, emergency
+      information on diseases, sexual health advice for adolescents and internet
+      safety. Version 2 was developed for UNICEF in 2021.
     status: active
 
 activities:
   - name: IoGT v2 development
     description: >-
-      Built version 2 of the Internet of Good Things for UNICEF — the team's
-      main focus through 2021.
+      Built version 2 of the Internet of Good Things for UNICEF. It was the
+      main focus for many in the team through 2021.
     initiatives: [iogt]
     people: [Gabe Bolton]
     start_date: 2021-01-01
@@ -407,6 +476,5 @@ activities:
       end_date: source says "this year"; no month given
 ```
 
-Note what went: the adjectives, the enumerated list of health topics, `tags`,
-and the gerund name. Note what arrived: a parent initiative, a person, and a
+Note what went: the adjectives, the invented `tags`, and the gerund name. Note what arrived: a parent initiative, a person, and a
 declared inference on both dates.

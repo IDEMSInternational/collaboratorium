@@ -250,8 +250,12 @@ def register_callbacks(app, config, page_id):
         Output(f"{p}-queue", "children"),
         Input("page-store", "data"),
         Input(f"{p}-tick", "data"),
+        # Written by core every time the editor saves. Without it a suggestion
+        # that has just been accepted stays in the queue until a reload, and the
+        # reviewer has to find their way back to this page to see it gone.
+        Input("intermediary-loaded", "data"),
     )
-    def render_queue(page, _tick):
+    def render_queue(page, _tick, _saved):
         # Not rebuilt while another page is showing: the queue is a query, and
         # a page nobody is looking at does not need to run it.
         if page != p:

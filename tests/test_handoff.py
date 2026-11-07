@@ -175,6 +175,19 @@ def test_producers_are_told_to_attach_evidence_to_an_activity(app_config):
     assert "added to" in bundle["suggestions-format.md"]
 
 
+def test_producers_are_not_told_to_credit_people(app_config):
+    """
+    Telling producers to credit people by name, with the subject's own name as the
+    example, ended most generated descriptions on "<subject> built it". That says
+    nothing in the subject's own report. If crediting returns it should be asked
+    for narrowly, and benchmarked first (see the prompt-lab repository).
+    """
+    bundle = handoff.build(app_config)
+    for name in ("instructions.md", "record-style-guide.md"):
+        assert "credit people" not in bundle[name].lower()
+        assert "wrote most of the code" not in bundle[name]
+
+
 def test_the_style_guide_defines_every_tag_category(app_config):
     guide = handoff.build(app_config)["record-style-guide.md"]
     for term in ("Deep Interoperability", "Local Capacity Building",

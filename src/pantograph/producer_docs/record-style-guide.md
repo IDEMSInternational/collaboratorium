@@ -156,11 +156,6 @@ citation, or under `inferred:` and `coverage`. The careful writers use few
 numbers, and the ones they use are about the work's effect, not its bookkeeping:
 families reached, a cost per user, a number of countries.
 
-**Do credit people by name.** Saying that Gabe wrote most of the code, or that
-Michele's assistant is what a tool reimplements, is good practice and a
-description should have it. Credit a person for what they did and not for how
-often they committed.
-
 ### Voice
 
 Plain, factual, first person plural ("IDEMS", "we"), in the past tense for what

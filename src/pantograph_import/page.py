@@ -16,6 +16,12 @@ from flask import session
 from pantograph import contract, staging, suggestions
 from pantograph.db import get_person_id_for_user
 
+# One set of widths for every queue table. Each group is its own table, and an
+# auto-sized table fits its columns to its own contents, so the same column
+# came out a different width from one record to the next.
+_COLUMNS = html.Colgroup([html.Col(style={"width": w})
+                          for w in ("30%", "9%", "12%", "28%", "21%")])
+
 _SEVERITY = {"error": "danger", "warning": "warning", "advisory": "info"}
 
 
@@ -31,9 +37,15 @@ def generate_layout(config, page_id):
             "saved until you have seen what it would do — and even then a staged "
             "suggestion only becomes a record when you confirm its fields in the "
             "editor. Format ",
-            html.Code(suggestions.FORMAT), ". ",
-            html.A("Get a handoff bundle", href="/handoff"), "."],
+            html.Code(suggestions.FORMAT), "."],
             className="text-muted"),
+        dbc.Alert([
+            html.Strong("Starting from scratch? "),
+            "Your agent needs a handoff bundle first: the current records, the "
+            "format and the style guide, in one download. ",
+            dbc.Button("Get the handoff bundle", href="/handoff", color="primary",
+                       size="sm", className="ms-2", external_link=True),
+        ], color="info", className="d-flex align-items-center flex-wrap"),
         dcc.Upload(
             id=f"{p}-upload", multiple=False,
             children=html.Div(["Drop a .yaml file here, or ", html.A("choose one")]),
@@ -167,9 +179,11 @@ def _queue(p):
                              "decline the others. Link lists are added to and never "
                              "replaced, so nobody's contribution is lost.",
                              className="small mb-2")]) if shared else None,
-            dbc.Table([html.Thead(html.Tr([html.Th(h) for h in
+            dbc.Table([_COLUMNS,
+                       html.Thead(html.Tr([html.Th(h) for h in
                        ("Name", "Table", "From", "Inferred", "")])),
-                       html.Tbody([_row(i, p) for i in items])], size="sm"),
+                       html.Tbody([_row(i, p) for i in items])], size="sm",
+                      style={"tableLayout": "fixed"}),
         ], className="border border-info rounded p-2 mb-3" if shared else ""))
     return blocks
 

@@ -274,7 +274,8 @@ def test_bundle_route_serves_a_zip(client, app_config):
     response = client.get("/handoff/bundle")
     assert response.status_code == 200
     assert response.mimetype == "application/zip"
-    assert handoff.filename(app_config) in response.headers["Content-Disposition"]
+    stem = "collaboratorium-handoff-" + contract.config_hash(app_config).removeprefix("sha256:")[:12]
+    assert stem in response.headers["Content-Disposition"]
     archive = zipfile.ZipFile(io.BytesIO(response.data))
     assert "contract.json" in archive.namelist()
 
@@ -313,3 +314,15 @@ def test_the_bundle_names_the_format_the_importer_reads():
     from pantograph import contract, suggestions
     assert suggestions.FORMAT == contract.SUGGESTIONS_FORMAT
     assert contract.SUGGESTIONS_FORMAT.endswith("/0.3")
+
+
+def test_the_file_name_says_when_the_bundle_was_exported(app_config):
+    """
+    The config hash does not move when records change, so on its own two bundles
+    exported weeks apart had the same name.
+    """
+    import datetime
+    early = datetime.datetime(2026, 11, 7, 9, 5, tzinfo=datetime.timezone.utc)
+    late = datetime.datetime(2026, 12, 1, 17, 30, tzinfo=datetime.timezone.utc)
+    assert handoff.filename(app_config, early) != handoff.filename(app_config, late)
+    assert handoff.filename(app_config, early).endswith("-20261107-0905Z.zip")

@@ -64,8 +64,11 @@ _PAGE = """
       {% for name, count in counts.items() %}<tr><td><code>{{ name }}</code></td><td>{{ count }}</td></tr>
       {% endfor %}
     </table>
-    <p class="muted">Config <code>{{ config_hash }}</code>. A proposal drafted
-    against this bundle stays checkable after the forms change.</p>
+    <p class="muted">Config <code>{{ config_hash }}</code>. This identifies the
+    forms, so it only changes when they do; the records and the declined list
+    are read fresh each time, and the file name carries the time of export.
+    A proposal drafted against this bundle stays checkable after the forms
+    change.</p>
 
     <h3>2. Start your agent with this</h3>
     <p>Unzip the bundle, then give your local session one line:</p>

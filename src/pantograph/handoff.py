@@ -315,8 +315,18 @@ def short_hash(config):
     return contract.config_hash(config).removeprefix("sha256:")[:12]
 
 
-def filename(config):
-    return f"collaboratorium-handoff-{short_hash(config)}.zip"
+def filename(config, when=None):
+    """
+    `collaboratorium-handoff-<config hash>-<UTC date and time>.zip`.
+
+    The hash names the *forms* and so does not move when records change, but the
+    snapshot and the declined list inside the bundle are read live. Without a
+    stamp, a bundle exported today and one exported last month have the same
+    name, and nobody can tell which is current.
+    """
+    when = when or datetime.now(timezone.utc)
+    return (f"collaboratorium-handoff-{short_hash(config)}-"
+            f"{when.strftime('%Y%m%d-%H%MZ')}.zip")
 
 
 def zip_bytes(config):

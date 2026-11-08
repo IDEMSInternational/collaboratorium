@@ -15,6 +15,7 @@ from pantograph.handoff_routes import register_handoff_routes
 from pantograph.import_routes import register_import_routes
 from pantograph.analytics import init_db as analytics_init_db
 from pantograph.auth import server, register_auth_callbacks
+from pantograph import failures
 from pantograph.config import load_config
 from pantograph.db import init_db
 from pantograph.editor import STORE_ID as EDITOR_REQUEST_STORE
@@ -129,6 +130,9 @@ def create_app(settings=None):
         assets_url_path="assets",
     )
     app._favicon = "cropped-IDEMS_logomark_with_border_circle-32x32.png"
+    # A callback that raises is otherwise invisible: log it with a reference and
+    # let the page say so. See pantograph/failures.py.
+    failures.install(server)
 
     editor_contents = _editor_contents(config)
     editor_layout_type = config.get("editor_layout", "modal")

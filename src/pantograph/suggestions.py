@@ -485,9 +485,21 @@ class Checker:
         # `inferred:` is written in the producer's spelling, so `tags` has to
         # mean what `tags:` meant, or a reason given for a value it did set is
         # reported as a reason for a value it did not.
-        record.inferred = {
-            (ELEMENT_ALIASES[e] if e not in elements and ELEMENT_ALIASES.get(e) in elements else e): why
-            for e, why in record.inferred.items()}
+        resolved_inferred = {}
+        for e, why in record.inferred.items():
+            if e not in elements and ELEMENT_ALIASES.get(e) in elements:
+                e = ELEMENT_ALIASES[e]
+            elif e not in elements and e in LEAF_ALIASES:
+                # A guess about the attachments is a guess about the element
+                # that holds them (an activity's `description`), since that is
+                # the unit that is confirmed. The reason says which part.
+                found = self._leaf_of_type(elements, LEAF_ALIASES[e])
+                if found and found[0] in record.values:
+                    e, why = found[0], f"{e}: {why}"
+            if e in resolved_inferred:
+                why = f"{resolved_inferred[e]}; {why}"
+            resolved_inferred[e] = why
+        record.inferred = resolved_inferred
 
         for element in record.inferred:
             if element not in record.values and element not in {

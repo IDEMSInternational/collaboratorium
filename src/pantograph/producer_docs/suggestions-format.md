@@ -130,6 +130,12 @@ it out, and the string says how. Both are recorded: an inferred value is stored
 with a lower confidence and your reason as its note, and a reader sees the
 reason next to the field when they confirm it.
 
+`attachments` may be listed too, when you are not sure a link belongs to the
+activity (a repository that probably, but not certainly, is its code):
+`inferred: {attachments: 'repo name matches the project, not confirmed'}`.
+The reviewer sees the reason beside the activity's summary, since that is what
+they confirm.
+
 You may also write ordinary YAML trailing comments — `# inferred` after a value
 reads nicely and several producers do it. They are *not* read: comments do not
 survive parsing, so a reason that exists only in a comment reaches nobody. Put

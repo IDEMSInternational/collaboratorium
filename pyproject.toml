@@ -27,6 +27,13 @@ import = "pantograph_import.plugin:Plugin"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+# `evidence` tests are kept as a record of a specific past incident and are not
+# part of the everyday run (see the marker below). Everything runs with
+# `pytest -o addopts=""`, which is what the release workflow does.
+addopts = "-m 'not evidence'"
+markers = [
+    "evidence: pins one past incident (its docstring says which), covered in general by the full-shape smoke test; kept on record and run on release, not on every change",
+]
 
 [tool.setuptools]
 package-dir = {"" = "src"}

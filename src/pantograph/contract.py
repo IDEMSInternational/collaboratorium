@@ -34,7 +34,7 @@ CONTRACT_FORMAT = "pantograph-contract/1"
 
 # The wire format this contract describes proposals in. Owned by this
 # repository because it is the consuming end: see docs/agentic-ingest.md §6.
-SUGGESTIONS_FORMAT = "collaboratorium-suggestions/0.2"
+SUGGESTIONS_FORMAT = "collaboratorium-suggestions/0.3"
 
 # The keys whose presence makes a subform's groups come from a table rather
 # than from the config. Spelled the same way component_factory decides it, and

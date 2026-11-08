@@ -32,9 +32,9 @@ from datetime import date, datetime
 
 import yaml
 
-from pantograph import similarity
+from pantograph import contract, similarity
 
-FORMAT = "collaboratorium-suggestions/0.3"
+FORMAT = contract.SUGGESTIONS_FORMAT
 SUPPORTED_FORMATS = (FORMAT, "collaboratorium-suggestions/0.2")
 
 # The sections of an uploaded file, and the table each one proposes into.

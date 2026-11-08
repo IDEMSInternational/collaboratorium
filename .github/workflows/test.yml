@@ -1,9 +1,13 @@
 name: Tests
 
+# Only on a release (a version tag), or when run by hand from the Actions tab.
+# Changes are run locally before they merge (the same two jobs, below); the
+# server is rebuilt from source rather than from this image, so a run on every
+# push bought little and cost real minutes.
 on:
   push:
-    branches: ["main", "staging"]
-  pull_request:
+    tags: ["v*.*.*"]
+  workflow_dispatch:
 
 jobs:
   pytest:
@@ -50,7 +54,8 @@ jobs:
           "
 
       - name: Run tests
-        run: pytest -q
+        # Everything, including the `evidence` tests the everyday run skips.
+        run: pytest -q -o addopts=""
 
   docker:
     runs-on: ubuntu-latest

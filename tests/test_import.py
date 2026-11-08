@@ -685,6 +685,7 @@ def test_the_queue_lists_what_was_staged(client, deployment):
     assert b"Open App Builder v0.23.0 release" in page.data
 
 
+@pytest.mark.evidence
 def test_the_queue_still_loads_when_an_activity_carries_a_summary(client, deployment):
     """
     Found on the live server: an activity's summary is stored as a nested
@@ -709,6 +710,7 @@ activities:
     assert b"Released v0.23.0 with offline sync." in page.data
 
 
+@pytest.mark.evidence
 def test_the_import_page_queue_row_handles_a_nested_summary():
     """
     The Import page is a Dash page with its own row builder, and it sliced the

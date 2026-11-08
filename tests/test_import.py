@@ -685,6 +685,30 @@ def test_the_queue_lists_what_was_staged(client, deployment):
     assert b"Open App Builder v0.23.0 release" in page.data
 
 
+def test_the_queue_still_loads_when_an_activity_carries_a_summary(client, deployment):
+    """
+    Found on the live server: an activity's summary is stored as a nested
+    mapping (it is a leaf of a static subform), and the queue sliced it as if it
+    were a string, so the whole page was a server error and nothing staged was
+    visible. A second upload then reported every record as already here.
+    """
+    _post(client, _file("""
+activities:
+  - name: Queue Summary Activity
+    summary: Released v0.23.0 with offline sync.
+    attachments: [{name: Release notes, url: "https://example.org/r/1"}]
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:oab#queue-summary"
+""", deployment))
+    _post(client, "", step="stage")
+
+    page = client.get("/import/queue")
+    assert page.status_code == 200
+    assert b"Queue Summary Activity" in page.data
+    assert b"Released v0.23.0 with offline sync." in page.data
+
+
 def test_declining_from_the_queue_sticks(client, deployment):
     _post(client, _file(GOOD_ACTIVITY, deployment))
     _post(client, "", step="stage")

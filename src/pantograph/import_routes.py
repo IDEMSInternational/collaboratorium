@@ -167,8 +167,8 @@ _QUEUE = """
     {% for item in items %}
     <tr>
       <td><strong>{{ item.name }}</strong>
-        {% if item.payload.values.description %}
-        <div class="muted">{{ item.payload.values.description[:220] }}{{ '…' if item.payload.values.description|length > 220 }}</div>
+        {% if item.preview %}
+        <div class="muted">{{ item.preview[:220] }}{{ '…' if item.preview|length > 220 }}</div>
         {% endif %}
       </td>
       <td>{{ item.table }}<br><span class="muted">{{ item.action }}</span></td>
@@ -196,6 +196,25 @@ _QUEUE = """
 {% if not groups %}<div class="card"><p>Nothing awaiting review.</p></div>{% endif %}
 </body></html>
 """
+
+
+def _preview(value):
+    """
+    The first readable text in a proposed `description`, for the queue row.
+
+    A summary is a leaf of a static subform, so it arrives as nested mappings
+    (`{"1": {"description": "..."}}`), and older rows may still hold a bare
+    string. Slicing the nested form in the template was a server error that hid
+    the whole queue.
+    """
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for inner in value.values():
+            found = _preview(inner)
+            if found:
+                return found
+    return ""
 
 
 def _csrf():
@@ -278,6 +297,10 @@ def register_import_routes(server):
     @login_required
     def import_queue():
         ordered, total = staging.review_order()
+        for items in ordered.values():
+            for item in items:
+                item["preview"] = _preview(
+                    (item.get("payload") or {}).get("values", {}).get("description"))
         return render_template_string(
             _QUEUE, groups=ordered, csrf_token=_csrf(), total=total)
 

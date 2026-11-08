@@ -888,6 +888,59 @@ activities:
         "worked out from the release notes")
 
 
+def test_a_new_activity_citing_a_link_a_record_already_carries_is_flagged(deployment):
+    """
+    The same release under a different name is not caught by comparing names. A
+    link an existing record already attaches is much stronger evidence that it is
+    the same work, so the importer says so and names the record.
+    """
+    import json
+    conn = db_connect()
+    conn.execute(
+        "INSERT INTO activities (id,version,name,status,timestamp,created_by,description)"
+        " VALUES (50,1,'Offline sync launch','active',?,1,?)",
+        (datetime.datetime.now().isoformat(), json.dumps({"1": {
+            "description": "Shipped it.",
+            "attachments": [{"name": "Release", "url": "https://example.org/releases/v0.23.0"}]}})))
+    conn.commit()
+    conn.close()
+
+    body = """
+activities:
+  - name: Something worded entirely differently
+    summary: Another account of the same release.
+    attachments:
+      - {name: Notes, url: "HTTPS://Example.org/releases/v0.23.0/"}
+      - {name: Unrelated, url: "https://example.org/other"}
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:oab#same-release"
+"""
+    proposal = suggestions.check(
+        _file(body, deployment), contract.build(deployment),
+        staging.current_names(deployment), staging.pending_rows(),
+        current_urls=staging.current_urls(deployment))
+    record = proposal.stageable[0]
+    shared = [f for f in record.findings if "already carries" in f.message]
+    assert len(shared) == 1, [f.message for f in record.findings]
+    assert shared[0].severity == "advisory"
+    assert "Offline sync launch" in shared[0].message and "#50" in shared[0].message
+    assert shared[0].match[:2] == ("activities", 50)
+
+    # An update to that very record is not told it overlaps itself.
+    update = _file("""
+activities:
+  - target: {id: 50, expect: Offline sync launch}
+    attachments: [{name: Notes, url: "https://example.org/releases/v0.23.0"}]
+    source_ref: "github:oab#same-release-update"
+""", deployment)
+    again = suggestions.check(
+        update, contract.build(deployment), staging.current_names(deployment),
+        staging.pending_rows(), current_urls=staging.current_urls(deployment))
+    assert not any("already carries" in f.message
+                   for r in again.records for f in r.findings)
+
+
 def test_an_attachment_without_a_web_address_is_dropped_with_a_warning(deployment):
     body = """
 activities:

@@ -52,6 +52,27 @@ def current_names(config):
     return names
 
 
+def current_urls(config=None):
+    """
+    `{table: [(id, name, {link, ...})]}`: the evidence attached to live records.
+
+    Read at import time for the same reason names are. A link already carried by
+    a record is the strongest sign that a new proposal is the same work.
+    """
+    from pantograph.suggestions import urls_in
+
+    found = {}
+    for table in ("activities", "initiatives"):
+        try:
+            rows = get_current_records(table)
+        except Exception:
+            continue
+        found[table] = [
+            (row["id"], row.get("name"), urls_in(row.get("description")))
+            for row in rows if row.get("name") and row.get("description")]
+    return found
+
+
 def tag_vocabulary(config):
     """
     The tag groups as they exist right now: `{group_id: key_values}`.

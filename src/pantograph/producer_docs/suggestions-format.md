@@ -235,6 +235,13 @@ of your producers will propose it — from different evidence, so with different
   A reviewer sees both descriptions together, keeps one, and both of you end up
   linked to the surviving record.
 
+The import also compares **what you attach**. A new activity that attaches a
+link an existing record already carries (the same release, pull request or
+document, ignoring case, a trailing slash and a `#fragment`) is flagged as
+probably the same work, and names the record, because a shared link is stronger
+evidence than a similar name. Search the snapshot for your URLs before you write
+a `create`; a hit means you want a `target:` update.
+
 What you can do to help: prefer `target:` over a `create` whenever the snapshot
 already has the thing, keep names in the source's own words rather than your
 own phrasing of them, and link generously — `people:` with one name is what

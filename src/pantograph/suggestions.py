@@ -27,8 +27,10 @@ one a reviewer acts on, and it is never a refusal: there are no duplicated names
 anywhere in the live data, so this exists to catch re-wording, and re-wording
 needs a judgement rather than a rule.
 """
+import json
 import re
 from datetime import date, datetime
+from urllib.parse import urlsplit
 
 import yaml
 
@@ -240,8 +242,13 @@ class Checker:
     """
 
     def __init__(self, contract_doc, current, pending=(), threshold=None,
-                 vocabulary=None):
+                 vocabulary=None, current_urls=None):
         self.contract = contract_doc or {}
+        # `{table: [(id, name, {url, ...})]}`: the evidence already attached to
+        # live records, so a proposal can be matched on what it cites and not
+        # only on what it is called.
+        self.current_urls = {table: list(rows)
+                             for table, rows in (current_urls or {}).items()}
         self.current = {table: list(rows) for table, rows in (current or {}).items()}
         self.pending = list(pending)
         self.threshold = (similarity.DEFAULT_THRESHOLD if threshold is None
@@ -842,6 +849,31 @@ class Checker:
 
     # -- matching ----------------------------------------------------------
 
+    def _match_on_evidence(self, record):
+        """
+        A `create` that attaches a link some live record already carries is very
+        probably the same piece of work under another name. A shared release,
+        pull request or document is a stronger sign than a similar name, and it
+        catches the case a name never can: the same thing, called something else.
+        """
+        mine = urls_in(record.values)
+        if not mine:
+            return
+        for row_id, name, theirs in self.current_urls.get(record.table) or []:
+            shared = sorted(mine & theirs)
+            if not shared:
+                continue
+            record.findings.append(Finding(
+                "advisory",
+                f"Cites {shared[0]}"
+                + (f" and {len(shared) - 1} more" if len(shared) > 1 else "")
+                + f", which the existing {record.table} record {name!r} "
+                f"(#{row_id}) already carries. That is probably the same work "
+                f"under another name: update it (`target:`) and add what is "
+                f"new, rather than creating a second.",
+                section=record.section, index=record.index,
+                match=(record.table, row_id, name, 1.0)))
+
     def _match(self, proposal):
         """
         Attach an advisory to every `create` that probably already exists, or
@@ -861,6 +893,8 @@ class Checker:
                     f"it or update it rather than creating a second.",
                     section=record.section, index=record.index,
                     match=(record.table, row_id, name, value)))
+
+            self._match_on_evidence(record)
 
             colliding = similarity.matches(
                 record.name,
@@ -908,11 +942,55 @@ class Checker:
                     section=record.section, index=record.index))
 
 
-def check(text, contract_doc, current, pending=(), threshold=None, vocabulary=None):
+def _url_key(url):
+    """
+    A link reduced to what makes it the same link: scheme and host without case,
+    no fragment, no trailing slash. `HTTPS://Example.org/pull/12/#files` and
+    `https://example.org/pull/12` are one pull request.
+    """
+    parts = urlsplit(str(url).strip())
+    if parts.scheme not in ("http", "https") or not parts.netloc:
+        return None
+    path = parts.path.rstrip("/")
+    query = f"?{parts.query}" if parts.query else ""
+    return f"{parts.scheme.lower()}://{parts.netloc.lower()}{path}{query}"
+
+
+def urls_in(value):
+    """
+    Every link found anywhere in a value, as a set of normalised keys.
+
+    A value may be a mapping, a list of rows, or a JSON string of either (stored
+    subforms are JSON), and an attachment is a row with a `url`. Walking the
+    shape rather than naming the path means a new group or leaf is found too.
+    """
+    found = set()
+    if isinstance(value, str):
+        try:
+            value = json.loads(value)
+        except ValueError:
+            return found
+    if isinstance(value, dict):
+        for key, inner in value.items():
+            if key == "url":
+                key_ = _url_key(inner)
+                if key_:
+                    found.add(key_)
+            else:
+                found |= urls_in(inner)
+    elif isinstance(value, (list, tuple)):
+        for inner in value:
+            found |= urls_in(inner)
+    return found
+
+
+def check(text, contract_doc, current, pending=(), threshold=None, vocabulary=None,
+          current_urls=None):
     """Parse and check an uploaded file. Always returns a Proposal."""
     document, finding = parse(text)
     if finding is not None:
         proposal = Proposal()
         proposal.findings.append(finding)
         return proposal
-    return Checker(contract_doc, current, pending, threshold, vocabulary).check(document)
+    return Checker(contract_doc, current, pending, threshold, vocabulary,
+                   current_urls).check(document)

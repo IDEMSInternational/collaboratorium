@@ -184,11 +184,20 @@ essentials:
   of "activities" in a report or a changelog is, in practice, usually a list of
   long-running strands — which is the table already full. The activities you are
   here for tend to be sentences inside the prose around it. Read both.
-- **Match before you create.** Check every name you would create against
-  `snapshot.yaml` first, and propose an `update` or a link instead where it is
-  already there under a shorter or differently-phrased name — `R-Instat` rather
-  than `Development of R-Instat`. The import flags likely matches, but a
-  duplicate that reaches review has already cost someone the comparison.
+- **Match before you create.** Before you write a `create`, look for the thing in
+  `snapshot.yaml` in this order, and stop at the first hit: (1) its **name**,
+  allowing for a shorter or differently-phrased one (`R-Instat`, not
+  `Development of R-Instat`); (2) the **links you would attach** — search the
+  snapshot for each URL, because a release, pull request or document that an
+  existing record already carries is almost certainly the same work under
+  another name; (3) the **same people over the same dates** for an activity.
+  A hit means it is the same thing: propose a `target:` update that adds your
+  attachments, people and tags, and does not repeat what is recorded. It is a
+  *part* of something that exists: create it as an activity linked to that
+  initiative. You cannot tell: create it, and say what you were unsure of under
+  `inferred:`. The import checks names and attached links against what is live
+  now, but a duplicate that reaches review has already cost someone the
+  comparison.
 
 ## Where to look
 

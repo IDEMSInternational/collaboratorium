@@ -436,6 +436,7 @@ def form_inputs(item):
             source,
             origin=f"{origin}: {', '.join(str(c) for c in cites)}" if cites else origin,
             confidence=0.5 if note else 0.9,
+            note=note,
         )
     return values, provenances
 

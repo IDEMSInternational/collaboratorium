@@ -783,3 +783,21 @@ def test_confirmed_by_names_the_person_when_they_can_be_found(app_config):
     finally:
         settings.configure(database_path=previous.database_path,
                            analytics_path=previous.analytics_path)
+
+
+def test_a_producers_reason_is_shown_until_someone_stands_behind_the_value():
+    """
+    `inferred:` lowers the confidence, but the reason it carries is the part a
+    reviewer can act on, and it was reaching only the queue, not the field.
+    """
+    guess = provenance.record("suggested", origin="run-4", confidence=0.5,
+                              note="repo name matches the project")
+    assert "repo name matches the project" in provenance.describe(guess)
+    assert "repo name matches the project" in provenance.annotation(guess)
+    assert provenance.normalise(guess)["note"] == "repo name matches the project"
+
+    confirmed = provenance.confirm(guess, 1)
+    assert "repo name matches the project" not in provenance.describe(confirmed)
+
+    # No note, no new key: existing records keep exactly the shape they had.
+    assert "note" not in provenance.record("suggested", origin="run-4")

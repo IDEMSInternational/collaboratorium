@@ -51,26 +51,34 @@ class ProvenanceError(Exception):
     """Raised when a provenance record is constructed with a source core cannot honour."""
 
 
-def record(source, origin=None, confidence=None, confirmed_by=None, confirmed_at=None):
+def record(source, origin=None, confidence=None, confirmed_by=None, confirmed_at=None,
+           note=None):
     """
     Build a provenance record.
 
     `origin` is the `from` key, spelled out here because `from` is a Python
     keyword. Callers that already hold the wire shape should pass it through
     `normalise` instead.
+
+    `note` is the producer's own reason for doubting the value (its `inferred:`
+    entry). It is kept only when there is one, so a record without a note has
+    exactly the shape it always had.
     """
     if source not in SOURCES:
         raise ProvenanceError(
             f"{source!r} is not a provenance source; expected one of "
             f"{', '.join(SOURCES)}."
         )
-    return {
+    result = {
         "source": source,
         "from": origin,
         "confidence": _confidence(confidence),
         "confirmed_by": confirmed_by,
         "confirmed_at": confirmed_at,
     }
+    if note:
+        result["note"] = str(note)
+    return result
 
 
 def _confidence(raw):
@@ -107,13 +115,16 @@ def normalise(raw):
         return None
     if source not in SOURCES:
         return record_of_unknown_source(source)
-    return {
+    result = {
         "source": source,
         "from": raw.get("from"),
         "confidence": _confidence(raw.get("confidence")),
         "confirmed_by": raw.get("confirmed_by") or None,
         "confirmed_at": raw.get("confirmed_at") or None,
     }
+    if raw.get("note"):
+        result["note"] = str(raw["note"])
+    return result
 
 
 def record_of_unknown_source(source):
@@ -173,6 +184,10 @@ def describe(raw):
         text = "Of unrecorded origin"
     if provenance.get("confirmed_by"):
         text += f", confirmed by {_person(provenance['confirmed_by'])}"
+    elif provenance.get("note"):
+        # The producer's reason for guessing, beside the field it concerns, for
+        # exactly as long as nobody has stood behind the value.
+        text += f" — {provenance['note']}"
     return text
 
 

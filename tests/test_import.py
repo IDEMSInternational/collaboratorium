@@ -709,6 +709,27 @@ activities:
     assert b"Released v0.23.0 with offline sync." in page.data
 
 
+def test_the_import_page_queue_row_handles_a_nested_summary():
+    """
+    The Import page is a Dash page with its own row builder, and it sliced the
+    description as a string too. An activity's summary is nested, so building the
+    row raised and the queue rendered empty — which is what the live server did.
+    """
+    from pantograph_import import page
+
+    def row(description):
+        item = {"id": 1, "name": "An activity", "table": "activities",
+                "action": "create", "subject": "Gabe", "run_id": "r",
+                "payload": {"values": {"description": description},
+                            "inferred": {}}}
+        return _text_of(page._row(item, "import"))
+
+    assert "Released v0.23.0" in row({"1": {"description": "Released v0.23.0",
+                                            "attachments": [{"name": "n", "url": "https://e.org"}]}})
+    assert "A plain summary" in row("A plain summary")
+    assert "An activity" in row({"1": {"attachments": []}})
+
+
 def test_declining_from_the_queue_sticks(client, deployment):
     _post(client, _file(GOOD_ACTIVITY, deployment))
     _post(client, "", step="stage")

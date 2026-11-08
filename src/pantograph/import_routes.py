@@ -198,25 +198,6 @@ _QUEUE = """
 """
 
 
-def _preview(value):
-    """
-    The first readable text in a proposed `description`, for the queue row.
-
-    A summary is a leaf of a static subform, so it arrives as nested mappings
-    (`{"1": {"description": "..."}}`), and older rows may still hold a bare
-    string. Slicing the nested form in the template was a server error that hid
-    the whole queue.
-    """
-    if isinstance(value, str):
-        return value.strip()
-    if isinstance(value, dict):
-        for inner in value.values():
-            found = _preview(inner)
-            if found:
-                return found
-    return ""
-
-
 def _csrf():
     if "csrf_token" not in session:
         session["csrf_token"] = secrets.token_hex(16)
@@ -299,7 +280,7 @@ def register_import_routes(server):
         ordered, total = staging.review_order()
         for items in ordered.values():
             for item in items:
-                item["preview"] = _preview(
+                item["preview"] = staging.preview_text(
                     (item.get("payload") or {}).get("values", {}).get("description"))
         return render_template_string(
             _QUEUE, groups=ordered, csrf_token=_csrf(), total=total)

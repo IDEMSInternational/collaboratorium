@@ -137,7 +137,8 @@ def _staged(report):
 
 
 def _row(item, p):
-    description = (item["payload"].get("values") or {}).get("description") or ""
+    description = staging.preview_text(
+        (item["payload"].get("values") or {}).get("description"))
     inferred = (item["payload"].get("inferred") or {}).items()
     waiting = item.get("waiting")
     return html.Tr([

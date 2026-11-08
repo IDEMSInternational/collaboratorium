@@ -192,7 +192,8 @@ def _queue(p):
 def _checked(config, text):
     return suggestions.check(
         text, contract.build(config), staging.current_names(config),
-        staging.pending_rows(), vocabulary=staging.tag_vocabulary(config))
+        staging.pending_rows(), vocabulary=staging.tag_vocabulary(config),
+        current_urls=staging.current_urls(config))
 
 
 def register_callbacks(app, config, page_id):

@@ -63,7 +63,9 @@ and the development is an activity under it.
 **Match the existing name exactly when the thing already exists.** This is the
 single most valuable thing a producer can get right. `R-Instat` is already
 there; `r-instat` is already there. Proposing `Development of R-Instat` creates
-a third. Check `snapshot.yaml` before you name anything.
+a third. Check `snapshot.yaml` before you name anything, and check it for the
+links you mean to attach too: a URL an existing record already carries means
+the work is already recorded, whatever it is called.
 
 ### The `Category:` prefix
 

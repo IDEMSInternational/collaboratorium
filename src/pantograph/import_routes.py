@@ -259,7 +259,8 @@ def register_import_routes(server):
 
         proposal = suggestions.check(
             text, contract.build(config), staging.current_names(config),
-            staging.pending_rows(), vocabulary=staging.tag_vocabulary(config))
+            staging.pending_rows(), vocabulary=staging.tag_vocabulary(config),
+            current_urls=staging.current_urls(config))
 
         if staging_step:
             person_id = get_person_id_for_user(session.get("user"))

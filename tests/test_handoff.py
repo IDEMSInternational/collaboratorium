@@ -326,3 +326,14 @@ def test_the_file_name_says_when_the_bundle_was_exported(app_config):
     late = datetime.datetime(2026, 12, 1, 17, 30, tzinfo=datetime.timezone.utc)
     assert handoff.filename(app_config, early) != handoff.filename(app_config, late)
     assert handoff.filename(app_config, early).endswith("-20261107-0905Z.zip")
+
+
+def test_producers_are_told_to_match_on_links_as_well_as_names(app_config):
+    """
+    Matching on names alone misses the same release under a different name,
+    which is the duplicate producers actually made.
+    """
+    text = handoff.build(app_config)["instructions.md"]
+    assert "Match before you create" in text
+    assert "search the" in text and "snapshot for each URL" in text
+    assert "`target:` update" in text

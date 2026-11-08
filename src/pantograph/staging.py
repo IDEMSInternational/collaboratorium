@@ -223,6 +223,25 @@ def _assign_group(cur, source_ref, group_id):
             f' AND group_id IS NULL', (group_id, source_ref))
 
 
+def preview_text(value):
+    """
+    The first readable text in a proposed `description`, for a queue row.
+
+    A summary is a leaf of a static subform, so it arrives as nested mappings
+    (`{"1": {"description": "..."}}`), and an older row may still hold a bare
+    string. Both queue pages used to slice it as text, which raised on the
+    nested form and left the queue empty.
+    """
+    if isinstance(value, str):
+        return value.strip()
+    if isinstance(value, dict):
+        for inner in value.values():
+            found = preview_text(inner)
+            if found:
+                return found
+    return ""
+
+
 def queue(state=PENDING, table=None):
     """Staged suggestions, newest group first, as dicts with payload parsed."""
     conn = db_connect()

@@ -167,8 +167,8 @@ _QUEUE = """
     {% for item in items %}
     <tr>
       <td><strong>{{ item.name }}</strong>
-        {% if item.payload.values.description %}
-        <div class="muted">{{ item.payload.values.description[:220] }}{{ '…' if item.payload.values.description|length > 220 }}</div>
+        {% if item.preview %}
+        <div class="muted">{{ item.preview[:220] }}{{ '…' if item.preview|length > 220 }}</div>
         {% endif %}
       </td>
       <td>{{ item.table }}<br><span class="muted">{{ item.action }}</span></td>
@@ -278,6 +278,10 @@ def register_import_routes(server):
     @login_required
     def import_queue():
         ordered, total = staging.review_order()
+        for items in ordered.values():
+            for item in items:
+                item["preview"] = staging.preview_text(
+                    (item.get("payload") or {}).get("values", {}).get("description"))
         return render_template_string(
             _QUEUE, groups=ordered, csrf_token=_csrf(), total=total)
 

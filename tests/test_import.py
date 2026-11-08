@@ -814,6 +814,33 @@ activities:
         {"name": "Pull request", "url": "https://example.org/pull/12"}]
 
 
+def test_an_attachment_can_be_flagged_as_a_guess_under_inferred(deployment):
+    """
+    `inferred: attachments:` used to warn that the record did not set
+    `attachments`, because the value lives in `description`, and the reason was
+    lost. It now lands on the element the reviewer confirms, saying which part.
+    """
+    body = """
+activities:
+  - name: Open App Builder v0.23.0 release
+    summary: Released v0.23.0 with offline sync.
+    attachments: [{name: Repository, url: "https://example.org/oab"}]
+    inferred:
+      attachments: repo name matches the project, not confirmed
+      summary: worked out from the release notes
+    initiatives: [R-Instat]
+    people: [Gabe Bolton]
+    source_ref: "github:oab#v0.23.0"
+"""
+    proposal = _check(_file(body, deployment), deployment)
+    record = proposal.stageable[0]
+    assert not any("inferred" in f.message for f in record.findings), \
+        [f.message for f in record.findings]
+    assert record.inferred["description"] == (
+        "attachments: repo name matches the project, not confirmed; "
+        "worked out from the release notes")
+
+
 def test_an_attachment_without_a_web_address_is_dropped_with_a_warning(deployment):
     body = """
 activities:
